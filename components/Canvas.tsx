@@ -35,13 +35,29 @@ export default function Canvas() {
     const container = canvasRef.current.parentElement
     if (!container) return
 
+    // ダークモードの検出
+    const isDark = document.documentElement.classList.contains('dark')
+    const bgColor = isDark ? '#1f2937' : '#f5f5f5'
+
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: container.clientWidth,
       height: container.clientHeight,
-      backgroundColor: '#f5f5f5',
+      backgroundColor: bgColor,
     })
 
     fabricCanvasRef.current = canvas
+
+    // ダークモード変更の監視
+    const observer = new MutationObserver(() => {
+      const isDark = document.documentElement.classList.contains('dark')
+      canvas.backgroundColor = isDark ? '#1f2937' : '#f5f5f5'
+      canvas.renderAll()
+    })
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0]
@@ -55,6 +71,7 @@ export default function Canvas() {
     resizeObserver.observe(container)
 
     return () => {
+      observer.disconnect()
       resizeObserver.disconnect()
       canvas.dispose()
     }
@@ -66,6 +83,13 @@ export default function Canvas() {
 
     canvas.selection = selectedTool === 'select'
     canvas.isDrawingMode = selectedTool === 'pencil'
+
+    // すべてのオブジェクトのselectable状態を更新
+    canvas.getObjects().forEach((obj) => {
+      obj.selectable = selectedTool === 'select'
+      obj.evented = selectedTool === 'select'
+    })
+    canvas.renderAll()
 
     if (selectedTool === 'pencil') {
       canvas.freeDrawingBrush.color = '#000000'
@@ -95,6 +119,8 @@ export default function Canvas() {
           fill: 'rgba(59, 130, 246, 0.5)',
           stroke: '#3b82f6',
           strokeWidth: 2,
+          selectable: false,
+          evented: false,
         })
         break
       case 'circle':
@@ -105,12 +131,16 @@ export default function Canvas() {
           fill: 'rgba(59, 130, 246, 0.5)',
           stroke: '#3b82f6',
           strokeWidth: 2,
+          selectable: false,
+          evented: false,
         })
         break
       case 'line':
         shape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
           stroke: '#3b82f6',
           strokeWidth: 2,
+          selectable: false,
+          evented: false,
         })
         break
     }
@@ -163,8 +193,15 @@ export default function Canvas() {
   const handleMouseUp = useCallback(() => {
     if (currentShape && selectedTool !== 'select' && selectedTool !== 'pencil') {
       const id = crypto.randomUUID()
-      // Store custom data using the data property
-      currentShape.set({ data: { id } })
+
+      // 描画完了後にオブジェクトを選択可能にする
+      currentShape.set({
+        data: { id },
+        selectable: true,
+        evented: true,
+        hasControls: true,
+        hasBorders: true,
+      })
 
       // Increment counter for this tool type
       shapeCounterRef.current[selectedTool] += 1
