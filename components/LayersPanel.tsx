@@ -1,6 +1,7 @@
 'use client'
 
 import { useCanvasStore } from '@/lib/store'
+import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon, TrashIcon } from '@/components/icons'
 
 export default function LayersPanel() {
   const { layers, removeLayer, toggleLayerVisibility, toggleLayerLock } = useCanvasStore()
@@ -22,7 +23,7 @@ export default function LayersPanel() {
                   title={layer.visible ? '非表示' : '表示'}
                   aria-label={layer.visible ? 'レイヤーを非表示にする' : 'レイヤーを表示する'}
                 >
-                  {layer.visible ? '👁️' : '🙈'}
+                  {layer.visible ? <EyeIcon size={16} /> : <EyeOffIcon size={16} />}
                 </button>
                 <span className="text-sm truncate">{layer.name}</span>
               </div>
@@ -33,7 +34,7 @@ export default function LayersPanel() {
                   title={layer.locked ? 'ロック解除' : 'ロック'}
                   aria-label={layer.locked ? 'レイヤーのロックを解除する' : 'レイヤーをロックする'}
                 >
-                  {layer.locked ? '🔒' : '🔓'}
+                  {layer.locked ? <LockIcon size={16} /> : <UnlockIcon size={16} />}
                 </button>
                 <button
                   onClick={() => removeLayer(layer.id)}
@@ -41,7 +42,7 @@ export default function LayersPanel() {
                   title="削除"
                   aria-label={`${layer.name}を削除する`}
                 >
-                  🗑️
+                  <TrashIcon size={16} />
                 </button>
               </div>
             </div>
