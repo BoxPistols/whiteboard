@@ -22,6 +22,25 @@ const toolToNodeType = (tool: string): NodeType => {
   }
 }
 
+// 色をhex形式に変換するヘルパー関数
+const colorToHex = (color: string | fabric.Pattern | fabric.Gradient | undefined): string => {
+  if (!color || typeof color !== 'string') return '#000000'
+
+  // すでにhex形式の場合
+  if (color.startsWith('#')) return color
+
+  // rgb/rgba形式の場合
+  const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/)
+  if (rgbaMatch) {
+    const r = parseInt(rgbaMatch[1], 10)
+    const g = parseInt(rgbaMatch[2], 10)
+    const b = parseInt(rgbaMatch[3], 10)
+    return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
+  }
+
+  return color
+}
+
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
@@ -377,10 +396,10 @@ export default function Canvas() {
       if (selected && selected.data?.id) {
         setSelectedObjectId(selected.data.id)
 
-        // プロパティを更新
+        // プロパティを更新（色をhex形式に変換）
         setSelectedObjectProps({
-          fill: selected.fill as string,
-          stroke: selected.stroke as string,
+          fill: colorToHex(selected.fill),
+          stroke: colorToHex(selected.stroke),
           strokeWidth: selected.strokeWidth,
           left: selected.left,
           top: selected.top,
@@ -405,8 +424,8 @@ export default function Canvas() {
       const obj = e.target
       if (obj && obj.data?.id) {
         setSelectedObjectProps({
-          fill: obj.fill as string,
-          stroke: obj.stroke as string,
+          fill: colorToHex(obj.fill),
+          stroke: colorToHex(obj.stroke),
           strokeWidth: obj.strokeWidth,
           left: obj.left,
           top: obj.top,
