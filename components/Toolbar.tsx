@@ -8,6 +8,7 @@ import {
   RectangleIcon,
   CircleIcon,
   LineIcon,
+  ArrowIcon,
   TextIcon,
   PencilIcon,
   SunIcon,
@@ -23,6 +24,7 @@ const tools: {
   { id: 'rectangle', label: '矩形', icon: RectangleIcon },
   { id: 'circle', label: '円', icon: CircleIcon },
   { id: 'line', label: '線', icon: LineIcon },
+  { id: 'arrow', label: '矢印', icon: ArrowIcon },
   { id: 'text', label: 'テキスト', icon: TextIcon },
   { id: 'pencil', label: '鉛筆', icon: PencilIcon },
 ]

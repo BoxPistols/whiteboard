@@ -12,6 +12,7 @@ interface ObjectProperties {
   height?: number
   scaleX?: number
   scaleY?: number
+  opacity?: number
 }
 
 interface CanvasStore {

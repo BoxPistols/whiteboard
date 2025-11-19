@@ -66,7 +66,7 @@ export default function Canvas() {
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
   const [currentShape, setCurrentShape] = useState<fabric.Object | null>(null)
-  const shapeCounterRef = useRef({ rectangle: 0, circle: 0, line: 0, text: 0, pencil: 0 })
+  const shapeCounterRef = useRef({ rectangle: 0, circle: 0, line: 0, arrow: 0, text: 0, pencil: 0 })
 
   // 選択されたオブジェクトを削除（複数選択対応）
   const deleteSelectedObject = useCallback(() => {
@@ -304,6 +304,25 @@ export default function Canvas() {
           evented: false,
         })
         break
+      case 'arrow':
+        // 矢印は線と三角形のグループとして作成
+        const line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+          stroke: '#3b82f6',
+          strokeWidth: 2,
+        })
+        const triangle = new fabric.Triangle({
+          left: pointer.x,
+          top: pointer.y,
+          width: 10,
+          height: 10,
+          fill: '#3b82f6',
+          angle: 0,
+        })
+        shape = new fabric.Group([line, triangle], {
+          selectable: false,
+          evented: false,
+        })
+        break
     }
 
     if (shape) {
@@ -344,6 +363,28 @@ export default function Canvas() {
       case 'line':
         if (currentShape instanceof fabric.Line) {
           currentShape.set({ x2: pointer.x, y2: pointer.y })
+        }
+        break
+      case 'arrow':
+        if (currentShape instanceof fabric.Group) {
+          const items = currentShape.getObjects()
+          const line = items[0] as fabric.Line
+          const triangle = items[1] as fabric.Triangle
+
+          // 線を更新
+          const dx = pointer.x - startPoint.x
+          const dy = pointer.y - startPoint.y
+          line.set({ x2: dx, y2: dy })
+
+          // 三角形の位置と角度を計算
+          const angle = (Math.atan2(dy, dx) * 180) / Math.PI + 90
+          triangle.set({
+            left: dx,
+            top: dy,
+            angle: angle,
+          })
+
+          currentShape.setCoords()
         }
         break
     }
@@ -415,6 +456,7 @@ export default function Canvas() {
           height: selected.height ? selected.height * (selected.scaleY || 1) : 0,
           scaleX: selected.scaleX,
           scaleY: selected.scaleY,
+          opacity: selected.opacity !== undefined ? selected.opacity : 1,
         })
       } else {
         setSelectedObjectId(null)
@@ -441,6 +483,7 @@ export default function Canvas() {
           height: obj.height ? obj.height * (obj.scaleY || 1) : 0,
           scaleX: obj.scaleX,
           scaleY: obj.scaleY,
+          opacity: obj.opacity !== undefined ? obj.opacity : 1,
         })
       }
     }

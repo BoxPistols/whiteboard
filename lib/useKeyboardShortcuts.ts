@@ -34,6 +34,9 @@ export const useKeyboardShortcuts = ({
         case 'l':
           setSelectedTool('line')
           break
+        case 'a':
+          setSelectedTool('arrow')
+          break
         case 't':
           setSelectedTool('text')
           break

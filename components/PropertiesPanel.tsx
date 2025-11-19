@@ -59,6 +59,22 @@ export default function PropertiesPanel() {
             />
           </div>
         )}
+        {selectedObjectProps.opacity !== undefined && (
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
+              透明度: {Math.round((selectedObjectProps.opacity || 1) * 100)}%
+            </label>
+            <input
+              type="range"
+              className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+              value={selectedObjectProps.opacity || 1}
+              onChange={(e) => updateObjectProperty('opacity', parseFloat(e.target.value))}
+              min={0}
+              max={1}
+              step={0.01}
+            />
+          </div>
+        )}
         {selectedObjectProps.left !== undefined && (
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">

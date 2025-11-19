@@ -1,4 +1,4 @@
-export type Tool = 'select' | 'rectangle' | 'circle' | 'line' | 'text' | 'pencil'
+export type Tool = 'select' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'pencil'
 
 // Figma Plugin API互換のノード型定義
 export type NodeType = 'RECTANGLE' | 'ELLIPSE' | 'LINE' | 'TEXT' | 'VECTOR'
