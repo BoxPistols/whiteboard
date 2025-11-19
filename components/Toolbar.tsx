@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useCanvasStore } from '@/lib/store'
 import type { Tool } from '@/types'
+import ExportImportControls from './ExportImportControls'
 import {
   SelectIcon,
   RectangleIcon,
@@ -75,14 +76,17 @@ export default function Toolbar() {
             })}
           </div>
         </div>
-        <button
-          onClick={toggleDarkMode}
-          className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
-          title={isDark ? 'ライトモード' : 'ダークモード'}
-          aria-label={isDark ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
-        >
-          {isDark ? <SunIcon /> : <MoonIcon />}
-        </button>
+        <div className="flex items-center gap-2">
+          <ExportImportControls />
+          <button
+            onClick={toggleDarkMode}
+            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
+            title={isDark ? 'ライトモード' : 'ダークモード'}
+            aria-label={isDark ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
+          >
+            {isDark ? <SunIcon /> : <MoonIcon />}
+          </button>
+        </div>
       </div>
     </div>
   )

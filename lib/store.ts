@@ -28,6 +28,7 @@ interface CanvasStore {
   removeLayer: (id: string) => void
   toggleLayerVisibility: (id: string) => void
   toggleLayerLock: (id: string) => void
+  reorderLayers: (startIndex: number, endIndex: number) => void
   setZoom: (zoom: number) => void
   setFabricCanvas: (canvas: fabric.Canvas | null) => void
   setSelectedObjectProps: (props: ObjectProperties | null) => void
@@ -44,6 +45,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
+<<<<<<< HEAD
   removeLayer: (id) =>
     set((state) => ({
       layers: state.layers.filter((layer) => layer.id !== id),
@@ -60,6 +62,56 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         layer.id === id ? { ...layer, locked: !layer.locked } : layer
       ),
     })),
+=======
+  removeLayer: (id) => set((state) => ({
+    layers: state.layers.filter((layer) => layer.id !== id),
+  })),
+  toggleLayerVisibility: (id) => set((state) => {
+    const { fabricCanvas } = get()
+    const updatedLayers = state.layers.map((layer) =>
+      layer.id === id ? { ...layer, visible: !layer.visible } : layer
+    )
+
+    // Fabric.jsオブジェクトの表示/非表示を切り替え
+    if (fabricCanvas) {
+      const layer = state.layers.find(l => l.id === id)
+      if (layer) {
+        const obj = fabricCanvas.getObjects().find(o => o.data?.id === layer.objectId)
+        if (obj) {
+          obj.visible = !layer.visible
+          fabricCanvas.renderAll()
+        }
+      }
+    }
+
+    return { layers: updatedLayers }
+  }),
+  toggleLayerLock: (id) => set((state) => ({
+    layers: state.layers.map((layer) =>
+      layer.id === id ? { ...layer, locked: !layer.locked } : layer
+    ),
+  })),
+  reorderLayers: (startIndex, endIndex) => set((state) => {
+    const result = Array.from(state.layers)
+    const [removed] = result.splice(startIndex, 1)
+    result.splice(endIndex, 0, removed)
+
+    // Fabric.jsでのオブジェクトの描画順序も更新
+    const { fabricCanvas } = get()
+    if (fabricCanvas) {
+      // レイヤーの順番に基づいてオブジェクトを再配置
+      result.forEach((layer, index) => {
+        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+        if (obj) {
+          fabricCanvas.moveTo(obj, result.length - 1 - index) // レイヤーパネルと逆順
+        }
+      })
+      fabricCanvas.renderAll()
+    }
+
+    return { layers: result }
+  }),
+>>>>>>> f94431b (update)
   setZoom: (zoom) => set({ zoom }),
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),

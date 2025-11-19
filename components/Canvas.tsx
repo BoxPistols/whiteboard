@@ -133,11 +133,126 @@ export default function Canvas() {
     }
   }, [selectedObjectId, layers, addLayer, setSelectedObjectId])
 
+  // グループ化機能
+  const groupSelectedObjects = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeSelection = canvas.getActiveObject()
+    if (!activeSelection || activeSelection.type !== 'activeSelection') return
+
+    const objects = (activeSelection as fabric.ActiveSelection).getObjects()
+    if (objects.length < 2) return
+
+    const id = crypto.randomUUID()
+
+    // グループを作成
+    const group = new fabric.Group(objects, {
+      data: { id },
+    })
+
+    // 元のオブジェクトを削除
+    objects.forEach(obj => {
+      if (obj.data?.id) {
+        removeLayer(obj.data.id)
+      }
+      canvas.remove(obj)
+    })
+
+    // グループを追加
+    canvas.add(group)
+    canvas.setActiveObject(group)
+    canvas.renderAll()
+
+    // グループレイヤーを追加
+    shapeCounterRef.current.rectangle += 1
+    const counter = shapeCounterRef.current.rectangle
+    addLayer({
+      id,
+      name: `group ${counter}`,
+      visible: true,
+      locked: false,
+      objectId: id,
+      type: 'VECTOR',
+    })
+
+    setSelectedObjectId(id)
+  }, [addLayer, removeLayer, setSelectedObjectId])
+
+  // グループ解除機能
+  const ungroupSelectedObjects = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (!activeObject || activeObject.type !== 'group') return
+
+    const group = activeObject as fabric.Group
+    const items = group._objects
+    const groupId = group.data?.id
+
+    // グループを削除
+    if (groupId) {
+      removeLayer(groupId)
+    }
+    group._restoreObjectsState()
+    canvas.remove(group)
+
+    // 個別のオブジェクトを復元
+    const newSelection: fabric.Object[] = []
+    items.forEach((obj: fabric.Object) => {
+      const id = crypto.randomUUID()
+      obj.set('data', { id })
+      canvas.add(obj)
+      newSelection.push(obj)
+
+      // オブジェクトのタイプを判定してレイヤーを追加
+      let type: NodeType = 'VECTOR'
+      let toolName = 'object'
+      if (obj instanceof fabric.Rect) {
+        type = 'RECTANGLE'
+        toolName = 'rectangle'
+      } else if (obj instanceof fabric.Circle) {
+        type = 'ELLIPSE'
+        toolName = 'circle'
+      } else if (obj instanceof fabric.Line) {
+        type = 'LINE'
+        toolName = 'line'
+      } else if (obj instanceof fabric.IText) {
+        type = 'TEXT'
+        toolName = 'text'
+      }
+
+      shapeCounterRef.current.rectangle += 1
+      const counter = shapeCounterRef.current.rectangle
+      addLayer({
+        id,
+        name: `${toolName} ${counter}`,
+        visible: true,
+        locked: false,
+        objectId: id,
+        type,
+      })
+    })
+
+    // 解除後のオブジェクトを選択
+    if (newSelection.length > 0) {
+      const selection = new fabric.ActiveSelection(newSelection, {
+        canvas: canvas
+      })
+      canvas.setActiveObject(selection)
+    }
+
+    canvas.renderAll()
+  }, [addLayer, removeLayer])
+
   // キーボードショートカットの設定
   useKeyboardShortcuts({
     setSelectedTool,
     deleteSelectedObject,
     duplicateSelectedObject,
+    groupSelectedObjects,
+    ungroupSelectedObjects,
   })
 
   useEffect(() => {
@@ -394,16 +509,190 @@ export default function Canvas() {
       }
 
       canvas.renderAll()
+<<<<<<< HEAD
     },
     [isDrawing, startPoint, currentShape, selectedTool]
   )
+=======
+
+      shapeCounterRef.current.text += 1
+      const counter = shapeCounterRef.current.text
+
+      addLayer({
+        id,
+        name: `text ${counter}`,
+        visible: true,
+        locked: false,
+        objectId: id,
+        type: 'TEXT',
+      })
+
+      setSelectedObjectId(id)
+
+      // テキスト編集終了後にselectツールに自動切替
+      text.on('editing:exited', () => {
+        setSelectedTool('select')
+      })
+
+      return
+    }
+
+    setIsDrawing(true)
+    setStartPoint({ x: pointer.x, y: pointer.y })
+
+    let shape: fabric.Object | null = null
+
+    switch (selectedTool) {
+      case 'rectangle':
+        shape = new fabric.Rect({
+          left: pointer.x,
+          top: pointer.y,
+          width: 0,
+          height: 0,
+          fill: 'rgba(59, 130, 246, 0.5)',
+          stroke: '#3b82f6',
+          strokeWidth: 2,
+          selectable: false,
+          evented: false,
+        })
+        break
+      case 'circle':
+        shape = new fabric.Circle({
+          left: pointer.x,
+          top: pointer.y,
+          radius: 0,
+          fill: 'rgba(59, 130, 246, 0.5)',
+          stroke: '#3b82f6',
+          strokeWidth: 2,
+          selectable: false,
+          evented: false,
+        })
+        break
+      case 'line':
+        shape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+          stroke: '#3b82f6',
+          strokeWidth: 2,
+          selectable: false,
+          evented: false,
+        })
+        break
+      case 'arrow':
+        // 矢印は線と三角形のグループとして作成
+        shape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+          stroke: '#3b82f6',
+          strokeWidth: 2,
+          selectable: false,
+          evented: false,
+        })
+        break
+    }
+
+    if (shape) {
+      canvas.add(shape)
+      setCurrentShape(shape)
+    }
+  }, [selectedTool, addLayer, setSelectedObjectId, setSelectedTool])
+
+  const handleMouseMove = useCallback((e: fabric.IEvent<Event>) => {
+    if (!isDrawing || !startPoint || !currentShape) return
+
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const pointer = canvas.getPointer(e.e as MouseEvent)
+
+    switch (selectedTool) {
+      case 'rectangle':
+        if (currentShape instanceof fabric.Rect) {
+          const width = pointer.x - startPoint.x
+          const height = pointer.y - startPoint.y
+          currentShape.set({
+            width: Math.abs(width),
+            height: Math.abs(height),
+            left: width > 0 ? startPoint.x : pointer.x,
+            top: height > 0 ? startPoint.y : pointer.y,
+          })
+        }
+        break
+      case 'circle':
+        if (currentShape instanceof fabric.Circle) {
+          const radius = Math.sqrt(
+            Math.pow(pointer.x - startPoint.x, 2) + Math.pow(pointer.y - startPoint.y, 2)
+          )
+          currentShape.set({ radius: radius / 2 })
+        }
+        break
+      case 'line':
+        if (currentShape instanceof fabric.Line) {
+          currentShape.set({ x2: pointer.x, y2: pointer.y })
+        }
+        break
+      case 'arrow':
+        if (currentShape instanceof fabric.Line) {
+          currentShape.set({ x2: pointer.x, y2: pointer.y })
+        }
+        break
+    }
+
+    canvas.renderAll()
+  }, [isDrawing, startPoint, currentShape, selectedTool])
+>>>>>>> f94431b (update)
 
   const handleMouseUp = useCallback(() => {
     if (currentShape && selectedTool !== 'select' && selectedTool !== 'pencil') {
       const id = crypto.randomUUID()
+      const canvas = fabricCanvasRef.current
+      let finalShape = currentShape
+
+      // 矢印の場合、線の終点に三角形を追加してグループ化
+      if (selectedTool === 'arrow' && currentShape instanceof fabric.Line && canvas) {
+        const x1 = currentShape.x1 || 0
+        const y1 = currentShape.y1 || 0
+        const x2 = currentShape.x2 || 0
+        const y2 = currentShape.y2 || 0
+
+        // 矢印の角度を計算
+        const angle = Math.atan2(y2 - y1, x2 - x1)
+
+        // 線を作成
+        const line = new fabric.Line([x1, y1, x2, y2], {
+          stroke: '#3b82f6',
+          strokeWidth: 2,
+          originX: 'left',
+          originY: 'top',
+        })
+
+        // 三角形（矢印の頭）を作成
+        const headLength = 15
+        const headWidth = 10
+
+        // 三角形の頂点を計算
+        const triangle = new fabric.Triangle({
+          left: x2,
+          top: y2,
+          width: headWidth,
+          height: headLength,
+          fill: '#3b82f6',
+          angle: (angle * 180) / Math.PI + 90,
+          originX: 'center',
+          originY: 'center',
+        })
+
+        // グループ化
+        finalShape = new fabric.Group([line, triangle], {
+          selectable: true,
+          evented: true,
+          hasControls: true,
+          hasBorders: true,
+        })
+
+        // 元の線を削除
+        canvas.remove(currentShape)
+        canvas.add(finalShape)
+      }
 
       // 描画完了後にオブジェクトを選択可能にする
-      currentShape.set({
+      finalShape.set({
         data: { id },
         selectable: true,
         evented: true,
@@ -429,9 +718,8 @@ export default function Canvas() {
       setSelectedObjectId(id)
 
       // 作成したオブジェクトを選択状態にする
-      const canvas = fabricCanvasRef.current
       if (canvas) {
-        canvas.setActiveObject(currentShape)
+        canvas.setActiveObject(finalShape)
         canvas.renderAll()
       }
     }
