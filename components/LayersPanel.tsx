@@ -20,6 +20,7 @@ export default function LayersPanel() {
                   onClick={() => toggleLayerVisibility(layer.id)}
                   className="text-gray-600 hover:text-gray-800"
                   title={layer.visible ? '非表示' : '表示'}
+                  aria-label={layer.visible ? 'レイヤーを非表示にする' : 'レイヤーを表示する'}
                 >
                   {layer.visible ? '👁️' : '🙈'}
                 </button>
@@ -30,6 +31,7 @@ export default function LayersPanel() {
                   onClick={() => toggleLayerLock(layer.id)}
                   className="text-gray-600 hover:text-gray-800"
                   title={layer.locked ? 'ロック解除' : 'ロック'}
+                  aria-label={layer.locked ? 'レイヤーのロックを解除する' : 'レイヤーをロックする'}
                 >
                   {layer.locked ? '🔒' : '🔓'}
                 </button>
@@ -37,6 +39,7 @@ export default function LayersPanel() {
                   onClick={() => removeLayer(layer.id)}
                   className="text-red-600 hover:text-red-800"
                   title="削除"
+                  aria-label={`${layer.name}を削除する`}
                 >
                   🗑️
                 </button>
