@@ -45,24 +45,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
-<<<<<<< HEAD
-  removeLayer: (id) =>
-    set((state) => ({
-      layers: state.layers.filter((layer) => layer.id !== id),
-    })),
-  toggleLayerVisibility: (id) =>
-    set((state) => ({
-      layers: state.layers.map((layer) =>
-        layer.id === id ? { ...layer, visible: !layer.visible } : layer
-      ),
-    })),
-  toggleLayerLock: (id) =>
-    set((state) => ({
-      layers: state.layers.map((layer) =>
-        layer.id === id ? { ...layer, locked: !layer.locked } : layer
-      ),
-    })),
-=======
   removeLayer: (id) => set((state) => ({
     layers: state.layers.filter((layer) => layer.id !== id),
   })),
@@ -111,7 +93,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
     return { layers: result }
   }),
->>>>>>> f94431b (update)
   setZoom: (zoom) => set({ zoom }),
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
