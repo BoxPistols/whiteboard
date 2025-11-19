@@ -25,7 +25,17 @@ const toolToNodeType = (tool: string): NodeType => {
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
-  const { selectedTool, setSelectedTool, setSelectedObjectId, addLayer, removeLayer, layers, selectedObjectId } = useCanvasStore()
+  const {
+    selectedTool,
+    setSelectedTool,
+    setSelectedObjectId,
+    addLayer,
+    removeLayer,
+    layers,
+    selectedObjectId,
+    setFabricCanvas,
+    setSelectedObjectProps
+  } = useCanvasStore()
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
   const [currentShape, setCurrentShape] = useState<fabric.Object | null>(null)
@@ -119,6 +129,7 @@ export default function Canvas() {
     })
 
     fabricCanvasRef.current = canvas
+    setFabricCanvas(canvas)
 
     // ダークモード変更の監視
     const observer = new MutationObserver(() => {
@@ -147,7 +158,9 @@ export default function Canvas() {
       observer.disconnect()
       resizeObserver.disconnect()
       canvas.dispose()
+      setFabricCanvas(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -363,13 +376,46 @@ export default function Canvas() {
       const selected = e.selected?.[0]
       if (selected && selected.data?.id) {
         setSelectedObjectId(selected.data.id)
+
+        // プロパティを更新
+        setSelectedObjectProps({
+          fill: selected.fill as string,
+          stroke: selected.stroke as string,
+          strokeWidth: selected.strokeWidth,
+          left: selected.left,
+          top: selected.top,
+          width: selected.width ? selected.width * (selected.scaleX || 1) : 0,
+          height: selected.height ? selected.height * (selected.scaleY || 1) : 0,
+          scaleX: selected.scaleX,
+          scaleY: selected.scaleY,
+        })
       } else {
         setSelectedObjectId(null)
+        setSelectedObjectProps(null)
       }
     }
 
     const handleDeselection = () => {
       setSelectedObjectId(null)
+      setSelectedObjectProps(null)
+    }
+
+    // オブジェクト変更時のイベントハンドラ
+    const handleObjectModified = (e: fabric.IEvent) => {
+      const obj = e.target
+      if (obj && obj.data?.id) {
+        setSelectedObjectProps({
+          fill: obj.fill as string,
+          stroke: obj.stroke as string,
+          strokeWidth: obj.strokeWidth,
+          left: obj.left,
+          top: obj.top,
+          width: obj.width ? obj.width * (obj.scaleX || 1) : 0,
+          height: obj.height ? obj.height * (obj.scaleY || 1) : 0,
+          scaleX: obj.scaleX,
+          scaleY: obj.scaleY,
+        })
+      }
     }
 
     canvas.on('mouse:down', handleMouseDown)
@@ -378,6 +424,9 @@ export default function Canvas() {
     canvas.on('selection:created', handleSelection)
     canvas.on('selection:updated', handleSelection)
     canvas.on('selection:cleared', handleDeselection)
+    canvas.on('object:modified', handleObjectModified)
+    canvas.on('object:scaled', handleObjectModified)
+    canvas.on('object:moved', handleObjectModified)
 
     return () => {
       canvas.off('mouse:down', handleMouseDown)
@@ -386,8 +435,11 @@ export default function Canvas() {
       canvas.off('selection:created', handleSelection)
       canvas.off('selection:updated', handleSelection)
       canvas.off('selection:cleared', handleDeselection)
+      canvas.off('object:modified', handleObjectModified)
+      canvas.off('object:scaled', handleObjectModified)
+      canvas.off('object:moved', handleObjectModified)
     }
-  }, [handleMouseDown, handleMouseMove, handleMouseUp, setSelectedObjectId])
+  }, [handleMouseDown, handleMouseMove, handleMouseUp, setSelectedObjectId, setSelectedObjectProps])
 
   // localStorage初期読み込み（初回のみ）
   const hasLoadedRef = useRef(false)

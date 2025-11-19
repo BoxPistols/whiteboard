@@ -3,13 +3,22 @@
 import { useCanvasStore } from '@/lib/store'
 
 export default function PropertiesPanel() {
-  const { selectedObjectId } = useCanvasStore()
+  const { selectedObjectId, selectedObjectProps, updateObjectProperty } = useCanvasStore()
+
+  if (!selectedObjectId || !selectedObjectProps) {
+    return (
+      <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2">
+        <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">プロパティ</h2>
+        <p className="text-gray-500 dark:text-gray-400 text-xs px-1">オブジェクトを選択してください</p>
+      </div>
+    )
+  }
 
   return (
     <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2">
       <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">プロパティ</h2>
-      {selectedObjectId ? (
-        <div className="space-y-2">
+      <div className="space-y-2">
+        {selectedObjectProps.fill && (
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               塗りつぶし
@@ -17,9 +26,12 @@ export default function PropertiesPanel() {
             <input
               type="color"
               className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-              defaultValue="#3b82f6"
+              value={selectedObjectProps.fill}
+              onChange={(e) => updateObjectProperty('fill', e.target.value)}
             />
           </div>
+        )}
+        {selectedObjectProps.stroke && (
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               線の色
@@ -27,9 +39,12 @@ export default function PropertiesPanel() {
             <input
               type="color"
               className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-              defaultValue="#3b82f6"
+              value={selectedObjectProps.stroke}
+              onChange={(e) => updateObjectProperty('stroke', e.target.value)}
             />
           </div>
+        )}
+        {selectedObjectProps.strokeWidth !== undefined && (
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               線の太さ
@@ -37,11 +52,14 @@ export default function PropertiesPanel() {
             <input
               type="number"
               className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              defaultValue={2}
+              value={Math.round(selectedObjectProps.strokeWidth)}
+              onChange={(e) => updateObjectProperty('strokeWidth', parseInt(e.target.value, 10))}
               min={1}
               max={20}
             />
           </div>
+        )}
+        {selectedObjectProps.left !== undefined && (
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               X座標
@@ -49,9 +67,12 @@ export default function PropertiesPanel() {
             <input
               type="number"
               className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              defaultValue={0}
+              value={Math.round(selectedObjectProps.left)}
+              onChange={(e) => updateObjectProperty('left', parseInt(e.target.value, 10))}
             />
           </div>
+        )}
+        {selectedObjectProps.top !== undefined && (
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               Y座標
@@ -59,9 +80,12 @@ export default function PropertiesPanel() {
             <input
               type="number"
               className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              defaultValue={0}
+              value={Math.round(selectedObjectProps.top)}
+              onChange={(e) => updateObjectProperty('top', parseInt(e.target.value, 10))}
             />
           </div>
+        )}
+        {selectedObjectProps.width !== undefined && (
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               幅
@@ -69,9 +93,13 @@ export default function PropertiesPanel() {
             <input
               type="number"
               className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              defaultValue={100}
+              value={Math.round(selectedObjectProps.width)}
+              onChange={(e) => updateObjectProperty('width', parseInt(e.target.value, 10))}
+              min={1}
             />
           </div>
+        )}
+        {selectedObjectProps.height !== undefined && (
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               高さ
@@ -79,13 +107,13 @@ export default function PropertiesPanel() {
             <input
               type="number"
               className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-              defaultValue={100}
+              value={Math.round(selectedObjectProps.height)}
+              onChange={(e) => updateObjectProperty('height', parseInt(e.target.value, 10))}
+              min={1}
             />
           </div>
-        </div>
-      ) : (
-        <p className="text-gray-500 dark:text-gray-400 text-xs px-1">オブジェクトを選択してください</p>
-      )}
+        )}
+      </div>
     </div>
   )
 }
