@@ -5,7 +5,15 @@ import { useCanvasStore } from '@/lib/store'
 import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon, TrashIcon } from '@/components/icons'
 
 export default function LayersPanel() {
-  const { layers, removeLayer, toggleLayerVisibility, toggleLayerLock, reorderLayers, setSelectedObjectId, fabricCanvas } = useCanvasStore()
+  const {
+    layers,
+    removeLayer,
+    toggleLayerVisibility,
+    toggleLayerLock,
+    reorderLayers,
+    setSelectedObjectId,
+    fabricCanvas,
+  } = useCanvasStore()
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
@@ -34,9 +42,9 @@ export default function LayersPanel() {
     setDragOverIndex(null)
   }
 
-  const selectLayer = (layer: typeof layers[0]) => {
+  const selectLayer = (layer: (typeof layers)[0]) => {
     if (!fabricCanvas) return
-    const obj = fabricCanvas.getObjects().find(o => o.data?.id === layer.objectId)
+    const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
     if (obj) {
       fabricCanvas.setActiveObject(obj)
       fabricCanvas.renderAll()
@@ -74,7 +82,9 @@ export default function LayersPanel() {
                 >
                   {layer.visible ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
                 </button>
-                <span className="text-xs truncate text-gray-900 dark:text-gray-100 select-none">{layer.name}</span>
+                <span className="text-xs truncate text-gray-900 dark:text-gray-100 select-none">
+                  {layer.name}
+                </span>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 <button

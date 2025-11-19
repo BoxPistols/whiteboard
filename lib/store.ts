@@ -67,54 +67,58 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
   addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
-  removeLayer: (id) => set((state) => ({
-    layers: state.layers.filter((layer) => layer.id !== id),
-  })),
-  toggleLayerVisibility: (id) => set((state) => {
-    const { fabricCanvas } = get()
-    const updatedLayers = state.layers.map((layer) =>
-      layer.id === id ? { ...layer, visible: !layer.visible } : layer
-    )
+  removeLayer: (id) =>
+    set((state) => ({
+      layers: state.layers.filter((layer) => layer.id !== id),
+    })),
+  toggleLayerVisibility: (id) =>
+    set((state) => {
+      const { fabricCanvas } = get()
+      const updatedLayers = state.layers.map((layer) =>
+        layer.id === id ? { ...layer, visible: !layer.visible } : layer
+      )
 
-    // Fabric.jsオブジェクトの表示/非表示を切り替え
-    if (fabricCanvas) {
-      const layer = state.layers.find(l => l.id === id)
-      if (layer) {
-        const obj = fabricCanvas.getObjects().find(o => o.data?.id === layer.objectId)
-        if (obj) {
-          obj.visible = !layer.visible
-          fabricCanvas.renderAll()
+      // Fabric.jsオブジェクトの表示/非表示を切り替え
+      if (fabricCanvas) {
+        const layer = state.layers.find((l) => l.id === id)
+        if (layer) {
+          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+          if (obj) {
+            obj.visible = !layer.visible
+            fabricCanvas.renderAll()
+          }
         }
       }
-    }
 
-    return { layers: updatedLayers }
-  }),
-  toggleLayerLock: (id) => set((state) => ({
-    layers: state.layers.map((layer) =>
-      layer.id === id ? { ...layer, locked: !layer.locked } : layer
-    ),
-  })),
-  reorderLayers: (startIndex, endIndex) => set((state) => {
-    const result = Array.from(state.layers)
-    const [removed] = result.splice(startIndex, 1)
-    result.splice(endIndex, 0, removed)
+      return { layers: updatedLayers }
+    }),
+  toggleLayerLock: (id) =>
+    set((state) => ({
+      layers: state.layers.map((layer) =>
+        layer.id === id ? { ...layer, locked: !layer.locked } : layer
+      ),
+    })),
+  reorderLayers: (startIndex, endIndex) =>
+    set((state) => {
+      const result = Array.from(state.layers)
+      const [removed] = result.splice(startIndex, 1)
+      result.splice(endIndex, 0, removed)
 
-    // Fabric.jsでのオブジェクトの描画順序も更新
-    const { fabricCanvas } = get()
-    if (fabricCanvas) {
-      // レイヤーの順番に基づいてオブジェクトを再配置
-      result.forEach((layer, index) => {
-        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
-        if (obj) {
-          fabricCanvas.moveTo(obj, result.length - 1 - index) // レイヤーパネルと逆順
-        }
-      })
-      fabricCanvas.renderAll()
-    }
+      // Fabric.jsでのオブジェクトの描画順序も更新
+      const { fabricCanvas } = get()
+      if (fabricCanvas) {
+        // レイヤーの順番に基づいてオブジェクトを再配置
+        result.forEach((layer, index) => {
+          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+          if (obj) {
+            fabricCanvas.moveTo(obj, result.length - 1 - index) // レイヤーパネルと逆順
+          }
+        })
+        fabricCanvas.renderAll()
+      }
 
-    return { layers: result }
-  }),
+      return { layers: result }
+    }),
   setZoom: (zoom) => set({ zoom }),
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),

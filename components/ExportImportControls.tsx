@@ -15,7 +15,7 @@ export default function ExportImportControls() {
       canvas: fabricCanvas.toJSON(['data']),
       layers: layers,
       version: '1.0.0',
-      exportedAt: new Date().toISOString()
+      exportedAt: new Date().toISOString(),
     }
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
