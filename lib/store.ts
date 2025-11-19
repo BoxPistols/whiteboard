@@ -15,6 +15,13 @@ interface ObjectProperties {
   opacity?: number
 }
 
+interface Page {
+  id: string
+  name: string
+  canvasData: string | null
+  layers: Layer[]
+}
+
 interface CanvasStore {
   selectedTool: Tool
   selectedObjectId: string | null
@@ -22,6 +29,9 @@ interface CanvasStore {
   zoom: number
   fabricCanvas: fabric.Canvas | null
   selectedObjectProps: ObjectProperties | null
+  clipboard: fabric.Object | null
+  pages: Page[]
+  currentPageId: string
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -32,7 +42,15 @@ interface CanvasStore {
   setFabricCanvas: (canvas: fabric.Canvas | null) => void
   setSelectedObjectProps: (props: ObjectProperties | null) => void
   updateObjectProperty: (key: keyof ObjectProperties, value: number | string) => void
+  setClipboard: (obj: fabric.Object | null) => void
+  addPage: (name: string) => void
+  removePage: (id: string) => void
+  setCurrentPage: (id: string) => void
+  updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
+  setLayers: (layers: Layer[]) => void
 }
+
+const defaultPageId = 'page-1'
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
@@ -41,8 +59,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   zoom: 100,
   fabricCanvas: null,
   selectedObjectProps: null,
+  clipboard: null,
+  pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
+  currentPageId: defaultPageId,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
+  setClipboard: (obj) => set({ clipboard: obj }),
   addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
   removeLayer: (id) =>
     set((state) => ({
@@ -63,6 +85,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setZoom: (zoom) => set({ zoom }),
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
+  setLayers: (layers) => set({ layers }),
   updateObjectProperty: (key, value) => {
     const { fabricCanvas, selectedObjectId, selectedObjectProps } = get()
     if (!fabricCanvas || !selectedObjectId) return
@@ -112,4 +135,29 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       set({ selectedObjectProps: updatedProps })
     }
   },
+  addPage: (name) =>
+    set((state) => {
+      const newPage: Page = {
+        id: `page-${Date.now()}`,
+        name,
+        canvasData: null,
+        layers: [],
+      }
+      return { pages: [...state.pages, newPage] }
+    }),
+  removePage: (id) =>
+    set((state) => ({
+      pages: state.pages.filter((page) => page.id !== id),
+      currentPageId:
+        state.currentPageId === id && state.pages.length > 1
+          ? state.pages.find((p) => p.id !== id)!.id
+          : state.currentPageId,
+    })),
+  setCurrentPage: (id) => set({ currentPageId: id }),
+  updatePageData: (id, canvasData, layers) =>
+    set((state) => ({
+      pages: state.pages.map((page) =>
+        page.id === id ? { ...page, canvasData, layers } : page
+      ),
+    })),
 }))

@@ -4,6 +4,9 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { fabric } from 'fabric'
 import { useCanvasStore } from '@/lib/store'
 import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
+import ContextMenu from '@/components/ContextMenu'
+import AlignmentPanel from '@/components/AlignmentPanel'
+import PagePanel from '@/components/PagePanel'
 import type { NodeType } from '@/types'
 
 // ツールをFigmaのNodeTypeに変換するヘルパー関数
@@ -62,10 +65,15 @@ export default function Canvas() {
     selectedObjectId,
     setFabricCanvas,
     setSelectedObjectProps,
+    clipboard,
+    setClipboard,
   } = useCanvasStore()
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
   const [currentShape, setCurrentShape] = useState<fabric.Object | null>(null)
+  const [isAltDragging, setIsAltDragging] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [showAlignmentPanel, setShowAlignmentPanel] = useState(false)
   const shapeCounterRef = useRef({ rectangle: 0, circle: 0, line: 0, arrow: 0, text: 0, pencil: 0 })
 
   // 選択されたオブジェクトを削除（複数選択対応）
@@ -133,11 +141,367 @@ export default function Canvas() {
     }
   }, [selectedObjectId, layers, addLayer, setSelectedObjectId])
 
+  // コピー機能
+  const copySelectedObject = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (activeObject) {
+      activeObject.clone((cloned: fabric.Object) => {
+        setClipboard(cloned)
+      })
+    }
+  }, [setClipboard])
+
+  // ペースト機能
+  const pasteObject = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas || !clipboard) return
+
+    clipboard.clone((cloned: fabric.Object) => {
+      const id = crypto.randomUUID()
+      cloned.set({
+        left: (cloned.left || 0) + 10,
+        top: (cloned.top || 0) + 10,
+        data: { id },
+        evented: true,
+        selectable: true,
+      })
+      canvas.add(cloned)
+      canvas.setActiveObject(cloned)
+      canvas.renderAll()
+
+      // レイヤー名から元の名前を推測
+      const layerName = `pasted object ${Date.now()}`
+
+      addLayer({
+        id,
+        name: layerName,
+        visible: true,
+        locked: false,
+        objectId: id,
+        type: 'VECTOR',
+      })
+      setSelectedObjectId(id)
+      setClipboard(cloned)
+    })
+  }, [clipboard, addLayer, setSelectedObjectId, setClipboard])
+
+  // 最前面へ移動
+  const bringToFront = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (activeObject) {
+      canvas.bringToFront(activeObject)
+      canvas.renderAll()
+    }
+  }, [])
+
+  // 最背面へ移動
+  const sendToBack = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (activeObject) {
+      canvas.sendToBack(activeObject)
+      canvas.renderAll()
+    }
+  }, [])
+
+  // ロック
+  const lockObject = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (activeObject && activeObject.data?.id) {
+      activeObject.set({
+        lockMovementX: true,
+        lockMovementY: true,
+        lockRotation: true,
+        lockScalingX: true,
+        lockScalingY: true,
+        hasControls: false,
+        selectable: false,
+        evented: false,
+      })
+      canvas.discardActiveObject()
+      canvas.renderAll()
+
+      // レイヤー状態も更新
+      const layer = layers.find((l) => l.id === activeObject.data.id)
+      if (layer) {
+        // toggleLayerLock は store.ts に既存
+      }
+    }
+  }, [layers])
+
+  // ロック解除
+  const unlockObject = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas || !selectedObjectId) return
+
+    // すべてのオブジェクトから該当のオブジェクトを探す
+    const objects = canvas.getObjects()
+    const lockedObject = objects.find((obj) => obj.data?.id === selectedObjectId)
+
+    if (lockedObject) {
+      lockedObject.set({
+        lockMovementX: false,
+        lockMovementY: false,
+        lockRotation: false,
+        lockScalingX: false,
+        lockScalingY: false,
+        hasControls: true,
+        selectable: true,
+        evented: true,
+      })
+      canvas.setActiveObject(lockedObject)
+      canvas.renderAll()
+    }
+  }, [selectedObjectId])
+
+  // グループ化
+  const groupObjects = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeSelection = canvas.getActiveObject()
+    if (!activeSelection || activeSelection.type !== 'activeSelection') return
+
+    const selection = activeSelection as fabric.ActiveSelection
+    const objects = selection.getObjects()
+
+    // 2つ以上のオブジェクトが選択されている場合のみグループ化
+    if (objects.length < 2) return
+
+    selection.toGroup()
+    const group = canvas.getActiveObject() as fabric.Group
+
+    // グループにIDを割り当て
+    const id = crypto.randomUUID()
+    group.set({
+      data: { id },
+    })
+
+    // グループのレイヤーを追加
+    addLayer({
+      id,
+      name: `group ${Date.now()}`,
+      visible: true,
+      locked: false,
+      objectId: id,
+      type: 'VECTOR',
+    })
+
+    setSelectedObjectId(id)
+    canvas.renderAll()
+  }, [addLayer, setSelectedObjectId])
+
+  // グループ解除
+  const ungroupObjects = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (!activeObject || activeObject.type !== 'group') return
+
+    const group = activeObject as fabric.Group
+    const items = group.getObjects()
+
+    // グループを解除して個別のオブジェクトに戻す
+    group.toActiveSelection()
+    canvas.discardActiveObject()
+
+    // 各アイテムにIDを割り当て直す
+    items.forEach((item) => {
+      if (!item.data?.id) {
+        const id = crypto.randomUUID()
+        item.set({ data: { id } })
+
+        // レイヤーを追加
+        addLayer({
+          id,
+          name: `object ${Date.now()}`,
+          visible: true,
+          locked: false,
+          objectId: id,
+          type: 'VECTOR',
+        })
+      }
+    })
+
+    // グループのレイヤーを削除
+    if (activeObject.data?.id) {
+      removeLayer(activeObject.data.id)
+    }
+
+    canvas.renderAll()
+  }, [addLayer, removeLayer])
+
+  // 複数オブジェクトの取得ヘルパー
+  const getSelectedObjects = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return []
+
+    const activeObject = canvas.getActiveObject()
+    if (!activeObject) return []
+
+    if (activeObject.type === 'activeSelection') {
+      return (activeObject as fabric.ActiveSelection).getObjects()
+    }
+    return [activeObject]
+  }, [])
+
+  // 左揃え
+  const alignLeft = useCallback(() => {
+    const objects = getSelectedObjects()
+    if (objects.length < 2) return
+
+    const leftmost = Math.min(...objects.map((obj) => obj.left || 0))
+    objects.forEach((obj) => obj.set({ left: leftmost }))
+
+    const canvas = fabricCanvasRef.current
+    canvas?.renderAll()
+  }, [getSelectedObjects])
+
+  // 中央揃え（水平）
+  const alignCenter = useCallback(() => {
+    const objects = getSelectedObjects()
+    if (objects.length < 2) return
+
+    const centers = objects.map((obj) => (obj.left || 0) + (obj.width || 0) * (obj.scaleX || 1) / 2)
+    const avgCenter = centers.reduce((a, b) => a + b, 0) / centers.length
+
+    objects.forEach((obj) => {
+      const objWidth = (obj.width || 0) * (obj.scaleX || 1)
+      obj.set({ left: avgCenter - objWidth / 2 })
+    })
+
+    const canvas = fabricCanvasRef.current
+    canvas?.renderAll()
+  }, [getSelectedObjects])
+
+  // 右揃え
+  const alignRight = useCallback(() => {
+    const objects = getSelectedObjects()
+    if (objects.length < 2) return
+
+    const rightmost = Math.max(
+      ...objects.map((obj) => (obj.left || 0) + (obj.width || 0) * (obj.scaleX || 1))
+    )
+    objects.forEach((obj) => {
+      const objWidth = (obj.width || 0) * (obj.scaleX || 1)
+      obj.set({ left: rightmost - objWidth })
+    })
+
+    const canvas = fabricCanvasRef.current
+    canvas?.renderAll()
+  }, [getSelectedObjects])
+
+  // 上揃え
+  const alignTop = useCallback(() => {
+    const objects = getSelectedObjects()
+    if (objects.length < 2) return
+
+    const topmost = Math.min(...objects.map((obj) => obj.top || 0))
+    objects.forEach((obj) => obj.set({ top: topmost }))
+
+    const canvas = fabricCanvasRef.current
+    canvas?.renderAll()
+  }, [getSelectedObjects])
+
+  // 中央揃え（垂直）
+  const alignMiddle = useCallback(() => {
+    const objects = getSelectedObjects()
+    if (objects.length < 2) return
+
+    const middles = objects.map((obj) => (obj.top || 0) + (obj.height || 0) * (obj.scaleY || 1) / 2)
+    const avgMiddle = middles.reduce((a, b) => a + b, 0) / middles.length
+
+    objects.forEach((obj) => {
+      const objHeight = (obj.height || 0) * (obj.scaleY || 1)
+      obj.set({ top: avgMiddle - objHeight / 2 })
+    })
+
+    const canvas = fabricCanvasRef.current
+    canvas?.renderAll()
+  }, [getSelectedObjects])
+
+  // 下揃え
+  const alignBottom = useCallback(() => {
+    const objects = getSelectedObjects()
+    if (objects.length < 2) return
+
+    const bottommost = Math.max(
+      ...objects.map((obj) => (obj.top || 0) + (obj.height || 0) * (obj.scaleY || 1))
+    )
+    objects.forEach((obj) => {
+      const objHeight = (obj.height || 0) * (obj.scaleY || 1)
+      obj.set({ top: bottommost - objHeight })
+    })
+
+    const canvas = fabricCanvasRef.current
+    canvas?.renderAll()
+  }, [getSelectedObjects])
+
+  // 水平分散
+  const distributeHorizontal = useCallback(() => {
+    const objects = getSelectedObjects()
+    if (objects.length < 3) return
+
+    const sorted = [...objects].sort((a, b) => (a.left || 0) - (b.left || 0))
+    const leftmost = sorted[0].left || 0
+    const rightmost = (sorted[sorted.length - 1].left || 0) +
+                     (sorted[sorted.length - 1].width || 0) * (sorted[sorted.length - 1].scaleX || 1)
+    const totalWidth = sorted.reduce((sum, obj) => sum + (obj.width || 0) * (obj.scaleX || 1), 0)
+    const gap = (rightmost - leftmost - totalWidth) / (sorted.length - 1)
+
+    let currentLeft = leftmost
+    sorted.forEach((obj) => {
+      obj.set({ left: currentLeft })
+      currentLeft += (obj.width || 0) * (obj.scaleX || 1) + gap
+    })
+
+    const canvas = fabricCanvasRef.current
+    canvas?.renderAll()
+  }, [getSelectedObjects])
+
+  // 垂直分散
+  const distributeVertical = useCallback(() => {
+    const objects = getSelectedObjects()
+    if (objects.length < 3) return
+
+    const sorted = [...objects].sort((a, b) => (a.top || 0) - (b.top || 0))
+    const topmost = sorted[0].top || 0
+    const bottommost = (sorted[sorted.length - 1].top || 0) +
+                      (sorted[sorted.length - 1].height || 0) * (sorted[sorted.length - 1].scaleY || 1)
+    const totalHeight = sorted.reduce((sum, obj) => sum + (obj.height || 0) * (obj.scaleY || 1), 0)
+    const gap = (bottommost - topmost - totalHeight) / (sorted.length - 1)
+
+    let currentTop = topmost
+    sorted.forEach((obj) => {
+      obj.set({ top: currentTop })
+      currentTop += (obj.height || 0) * (obj.scaleY || 1) + gap
+    })
+
+    const canvas = fabricCanvasRef.current
+    canvas?.renderAll()
+  }, [getSelectedObjects])
+
   // キーボードショートカットの設定
   useKeyboardShortcuts({
     setSelectedTool,
     deleteSelectedObject,
     duplicateSelectedObject,
+    copySelectedObject,
+    pasteObject,
+    groupObjects,
+    ungroupObjects,
   })
 
   useEffect(() => {
@@ -445,8 +809,62 @@ export default function Canvas() {
     const canvas = fabricCanvasRef.current
     if (!canvas) return
 
+    // Alt+ドラッグで複製
+    const handleAltDragStart = (e: fabric.IEvent) => {
+      if ((e.e as MouseEvent).altKey && selectedTool === 'select') {
+        const target = canvas.getActiveObject()
+        if (target) {
+          target.clone((cloned: fabric.Object) => {
+            const id = crypto.randomUUID()
+            cloned.set({
+              data: { id },
+              evented: true,
+              selectable: true,
+            })
+            canvas.add(cloned)
+            canvas.setActiveObject(cloned)
+            setIsAltDragging(true)
+
+            // レイヤーを追加
+            const originalLayer = layers.find((l) => l.id === selectedObjectId)
+            if (originalLayer) {
+              addLayer({
+                id,
+                name: `${originalLayer.name} copy`,
+                visible: true,
+                locked: false,
+                objectId: id,
+                type: originalLayer.type,
+              })
+            }
+            setSelectedObjectId(id)
+          })
+        }
+      }
+    }
+
+    const handleAltDragEnd = () => {
+      setIsAltDragging(false)
+    }
+
+    canvas.on('mouse:down:before', handleAltDragStart)
+    canvas.on('mouse:up', handleAltDragEnd)
+
     // オブジェクト選択時のイベントハンドラ
     const handleSelection = (e: fabric.IEvent) => {
+      const activeObject = canvas.getActiveObject()
+
+      // 複数選択の場合はアライメントパネルを表示
+      if (
+        activeObject &&
+        activeObject.type === 'activeSelection' &&
+        (activeObject as fabric.ActiveSelection).getObjects().length >= 2
+      ) {
+        setShowAlignmentPanel(true)
+      } else {
+        setShowAlignmentPanel(false)
+      }
+
       const selected = e.selected?.[0]
       if (selected && selected.data?.id) {
         setSelectedObjectId(selected.data.id)
@@ -491,6 +909,7 @@ export default function Canvas() {
     const handleDeselection = () => {
       setSelectedObjectId(null)
       setSelectedObjectProps(null)
+      setShowAlignmentPanel(false)
     }
 
     // オブジェクト変更時のイベントハンドラ
@@ -541,6 +960,8 @@ export default function Canvas() {
     canvas.on('object:moved', handleObjectModified)
 
     return () => {
+      canvas.off('mouse:down:before', handleAltDragStart)
+      canvas.off('mouse:up', handleAltDragEnd)
       canvas.off('mouse:down', handleMouseDown)
       canvas.off('mouse:move', handleMouseMove)
       canvas.off('mouse:up', handleMouseUp)
@@ -551,7 +972,17 @@ export default function Canvas() {
       canvas.off('object:scaled', handleObjectModified)
       canvas.off('object:moved', handleObjectModified)
     }
-  }, [handleMouseDown, handleMouseMove, handleMouseUp, setSelectedObjectId, setSelectedObjectProps])
+  }, [
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+    setSelectedObjectId,
+    setSelectedObjectProps,
+    selectedTool,
+    layers,
+    selectedObjectId,
+    addLayer,
+  ])
 
   // localStorage初期読み込み（初回のみ）
   const hasLoadedRef = useRef(false)
@@ -709,9 +1140,80 @@ export default function Canvas() {
     }
   }, [addLayer, setSelectedObjectId])
 
+  // 右クリックメニュー
+  useEffect(() => {
+    const handleContextMenu = (e: MouseEvent) => {
+      // デフォルトの右クリックメニューを無効化
+      e.preventDefault()
+
+      // コンテキストメニューの位置を設定
+      setContextMenu({ x: e.clientX, y: e.clientY })
+    }
+
+    const canvas = canvasRef.current
+    if (canvas) {
+      canvas.addEventListener('contextmenu', handleContextMenu)
+      return () => {
+        canvas.removeEventListener('contextmenu', handleContextMenu)
+      }
+    }
+  }, [])
+
   return (
     <div className="flex-1 relative">
       <canvas ref={canvasRef} />
+      {showAlignmentPanel && (
+        <AlignmentPanel
+          onAlignLeft={alignLeft}
+          onAlignCenter={alignCenter}
+          onAlignRight={alignRight}
+          onAlignTop={alignTop}
+          onAlignMiddle={alignMiddle}
+          onAlignBottom={alignBottom}
+          onDistributeHorizontal={distributeHorizontal}
+          onDistributeVertical={distributeVertical}
+        />
+      )}
+      <PagePanel />
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          onCopy={copySelectedObject}
+          onPaste={pasteObject}
+          onDuplicate={duplicateSelectedObject}
+          onDelete={deleteSelectedObject}
+          onLock={lockObject}
+          onUnlock={unlockObject}
+          onBringToFront={bringToFront}
+          onSendToBack={sendToBack}
+          onGroup={groupObjects}
+          onUngroup={ungroupObjects}
+          hasSelection={!!selectedObjectId}
+          isLocked={
+            selectedObjectId
+              ? layers.find((l) => l.id === selectedObjectId)?.locked
+              : false
+          }
+          hasClipboard={!!clipboard}
+          canGroup={(() => {
+            const canvas = fabricCanvasRef.current
+            if (!canvas) return false
+            const activeObject = canvas.getActiveObject()
+            return (
+              activeObject?.type === 'activeSelection' &&
+              (activeObject as fabric.ActiveSelection).getObjects().length >= 2
+            )
+          })()}
+          canUngroup={(() => {
+            const canvas = fabricCanvasRef.current
+            if (!canvas) return false
+            const activeObject = canvas.getActiveObject()
+            return activeObject?.type === 'group'
+          })()}
+        />
+      )}
     </div>
   )
 }
