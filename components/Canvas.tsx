@@ -31,19 +31,35 @@ export default function Canvas() {
   const [currentShape, setCurrentShape] = useState<fabric.Object | null>(null)
   const shapeCounterRef = useRef({ rectangle: 0, circle: 0, line: 0, text: 0, pencil: 0 })
 
-  // 選択されたオブジェクトを削除
+  // 選択されたオブジェクトを削除（複数選択対応）
   const deleteSelectedObject = useCallback(() => {
     const canvas = fabricCanvasRef.current
-    if (!canvas || !selectedObjectId) return
+    if (!canvas) return
 
-    const activeObject = canvas.getActiveObject()
-    if (activeObject && activeObject.data?.id) {
-      canvas.remove(activeObject)
-      removeLayer(activeObject.data.id)
-      setSelectedObjectId(null)
-      canvas.renderAll()
+    const activeSelection = canvas.getActiveObject()
+    if (!activeSelection) return
+
+    // 複数選択の場合
+    if (activeSelection.type === 'activeSelection') {
+      const objects = (activeSelection as fabric.ActiveSelection).getObjects()
+      objects.forEach((obj) => {
+        if (obj.data?.id) {
+          canvas.remove(obj)
+          removeLayer(obj.data.id)
+        }
+      })
+      canvas.discardActiveObject()
+    } else {
+      // 単一選択の場合
+      if (activeSelection.data?.id) {
+        canvas.remove(activeSelection)
+        removeLayer(activeSelection.data.id)
+      }
     }
-  }, [selectedObjectId, removeLayer, setSelectedObjectId])
+
+    setSelectedObjectId(null)
+    canvas.renderAll()
+  }, [removeLayer, setSelectedObjectId])
 
   // 選択されたオブジェクトを複製
   const duplicateSelectedObject = useCallback(() => {
@@ -149,7 +165,8 @@ export default function Canvas() {
     canvas.renderAll()
 
     if (selectedTool === 'pencil') {
-      canvas.freeDrawingBrush.color = '#000000'
+      const isDark = document.documentElement.classList.contains('dark')
+      canvas.freeDrawingBrush.color = isDark ? '#ffffff' : '#000000'
       canvas.freeDrawingBrush.width = 2
     }
   }, [selectedTool])
@@ -165,11 +182,15 @@ export default function Canvas() {
     // テキストツールの場合はクリック位置にテキストを追加
     if (selectedTool === 'text') {
       const id = crypto.randomUUID()
+      // ダークモードを検出してテキスト色を決定
+      const isDark = document.documentElement.classList.contains('dark')
+      const textColor = isDark ? '#ffffff' : '#000000'
+
       const text = new fabric.IText('テキストを入力', {
         left: pointer.x,
         top: pointer.y,
         fontSize: 20,
-        fill: '#000000',
+        fill: textColor,
         fontFamily: 'Arial',
         data: { id },
         selectable: true,
@@ -195,6 +216,12 @@ export default function Canvas() {
       })
 
       setSelectedObjectId(id)
+
+      // テキスト編集終了後にselectツールに自動切替
+      text.on('editing:exited', () => {
+        setSelectedTool('select')
+      })
+
       return
     }
 
@@ -243,7 +270,7 @@ export default function Canvas() {
       canvas.add(shape)
       setCurrentShape(shape)
     }
-  }, [selectedTool, addLayer, setSelectedObjectId])
+  }, [selectedTool, addLayer, setSelectedObjectId, setSelectedTool])
 
   const handleMouseMove = useCallback((e: fabric.IEvent<Event>) => {
     if (!isDrawing || !startPoint || !currentShape) return
@@ -309,12 +336,23 @@ export default function Canvas() {
         objectId: id,
         type: toolToNodeType(selectedTool),
       })
+
+      // オブジェクト作成後、自動的にselectツールに切り替える
+      setSelectedTool('select')
+      setSelectedObjectId(id)
+
+      // 作成したオブジェクトを選択状態にする
+      const canvas = fabricCanvasRef.current
+      if (canvas) {
+        canvas.setActiveObject(currentShape)
+        canvas.renderAll()
+      }
     }
 
     setIsDrawing(false)
     setStartPoint(null)
     setCurrentShape(null)
-  }, [currentShape, selectedTool, addLayer])
+  }, [currentShape, selectedTool, addLayer, setSelectedTool, setSelectedObjectId])
 
   useEffect(() => {
     const canvas = fabricCanvasRef.current
@@ -351,10 +389,13 @@ export default function Canvas() {
     }
   }, [handleMouseDown, handleMouseMove, handleMouseUp, setSelectedObjectId])
 
-  // localStorage保存・読み込み
+  // localStorage初期読み込み（初回のみ）
+  const hasLoadedRef = useRef(false)
   useEffect(() => {
     const canvas = fabricCanvasRef.current
-    if (!canvas) return
+    if (!canvas || hasLoadedRef.current) return
+
+    hasLoadedRef.current = true
 
     // 初期読み込み
     const savedCanvas = localStorage.getItem('figma-clone-canvas')
@@ -379,9 +420,7 @@ export default function Canvas() {
       try {
         const parsedLayers = JSON.parse(savedLayers)
         parsedLayers.forEach((layer: typeof layers[0]) => {
-          if (!layers.find(l => l.id === layer.id)) {
-            addLayer(layer)
-          }
+          addLayer(layer)
         })
         // カウンターも復元
         parsedLayers.forEach((layer: typeof layers[0]) => {
@@ -401,8 +440,13 @@ export default function Canvas() {
         console.error('Failed to load layers from localStorage:', error)
       }
     }
+  }, [selectedTool, addLayer])
 
-    // 自動保存（デバウンス）
+  // localStorage自動保存（デバウンス）
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas || !hasLoadedRef.current) return
+
     let saveTimeout: NodeJS.Timeout
     const handleCanvasChange = () => {
       clearTimeout(saveTimeout)
@@ -427,7 +471,74 @@ export default function Canvas() {
       canvas.off('object:added', handleCanvasChange)
       canvas.off('object:removed', handleCanvasChange)
     }
-  }, [selectedTool, layers, addLayer])
+  }, [layers])
+
+  // 画像ペースト機能
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.type.indexOf('image') !== -1) {
+          const blob = item.getAsFile()
+          if (!blob) continue
+
+          const reader = new FileReader()
+          reader.onload = (event) => {
+            const imgUrl = event.target?.result as string
+            fabric.Image.fromURL(imgUrl, (img) => {
+              const id = crypto.randomUUID()
+
+              // 画像を中央に配置し、最大サイズを制限
+              const maxWidth = canvas.width! * 0.5
+              const maxHeight = canvas.height! * 0.5
+              const scale = Math.min(maxWidth / img.width!, maxHeight / img.height!, 1)
+
+              img.set({
+                left: (canvas.width! - img.width! * scale) / 2,
+                top: (canvas.height! - img.height! * scale) / 2,
+                scaleX: scale,
+                scaleY: scale,
+                data: { id },
+                selectable: true,
+                evented: true,
+              })
+
+              canvas.add(img)
+              canvas.setActiveObject(img)
+              canvas.renderAll()
+
+              shapeCounterRef.current.pencil += 1
+              const counter = shapeCounterRef.current.pencil
+
+              addLayer({
+                id,
+                name: `image ${counter}`,
+                visible: true,
+                locked: false,
+                objectId: id,
+                type: 'VECTOR',
+              })
+
+              setSelectedObjectId(id)
+            })
+          }
+          reader.readAsDataURL(blob)
+          break
+        }
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+    return () => {
+      document.removeEventListener('paste', handlePaste)
+    }
+  }, [addLayer, setSelectedObjectId])
 
   return (
     <div className="flex-1 relative">
