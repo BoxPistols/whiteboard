@@ -445,11 +445,29 @@ export default function Canvas() {
       if (selected && selected.data?.id) {
         setSelectedObjectId(selected.data.id)
 
+        // Groupオブジェクト（矢印など）の場合、子要素から色を取得
+        let fillColor = ''
+        let strokeColor = ''
+        let strokeWidth = 0
+
+        if (selected.type === 'group') {
+          const items = (selected as fabric.Group).getObjects()
+          if (items.length > 0) {
+            fillColor = colorToHex(items[0].fill)
+            strokeColor = colorToHex(items[0].stroke)
+            strokeWidth = items[0].strokeWidth || 2
+          }
+        } else {
+          fillColor = colorToHex(selected.fill)
+          strokeColor = colorToHex(selected.stroke)
+          strokeWidth = selected.strokeWidth || 0
+        }
+
         // プロパティを更新（色をhex形式に変換）
         setSelectedObjectProps({
-          fill: colorToHex(selected.fill),
-          stroke: colorToHex(selected.stroke),
-          strokeWidth: selected.strokeWidth,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
           left: selected.left,
           top: selected.top,
           width: selected.width ? selected.width * (selected.scaleX || 1) : 0,
@@ -473,10 +491,28 @@ export default function Canvas() {
     const handleObjectModified = (e: fabric.IEvent) => {
       const obj = e.target
       if (obj && obj.data?.id) {
+        // Groupオブジェクトの場合、子要素から色を取得
+        let fillColor = ''
+        let strokeColor = ''
+        let strokeWidth = 0
+
+        if (obj.type === 'group') {
+          const items = (obj as fabric.Group).getObjects()
+          if (items.length > 0) {
+            fillColor = colorToHex(items[0].fill)
+            strokeColor = colorToHex(items[0].stroke)
+            strokeWidth = items[0].strokeWidth || 2
+          }
+        } else {
+          fillColor = colorToHex(obj.fill)
+          strokeColor = colorToHex(obj.stroke)
+          strokeWidth = obj.strokeWidth || 0
+        }
+
         setSelectedObjectProps({
-          fill: colorToHex(obj.fill),
-          stroke: colorToHex(obj.stroke),
-          strokeWidth: obj.strokeWidth,
+          fill: fillColor,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
           left: obj.left,
           top: obj.top,
           width: obj.width ? obj.width * (obj.scaleX || 1) : 0,

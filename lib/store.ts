@@ -67,8 +67,15 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const activeObject = fabricCanvas.getActiveObject()
     if (!activeObject) return
 
-    // プロパティを更新
-    if (key === 'width' || key === 'height') {
+    // Groupオブジェクト（矢印など）の場合、子要素のプロパティを更新
+    if (activeObject.type === 'group' && (key === 'fill' || key === 'stroke' || key === 'strokeWidth')) {
+      const items = (activeObject as any).getObjects()
+      items.forEach((item: any) => {
+        item[key] = value
+        item.dirty = true
+      })
+      activeObject.dirty = true
+    } else if (key === 'width' || key === 'height') {
       // 幅と高さはスケールを考慮して設定
       if (key === 'width' && activeObject.width) {
         activeObject.scaleX = (value as number) / activeObject.width
