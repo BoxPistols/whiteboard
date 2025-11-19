@@ -8,15 +8,21 @@ export default function PropertiesPanel() {
   if (!selectedObjectId || !selectedObjectProps) {
     return (
       <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2">
-        <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">プロパティ</h2>
-        <p className="text-gray-500 dark:text-gray-400 text-xs px-1">オブジェクトを選択してください</p>
+        <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">
+          プロパティ
+        </h2>
+        <p className="text-gray-500 dark:text-gray-400 text-xs px-1">
+          オブジェクトを選択してください
+        </p>
       </div>
     )
   }
 
   return (
     <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2">
-      <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">プロパティ</h2>
+      <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">
+        プロパティ
+      </h2>
       <div className="space-y-2">
         {(selectedObjectProps.fill || selectedObjectProps.fill === '') && (
           <div>
@@ -26,7 +32,11 @@ export default function PropertiesPanel() {
             <input
               type="color"
               className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-              value={selectedObjectProps.fill && selectedObjectProps.fill.startsWith('#') ? selectedObjectProps.fill : '#3b82f6'}
+              value={
+                selectedObjectProps.fill && selectedObjectProps.fill.startsWith('#')
+                  ? selectedObjectProps.fill
+                  : '#3b82f6'
+              }
               onChange={(e) => updateObjectProperty('fill', e.target.value)}
             />
           </div>
@@ -39,7 +49,11 @@ export default function PropertiesPanel() {
             <input
               type="color"
               className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-              value={selectedObjectProps.stroke && selectedObjectProps.stroke.startsWith('#') ? selectedObjectProps.stroke : '#3b82f6'}
+              value={
+                selectedObjectProps.stroke && selectedObjectProps.stroke.startsWith('#')
+                  ? selectedObjectProps.stroke
+                  : '#3b82f6'
+              }
               onChange={(e) => updateObjectProperty('stroke', e.target.value)}
             />
           </div>

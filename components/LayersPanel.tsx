@@ -25,7 +25,9 @@ export default function LayersPanel() {
                 >
                   {layer.visible ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
                 </button>
-                <span className="text-xs truncate text-gray-900 dark:text-gray-100">{layer.name}</span>
+                <span className="text-xs truncate text-gray-900 dark:text-gray-100">
+                  {layer.name}
+                </span>
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 <button

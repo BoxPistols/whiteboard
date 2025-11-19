@@ -24,9 +24,9 @@ export interface Paint {
 }
 
 export interface RGB {
-  r: number  // 0-1
-  g: number  // 0-1
-  b: number  // 0-1
+  r: number // 0-1
+  g: number // 0-1
+  b: number // 0-1
 }
 
 export interface RectangleNode extends BaseNode {

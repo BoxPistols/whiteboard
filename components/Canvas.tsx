@@ -61,7 +61,7 @@ export default function Canvas() {
     layers,
     selectedObjectId,
     setFabricCanvas,
-    setSelectedObjectProps
+    setSelectedObjectProps,
   } = useCanvasStore()
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
@@ -117,7 +117,7 @@ export default function Canvas() {
         canvas.renderAll()
 
         // レイヤーを追加
-        const originalLayer = layers.find(l => l.id === selectedObjectId)
+        const originalLayer = layers.find((l) => l.id === selectedObjectId)
         if (originalLayer) {
           addLayer({
             id,
@@ -211,186 +211,192 @@ export default function Canvas() {
     }
   }, [selectedTool])
 
-  const handleMouseDown = useCallback((e: fabric.IEvent<Event>) => {
-    if (selectedTool === 'select' || selectedTool === 'pencil') return
+  const handleMouseDown = useCallback(
+    (e: fabric.IEvent<Event>) => {
+      if (selectedTool === 'select' || selectedTool === 'pencil') return
 
-    const canvas = fabricCanvasRef.current
-    if (!canvas) return
+      const canvas = fabricCanvasRef.current
+      if (!canvas) return
 
-    const pointer = canvas.getPointer(e.e as MouseEvent)
+      const pointer = canvas.getPointer(e.e as MouseEvent)
 
-    // テキストツールの場合はクリック位置にテキストを追加
-    if (selectedTool === 'text') {
-      const id = crypto.randomUUID()
-      // ダークモードを検出してテキスト色を決定
-      const isDark = document.documentElement.classList.contains('dark')
-      const textColor = isDark ? '#ffffff' : '#000000'
+      // テキストツールの場合はクリック位置にテキストを追加
+      if (selectedTool === 'text') {
+        const id = crypto.randomUUID()
+        // ダークモードを検出してテキスト色を決定
+        const isDark = document.documentElement.classList.contains('dark')
+        const textColor = isDark ? '#ffffff' : '#000000'
 
-      const text = new fabric.IText('テキストを入力', {
-        left: pointer.x,
-        top: pointer.y,
-        fontSize: 20,
-        fill: textColor,
-        fontFamily: 'Arial',
-        data: { id },
-        selectable: true,
-        evented: true,
-      })
+        const text = new fabric.IText('テキストを入力', {
+          left: pointer.x,
+          top: pointer.y,
+          fontSize: 20,
+          fill: textColor,
+          fontFamily: 'Arial',
+          data: { id },
+          selectable: true,
+          evented: true,
+        })
 
-      canvas.add(text)
-      canvas.setActiveObject(text)
-      text.enterEditing()
-      text.selectAll()
+        canvas.add(text)
+        canvas.setActiveObject(text)
+        text.enterEditing()
+        text.selectAll()
+        canvas.renderAll()
+
+        shapeCounterRef.current.text += 1
+        const counter = shapeCounterRef.current.text
+
+        addLayer({
+          id,
+          name: `text ${counter}`,
+          visible: true,
+          locked: false,
+          objectId: id,
+          type: 'TEXT',
+        })
+
+        setSelectedObjectId(id)
+
+        // テキスト編集終了後にselectツールに自動切替
+        text.on('editing:exited', () => {
+          setSelectedTool('select')
+        })
+
+        return
+      }
+
+      setIsDrawing(true)
+      setStartPoint({ x: pointer.x, y: pointer.y })
+
+      let shape: fabric.Object | null = null
+
+      switch (selectedTool) {
+        case 'rectangle':
+          shape = new fabric.Rect({
+            left: pointer.x,
+            top: pointer.y,
+            width: 0,
+            height: 0,
+            fill: 'rgba(59, 130, 246, 0.5)',
+            stroke: '#3b82f6',
+            strokeWidth: 2,
+            selectable: false,
+            evented: false,
+          })
+          break
+        case 'circle':
+          shape = new fabric.Circle({
+            left: pointer.x,
+            top: pointer.y,
+            radius: 0,
+            fill: 'rgba(59, 130, 246, 0.5)',
+            stroke: '#3b82f6',
+            strokeWidth: 2,
+            selectable: false,
+            evented: false,
+          })
+          break
+        case 'line':
+          shape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+            stroke: '#3b82f6',
+            strokeWidth: 2,
+            selectable: false,
+            evented: false,
+          })
+          break
+        case 'arrow':
+          // 矢印は線と三角形のグループとして作成
+          const line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+            stroke: '#3b82f6',
+            strokeWidth: 2,
+          })
+          const triangle = new fabric.Triangle({
+            left: pointer.x,
+            top: pointer.y,
+            width: 10,
+            height: 10,
+            fill: '#3b82f6',
+            angle: 0,
+          })
+          shape = new fabric.Group([line, triangle], {
+            selectable: false,
+            evented: false,
+          })
+          break
+      }
+
+      if (shape) {
+        canvas.add(shape)
+        setCurrentShape(shape)
+      }
+    },
+    [selectedTool, addLayer, setSelectedObjectId, setSelectedTool]
+  )
+
+  const handleMouseMove = useCallback(
+    (e: fabric.IEvent<Event>) => {
+      if (!isDrawing || !startPoint || !currentShape) return
+
+      const canvas = fabricCanvasRef.current
+      if (!canvas) return
+
+      const pointer = canvas.getPointer(e.e as MouseEvent)
+
+      switch (selectedTool) {
+        case 'rectangle':
+          if (currentShape instanceof fabric.Rect) {
+            const width = pointer.x - startPoint.x
+            const height = pointer.y - startPoint.y
+            currentShape.set({
+              width: Math.abs(width),
+              height: Math.abs(height),
+              left: width > 0 ? startPoint.x : pointer.x,
+              top: height > 0 ? startPoint.y : pointer.y,
+            })
+          }
+          break
+        case 'circle':
+          if (currentShape instanceof fabric.Circle) {
+            const radius = Math.sqrt(
+              Math.pow(pointer.x - startPoint.x, 2) + Math.pow(pointer.y - startPoint.y, 2)
+            )
+            currentShape.set({ radius: radius / 2 })
+          }
+          break
+        case 'line':
+          if (currentShape instanceof fabric.Line) {
+            currentShape.set({ x2: pointer.x, y2: pointer.y })
+          }
+          break
+        case 'arrow':
+          if (currentShape instanceof fabric.Group) {
+            const items = currentShape.getObjects()
+            const line = items[0] as fabric.Line
+            const triangle = items[1] as fabric.Triangle
+
+            // 線を更新
+            const dx = pointer.x - startPoint.x
+            const dy = pointer.y - startPoint.y
+            line.set({ x2: dx, y2: dy })
+
+            // 三角形の位置と角度を計算
+            const angle = (Math.atan2(dy, dx) * 180) / Math.PI + 90
+            triangle.set({
+              left: dx,
+              top: dy,
+              angle: angle,
+            })
+
+            currentShape.setCoords()
+          }
+          break
+      }
+
       canvas.renderAll()
-
-      shapeCounterRef.current.text += 1
-      const counter = shapeCounterRef.current.text
-
-      addLayer({
-        id,
-        name: `text ${counter}`,
-        visible: true,
-        locked: false,
-        objectId: id,
-        type: 'TEXT',
-      })
-
-      setSelectedObjectId(id)
-
-      // テキスト編集終了後にselectツールに自動切替
-      text.on('editing:exited', () => {
-        setSelectedTool('select')
-      })
-
-      return
-    }
-
-    setIsDrawing(true)
-    setStartPoint({ x: pointer.x, y: pointer.y })
-
-    let shape: fabric.Object | null = null
-
-    switch (selectedTool) {
-      case 'rectangle':
-        shape = new fabric.Rect({
-          left: pointer.x,
-          top: pointer.y,
-          width: 0,
-          height: 0,
-          fill: 'rgba(59, 130, 246, 0.5)',
-          stroke: '#3b82f6',
-          strokeWidth: 2,
-          selectable: false,
-          evented: false,
-        })
-        break
-      case 'circle':
-        shape = new fabric.Circle({
-          left: pointer.x,
-          top: pointer.y,
-          radius: 0,
-          fill: 'rgba(59, 130, 246, 0.5)',
-          stroke: '#3b82f6',
-          strokeWidth: 2,
-          selectable: false,
-          evented: false,
-        })
-        break
-      case 'line':
-        shape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-          stroke: '#3b82f6',
-          strokeWidth: 2,
-          selectable: false,
-          evented: false,
-        })
-        break
-      case 'arrow':
-        // 矢印は線と三角形のグループとして作成
-        const line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-          stroke: '#3b82f6',
-          strokeWidth: 2,
-        })
-        const triangle = new fabric.Triangle({
-          left: pointer.x,
-          top: pointer.y,
-          width: 10,
-          height: 10,
-          fill: '#3b82f6',
-          angle: 0,
-        })
-        shape = new fabric.Group([line, triangle], {
-          selectable: false,
-          evented: false,
-        })
-        break
-    }
-
-    if (shape) {
-      canvas.add(shape)
-      setCurrentShape(shape)
-    }
-  }, [selectedTool, addLayer, setSelectedObjectId, setSelectedTool])
-
-  const handleMouseMove = useCallback((e: fabric.IEvent<Event>) => {
-    if (!isDrawing || !startPoint || !currentShape) return
-
-    const canvas = fabricCanvasRef.current
-    if (!canvas) return
-
-    const pointer = canvas.getPointer(e.e as MouseEvent)
-
-    switch (selectedTool) {
-      case 'rectangle':
-        if (currentShape instanceof fabric.Rect) {
-          const width = pointer.x - startPoint.x
-          const height = pointer.y - startPoint.y
-          currentShape.set({
-            width: Math.abs(width),
-            height: Math.abs(height),
-            left: width > 0 ? startPoint.x : pointer.x,
-            top: height > 0 ? startPoint.y : pointer.y,
-          })
-        }
-        break
-      case 'circle':
-        if (currentShape instanceof fabric.Circle) {
-          const radius = Math.sqrt(
-            Math.pow(pointer.x - startPoint.x, 2) + Math.pow(pointer.y - startPoint.y, 2)
-          )
-          currentShape.set({ radius: radius / 2 })
-        }
-        break
-      case 'line':
-        if (currentShape instanceof fabric.Line) {
-          currentShape.set({ x2: pointer.x, y2: pointer.y })
-        }
-        break
-      case 'arrow':
-        if (currentShape instanceof fabric.Group) {
-          const items = currentShape.getObjects()
-          const line = items[0] as fabric.Line
-          const triangle = items[1] as fabric.Triangle
-
-          // 線を更新
-          const dx = pointer.x - startPoint.x
-          const dy = pointer.y - startPoint.y
-          line.set({ x2: dx, y2: dy })
-
-          // 三角形の位置と角度を計算
-          const angle = (Math.atan2(dy, dx) * 180) / Math.PI + 90
-          triangle.set({
-            left: dx,
-            top: dy,
-            angle: angle,
-          })
-
-          currentShape.setCoords()
-        }
-        break
-    }
-
-    canvas.renderAll()
-  }, [isDrawing, startPoint, currentShape, selectedTool])
+    },
+    [isDrawing, startPoint, currentShape, selectedTool]
+  )
 
   const handleMouseUp = useCallback(() => {
     if (currentShape && selectedTool !== 'select' && selectedTool !== 'pencil') {
@@ -564,11 +570,11 @@ export default function Canvas() {
       if (savedLayers) {
         try {
           const parsedLayers = JSON.parse(savedLayers)
-          parsedLayers.forEach((layer: typeof layers[0]) => {
+          parsedLayers.forEach((layer: (typeof layers)[0]) => {
             addLayer(layer)
           })
           // カウンターも復元
-          parsedLayers.forEach((layer: typeof layers[0]) => {
+          parsedLayers.forEach((layer: (typeof layers)[0]) => {
             const match = layer.name.match(/(\w+)\s+(\d+)/)
             if (match) {
               const [, tool, count] = match

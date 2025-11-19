@@ -44,19 +44,22 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
-  removeLayer: (id) => set((state) => ({
-    layers: state.layers.filter((layer) => layer.id !== id),
-  })),
-  toggleLayerVisibility: (id) => set((state) => ({
-    layers: state.layers.map((layer) =>
-      layer.id === id ? { ...layer, visible: !layer.visible } : layer
-    ),
-  })),
-  toggleLayerLock: (id) => set((state) => ({
-    layers: state.layers.map((layer) =>
-      layer.id === id ? { ...layer, locked: !layer.locked } : layer
-    ),
-  })),
+  removeLayer: (id) =>
+    set((state) => ({
+      layers: state.layers.filter((layer) => layer.id !== id),
+    })),
+  toggleLayerVisibility: (id) =>
+    set((state) => ({
+      layers: state.layers.map((layer) =>
+        layer.id === id ? { ...layer, visible: !layer.visible } : layer
+      ),
+    })),
+  toggleLayerLock: (id) =>
+    set((state) => ({
+      layers: state.layers.map((layer) =>
+        layer.id === id ? { ...layer, locked: !layer.locked } : layer
+      ),
+    })),
   setZoom: (zoom) => set({ zoom }),
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
@@ -68,7 +71,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (!activeObject) return
 
     // Groupオブジェクト（矢印など）の場合、子要素のプロパティを更新
-    if (activeObject.type === 'group' && (key === 'fill' || key === 'stroke' || key === 'strokeWidth')) {
+    if (
+      activeObject.type === 'group' &&
+      (key === 'fill' || key === 'stroke' || key === 'strokeWidth')
+    ) {
       const items = (activeObject as any).getObjects()
       items.forEach((item: any) => {
         item[key] = value
