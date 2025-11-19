@@ -31,3 +31,34 @@ npm run dev
 - **Fabric.js** - キャンバス描画ライブラリ
 - **Zustand** - 状態管理
 - **Tailwind CSS** - スタイリング
+- **Figma Plugin API互換** - Figma APIと互換性のある型定義
+
+## 開発環境
+
+### 利用可能なコマンド
+
+```bash
+npm run dev         # 開発サーバー起動
+npm run build       # プロダクションビルド
+npm run lint        # ESLintチェック
+npm run format      # Prettierフォーマット
+npm run type-check  # TypeScript型チェック
+```
+
+### Claude Code Skills
+
+このプロジェクトにはClaude Code用のスラッシュコマンドが用意されています：
+
+- `/lint` - ESLintチェックを実行
+- `/format` - Prettierでコードをフォーマット
+- `/test-build` - プロダクションビルドのテスト
+
+## コード品質
+
+- ✅ TypeScript strict mode
+- ✅ ESLint + Prettier設定済み
+- ✅ ResizeObserverによるレスポンシブキャンバス
+- ✅ useCallbackによるパフォーマンス最適化
+- ✅ aria-label属性によるアクセシビリティ対応
+- ✅ instanceof型ガードによる型安全性
+- ✅ crypto.randomUUIDによる一意なID生成
