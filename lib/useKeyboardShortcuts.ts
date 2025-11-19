@@ -95,5 +95,13 @@ export const useKeyboardShortcuts = ({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [setSelectedTool, deleteSelectedObject, duplicateSelectedObject, copySelectedObject, pasteObject, groupObjects, ungroupObjects])
+  }, [
+    setSelectedTool,
+    deleteSelectedObject,
+    duplicateSelectedObject,
+    copySelectedObject,
+    pasteObject,
+    groupObjects,
+    ungroupObjects,
+  ])
 }

@@ -21,7 +21,15 @@ export default function AlignmentPanel({
   onDistributeHorizontal,
   onDistributeVertical,
 }: AlignmentPanelProps) {
-  const AlignButton = ({ label, onClick, title }: { label: string; onClick: () => void; title: string }) => (
+  const AlignButton = ({
+    label,
+    onClick,
+    title,
+  }: {
+    label: string
+    onClick: () => void
+    title: string
+  }) => (
     <button
       onClick={onClick}
       title={title}
@@ -45,8 +53,16 @@ export default function AlignmentPanel({
           <AlignButton label="下揃え" onClick={onAlignBottom} title="Align Bottom" />
         </div>
         <div className="flex gap-1">
-          <AlignButton label="水平分散" onClick={onDistributeHorizontal} title="Distribute Horizontally" />
-          <AlignButton label="垂直分散" onClick={onDistributeVertical} title="Distribute Vertically" />
+          <AlignButton
+            label="水平分散"
+            onClick={onDistributeHorizontal}
+            title="Distribute Horizontally"
+          />
+          <AlignButton
+            label="垂直分散"
+            onClick={onDistributeVertical}
+            title="Distribute Vertically"
+          />
         </div>
       </div>
     </div>

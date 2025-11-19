@@ -156,8 +156,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setCurrentPage: (id) => set({ currentPageId: id }),
   updatePageData: (id, canvasData, layers) =>
     set((state) => ({
-      pages: state.pages.map((page) =>
-        page.id === id ? { ...page, canvasData, layers } : page
-      ),
+      pages: state.pages.map((page) => (page.id === id ? { ...page, canvasData, layers } : page)),
     })),
 }))

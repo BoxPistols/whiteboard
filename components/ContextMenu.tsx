@@ -95,7 +95,9 @@ export default function ContextMenu({
       disabled={disabled}
     >
       <span>{label}</span>
-      {shortcut && <span className="text-xs text-gray-500 dark:text-gray-400 ml-4">{shortcut}</span>}
+      {shortcut && (
+        <span className="text-xs text-gray-500 dark:text-gray-400 ml-4">{shortcut}</span>
+      )}
     </button>
   )
 

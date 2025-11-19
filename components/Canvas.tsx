@@ -374,7 +374,9 @@ export default function Canvas() {
     const objects = getSelectedObjects()
     if (objects.length < 2) return
 
-    const centers = objects.map((obj) => (obj.left || 0) + (obj.width || 0) * (obj.scaleX || 1) / 2)
+    const centers = objects.map(
+      (obj) => (obj.left || 0) + ((obj.width || 0) * (obj.scaleX || 1)) / 2
+    )
     const avgCenter = centers.reduce((a, b) => a + b, 0) / centers.length
 
     objects.forEach((obj) => {
@@ -420,7 +422,9 @@ export default function Canvas() {
     const objects = getSelectedObjects()
     if (objects.length < 2) return
 
-    const middles = objects.map((obj) => (obj.top || 0) + (obj.height || 0) * (obj.scaleY || 1) / 2)
+    const middles = objects.map(
+      (obj) => (obj.top || 0) + ((obj.height || 0) * (obj.scaleY || 1)) / 2
+    )
     const avgMiddle = middles.reduce((a, b) => a + b, 0) / middles.length
 
     objects.forEach((obj) => {
@@ -456,8 +460,9 @@ export default function Canvas() {
 
     const sorted = [...objects].sort((a, b) => (a.left || 0) - (b.left || 0))
     const leftmost = sorted[0].left || 0
-    const rightmost = (sorted[sorted.length - 1].left || 0) +
-                     (sorted[sorted.length - 1].width || 0) * (sorted[sorted.length - 1].scaleX || 1)
+    const rightmost =
+      (sorted[sorted.length - 1].left || 0) +
+      (sorted[sorted.length - 1].width || 0) * (sorted[sorted.length - 1].scaleX || 1)
     const totalWidth = sorted.reduce((sum, obj) => sum + (obj.width || 0) * (obj.scaleX || 1), 0)
     const gap = (rightmost - leftmost - totalWidth) / (sorted.length - 1)
 
@@ -478,8 +483,9 @@ export default function Canvas() {
 
     const sorted = [...objects].sort((a, b) => (a.top || 0) - (b.top || 0))
     const topmost = sorted[0].top || 0
-    const bottommost = (sorted[sorted.length - 1].top || 0) +
-                      (sorted[sorted.length - 1].height || 0) * (sorted[sorted.length - 1].scaleY || 1)
+    const bottommost =
+      (sorted[sorted.length - 1].top || 0) +
+      (sorted[sorted.length - 1].height || 0) * (sorted[sorted.length - 1].scaleY || 1)
     const totalHeight = sorted.reduce((sum, obj) => sum + (obj.height || 0) * (obj.scaleY || 1), 0)
     const gap = (bottommost - topmost - totalHeight) / (sorted.length - 1)
 
@@ -1192,9 +1198,7 @@ export default function Canvas() {
           onUngroup={ungroupObjects}
           hasSelection={!!selectedObjectId}
           isLocked={
-            selectedObjectId
-              ? layers.find((l) => l.id === selectedObjectId)?.locked
-              : false
+            selectedObjectId ? layers.find((l) => l.id === selectedObjectId)?.locked : false
           }
           hasClipboard={!!clipboard}
           canGroup={(() => {
