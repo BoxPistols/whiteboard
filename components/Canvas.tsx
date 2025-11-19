@@ -24,20 +24,28 @@ const toolToNodeType = (tool: string): NodeType => {
 
 // 色をhex形式に変換するヘルパー関数
 const colorToHex = (color: string | fabric.Pattern | fabric.Gradient | undefined): string => {
-  if (!color || typeof color !== 'string') return '#000000'
+  if (!color || typeof color !== 'string') return ''
 
   // すでにhex形式の場合
-  if (color.startsWith('#')) return color
+  if (color.startsWith('#')) {
+    // 短縮形を標準形に変換
+    if (color.length === 4) {
+      return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`
+    }
+    return color
+  }
 
   // rgb/rgba形式の場合
-  const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/)
+  const rgbaMatch = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
   if (rgbaMatch) {
     const r = parseInt(rgbaMatch[1], 10)
     const g = parseInt(rgbaMatch[2], 10)
     const b = parseInt(rgbaMatch[3], 10)
-    return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`
+    const hex = ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)
+    return `#${hex}`
   }
 
+  // 名前付き色の場合、そのまま返す（ブラウザが処理）
   return color
 }
 
@@ -466,51 +474,56 @@ export default function Canvas() {
     const canvas = fabricCanvasRef.current
     if (!canvas || hasLoadedRef.current) return
 
-    hasLoadedRef.current = true
+    // タイマーを使用して、canvasが完全に初期化されるのを待つ
+    const timer = setTimeout(() => {
+      hasLoadedRef.current = true
 
-    // 初期読み込み
-    const savedCanvas = localStorage.getItem('figma-clone-canvas')
-    const savedLayers = localStorage.getItem('figma-clone-layers')
+      // 初期読み込み
+      const savedCanvas = localStorage.getItem('figma-clone-canvas')
+      const savedLayers = localStorage.getItem('figma-clone-layers')
 
-    if (savedCanvas) {
-      try {
-        canvas.loadFromJSON(JSON.parse(savedCanvas), () => {
-          canvas.renderAll()
-          // 読み込み後、すべてのオブジェクトを選択ツールでのみ選択可能にする
-          canvas.getObjects().forEach((obj) => {
-            obj.selectable = selectedTool === 'select'
-            obj.evented = selectedTool === 'select'
+      if (savedLayers) {
+        try {
+          const parsedLayers = JSON.parse(savedLayers)
+          parsedLayers.forEach((layer: typeof layers[0]) => {
+            addLayer(layer)
           })
-        })
-      } catch (error) {
-        console.error('Failed to load canvas from localStorage:', error)
-      }
-    }
-
-    if (savedLayers) {
-      try {
-        const parsedLayers = JSON.parse(savedLayers)
-        parsedLayers.forEach((layer: typeof layers[0]) => {
-          addLayer(layer)
-        })
-        // カウンターも復元
-        parsedLayers.forEach((layer: typeof layers[0]) => {
-          const match = layer.name.match(/(\w+)\s+(\d+)/)
-          if (match) {
-            const [, tool, count] = match
-            const toolKey = tool as keyof typeof shapeCounterRef.current
-            if (toolKey in shapeCounterRef.current) {
-              shapeCounterRef.current[toolKey] = Math.max(
-                shapeCounterRef.current[toolKey],
-                parseInt(count, 10)
-              )
+          // カウンターも復元
+          parsedLayers.forEach((layer: typeof layers[0]) => {
+            const match = layer.name.match(/(\w+)\s+(\d+)/)
+            if (match) {
+              const [, tool, count] = match
+              const toolKey = tool as keyof typeof shapeCounterRef.current
+              if (toolKey in shapeCounterRef.current) {
+                shapeCounterRef.current[toolKey] = Math.max(
+                  shapeCounterRef.current[toolKey],
+                  parseInt(count, 10)
+                )
+              }
             }
-          }
-        })
-      } catch (error) {
-        console.error('Failed to load layers from localStorage:', error)
+          })
+        } catch (error) {
+          console.error('Failed to load layers from localStorage:', error)
+        }
       }
-    }
+
+      if (savedCanvas) {
+        try {
+          canvas.loadFromJSON(JSON.parse(savedCanvas), () => {
+            // 読み込み後、すべてのオブジェクトを選択ツールでのみ選択可能にする
+            canvas.getObjects().forEach((obj) => {
+              obj.selectable = selectedTool === 'select'
+              obj.evented = selectedTool === 'select'
+            })
+            canvas.renderAll()
+          })
+        } catch (error) {
+          console.error('Failed to load canvas from localStorage:', error)
+        }
+      }
+    }, 100)
+
+    return () => clearTimeout(timer)
   }, [selectedTool, addLayer])
 
   // localStorage自動保存（デバウンス）

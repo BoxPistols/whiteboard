@@ -60,7 +60,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
   updateObjectProperty: (key, value) => {
-    const { fabricCanvas, selectedObjectId } = get()
+    const { fabricCanvas, selectedObjectId, selectedObjectProps } = get()
     if (!fabricCanvas || !selectedObjectId) return
 
     const activeObject = fabricCanvas.getActiveObject()
@@ -75,17 +75,27 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         activeObject.scaleY = (value as number) / activeObject.height
       }
     } else {
+      // 色や他のプロパティを直接設定
       ;(activeObject as any)[key] = value
     }
 
+    // 変更を反映
     activeObject.setCoords()
-    fabricCanvas.renderAll()
+    activeObject.dirty = true
+    fabricCanvas.requestRenderAll()
 
-    // ストアのプロパティも更新
-    set((state) => ({
-      selectedObjectProps: state.selectedObjectProps
-        ? { ...state.selectedObjectProps, [key]: value }
-        : null,
-    }))
+    // ストアのプロパティも即座に更新
+    if (selectedObjectProps) {
+      const updatedProps = { ...selectedObjectProps, [key]: value }
+
+      // width/heightが変更された場合、scaleも更新
+      if (key === 'width' && activeObject.width) {
+        updatedProps.scaleX = (value as number) / activeObject.width
+      } else if (key === 'height' && activeObject.height) {
+        updatedProps.scaleY = (value as number) / activeObject.height
+      }
+
+      set({ selectedObjectProps: updatedProps })
+    }
   },
 }))
