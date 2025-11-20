@@ -11,7 +11,9 @@ interface ColorPaletteProps {
 
 export default function ColorPalette({ onColorSelect, currentColor, label }: ColorPaletteProps) {
   const [colorTokens, setColorTokens] = useState<ColorToken[]>(defaultColorTokens)
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['blue', 'gray']))
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set(['blue', 'gray'])
+  )
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [customColor, setCustomColor] = useState('#000000')
 
