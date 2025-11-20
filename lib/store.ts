@@ -209,9 +209,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       activeObject.type === 'group' &&
       (key === 'fill' || key === 'stroke' || key === 'strokeWidth')
     ) {
-      const items = (activeObject as any).getObjects()
-      items.forEach((item: any) => {
-        item[key] = value
+      const group = activeObject as fabric.Group
+      const items = group.getObjects()
+      items.forEach((item) => {
+        if (key === 'fill') item.set('fill', value as string)
+        else if (key === 'stroke') item.set('stroke', value as string)
+        else if (key === 'strokeWidth') item.set('strokeWidth', value as number)
         item.dirty = true
       })
       activeObject.dirty = true
@@ -224,7 +227,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
     } else {
       // 色や他のプロパティを直接設定
-      ;(activeObject as any)[key] = value
+      if (key === 'fill') activeObject.set('fill', value as string)
+      else if (key === 'stroke') activeObject.set('stroke', value as string)
+      else if (key === 'strokeWidth') activeObject.set('strokeWidth', value as number)
+      else if (key === 'opacity') activeObject.set('opacity', value as number)
+      else if (key === 'left') activeObject.set('left', value as number)
+      else if (key === 'top') activeObject.set('top', value as number)
     }
 
     // 変更を反映
