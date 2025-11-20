@@ -74,9 +74,10 @@ export default function Canvas() {
     zoomToFit,
     zoomToSelection,
   } = useCanvasStore()
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
-  const [currentShape, setCurrentShape] = useState<fabric.Object | null>(null)
+  // useRefを使用して、イベントハンドラの再作成を防ぐ
+  const isDrawingRef = useRef(false)
+  const startPointRef = useRef<{ x: number; y: number } | null>(null)
+  const currentShapeRef = useRef<fabric.Object | null>(null)
   const [isAltDragging, setIsAltDragging] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const prevPageIdRef = useRef<string>(currentPageId)
@@ -650,8 +651,8 @@ export default function Canvas() {
         return
       }
 
-      setIsDrawing(true)
-      setStartPoint({ x: pointer.x, y: pointer.y })
+      isDrawingRef.current = true
+      startPointRef.current = { x: pointer.x, y: pointer.y }
 
       let shape: fabric.Object | null = null
 
@@ -712,7 +713,7 @@ export default function Canvas() {
 
       if (shape) {
         canvas.add(shape)
-        setCurrentShape(shape)
+        currentShapeRef.current = shape
       }
     },
     [selectedTool, addLayer, setSelectedObjectId, setSelectedTool]
@@ -720,6 +721,10 @@ export default function Canvas() {
 
   const handleMouseMove = useCallback(
     (e: fabric.IEvent<Event>) => {
+      const isDrawing = isDrawingRef.current
+      const startPoint = startPointRef.current
+      const currentShape = currentShapeRef.current
+
       if (!isDrawing || !startPoint || !currentShape) return
 
       const canvas = fabricCanvasRef.current
@@ -779,10 +784,12 @@ export default function Canvas() {
 
       canvas.renderAll()
     },
-    [isDrawing, startPoint, currentShape, selectedTool]
+    [selectedTool]
   )
 
   const handleMouseUp = useCallback(() => {
+    const currentShape = currentShapeRef.current
+
     if (currentShape && selectedTool !== 'select' && selectedTool !== 'pencil') {
       const id = crypto.randomUUID()
 
@@ -820,10 +827,10 @@ export default function Canvas() {
       }
     }
 
-    setIsDrawing(false)
-    setStartPoint(null)
-    setCurrentShape(null)
-  }, [currentShape, selectedTool, addLayer, setSelectedTool, setSelectedObjectId])
+    isDrawingRef.current = false
+    startPointRef.current = null
+    currentShapeRef.current = null
+  }, [selectedTool, addLayer, setSelectedTool, setSelectedObjectId])
 
   useEffect(() => {
     const canvas = fabricCanvasRef.current
