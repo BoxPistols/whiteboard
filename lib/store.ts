@@ -32,6 +32,7 @@ interface CanvasStore {
   clipboard: fabric.Object | null
   pages: Page[]
   currentPageId: string
+  theme: 'light' | 'dark'
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -49,9 +50,26 @@ interface CanvasStore {
   setCurrentPage: (id: string) => void
   updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
   setLayers: (layers: Layer[]) => void
+  toggleTheme: () => void
+  initializeTheme: () => void
 }
 
 const defaultPageId = 'page-1'
+
+// Get initial theme from localStorage or system preference
+const getInitialTheme = (): 'light' | 'dark' => {
+  if (typeof window === 'undefined') return 'light'
+
+  const savedTheme = localStorage.getItem('figma-clone-theme') as 'light' | 'dark' | null
+  if (savedTheme) return savedTheme
+
+  // Check system preference
+  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    return 'dark'
+  }
+
+  return 'light'
+}
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
@@ -63,6 +81,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   clipboard: null,
   pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
   currentPageId: defaultPageId,
+  theme: getInitialTheme(),
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -195,4 +214,34 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set((state) => ({
       pages: state.pages.map((page) => (page.id === id ? { ...page, canvasData, layers } : page)),
     })),
+  toggleTheme: () => {
+    const currentTheme = get().theme
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light'
+
+    // Update DOM
+    if (typeof window !== 'undefined') {
+      if (newTheme === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+
+      // Save to localStorage
+      localStorage.setItem('figma-clone-theme', newTheme)
+    }
+
+    set({ theme: newTheme })
+  },
+  initializeTheme: () => {
+    const theme = get().theme
+
+    // Apply theme to DOM
+    if (typeof window !== 'undefined') {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    }
+  },
 }))

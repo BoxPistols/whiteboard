@@ -31,22 +31,12 @@ const tools: {
 ]
 
 export default function Toolbar() {
-  const { selectedTool, setSelectedTool } = useCanvasStore()
-  const [isDark, setIsDark] = useState(false)
+  const { selectedTool, setSelectedTool, theme, toggleTheme, initializeTheme } = useCanvasStore()
 
   useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'))
-  }, [])
-
-  const toggleDarkMode = () => {
-    const newIsDark = !isDark
-    setIsDark(newIsDark)
-    if (newIsDark) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }
+    // Initialize theme on mount
+    initializeTheme()
+  }, [initializeTheme])
 
   return (
     <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-3 py-1.5">
@@ -79,12 +69,12 @@ export default function Toolbar() {
         <div className="flex items-center gap-2">
           <ExportImportControls />
           <button
-            onClick={toggleDarkMode}
+            onClick={toggleTheme}
             className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
-            title={isDark ? 'ライトモード' : 'ダークモード'}
-            aria-label={isDark ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
+            title={theme === 'dark' ? 'ライトモード' : 'ダークモード'}
+            aria-label={theme === 'dark' ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
           >
-            {isDark ? <SunIcon /> : <MoonIcon />}
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
           </button>
         </div>
       </div>
