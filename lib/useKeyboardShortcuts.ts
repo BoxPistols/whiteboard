@@ -9,6 +9,9 @@ interface UseKeyboardShortcutsProps {
   pasteObject?: () => void
   groupObjects?: () => void
   ungroupObjects?: () => void
+  resetZoom?: () => void
+  zoomToFit?: () => void
+  zoomToSelection?: () => void
 }
 
 export const useKeyboardShortcuts = ({
@@ -19,6 +22,9 @@ export const useKeyboardShortcuts = ({
   pasteObject,
   groupObjects,
   ungroupObjects,
+  resetZoom,
+  zoomToFit,
+  zoomToSelection,
 }: UseKeyboardShortcutsProps) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -90,6 +96,27 @@ export const useKeyboardShortcuts = ({
             groupObjects()
           }
           break
+        case '0':
+          if (e.shiftKey && resetZoom) {
+            // Shift+0: 100%ズーム
+            e.preventDefault()
+            resetZoom()
+          }
+          break
+        case '1':
+          if (e.shiftKey && zoomToFit) {
+            // Shift+1: 画面に合わせて表示
+            e.preventDefault()
+            zoomToFit()
+          }
+          break
+        case '2':
+          if (e.shiftKey && zoomToSelection) {
+            // Shift+2: 選択範囲にズーム
+            e.preventDefault()
+            zoomToSelection()
+          }
+          break
       }
     }
 
@@ -103,5 +130,8 @@ export const useKeyboardShortcuts = ({
     pasteObject,
     groupObjects,
     ungroupObjects,
+    resetZoom,
+    zoomToFit,
+    zoomToSelection,
   ])
 }

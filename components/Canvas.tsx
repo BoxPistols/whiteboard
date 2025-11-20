@@ -70,6 +70,9 @@ export default function Canvas() {
     pages,
     updatePageData,
     setLayers,
+    resetZoom,
+    zoomToFit,
+    zoomToSelection,
   } = useCanvasStore()
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
@@ -514,6 +517,9 @@ export default function Canvas() {
     pasteObject,
     groupObjects,
     ungroupObjects,
+    resetZoom,
+    zoomToFit,
+    zoomToSelection,
   })
 
   useEffect(() => {

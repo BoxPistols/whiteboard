@@ -41,6 +41,9 @@ interface CanvasStore {
   toggleLayerLock: (id: string) => void
   reorderLayers: (startIndex: number, endIndex: number) => void
   setZoom: (zoom: number) => void
+  zoomToFit: () => void
+  zoomToSelection: () => void
+  resetZoom: () => void
   setFabricCanvas: (canvas: fabric.Canvas | null) => void
   setSelectedObjectProps: (props: ObjectProperties | null) => void
   updateObjectProperty: (key: keyof ObjectProperties, value: number | string) => void
@@ -124,7 +127,73 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
       return { layers: result }
     }),
-  setZoom: (zoom) => set({ zoom }),
+  setZoom: (zoom) => {
+    const { fabricCanvas } = get()
+    if (fabricCanvas) {
+      const zoomLevel = zoom / 100
+      fabricCanvas.setZoom(zoomLevel)
+      fabricCanvas.renderAll()
+    }
+    set({ zoom })
+  },
+  zoomToFit: () => {
+    const { fabricCanvas } = get()
+    if (!fabricCanvas) return
+
+    const canvasWidth = fabricCanvas.getWidth()
+    const canvasHeight = fabricCanvas.getHeight()
+
+    // すべてのオブジェクトを取得して範囲を計算
+    const objects = fabricCanvas.getObjects()
+    if (objects.length === 0) {
+      get().resetZoom()
+      return
+    }
+
+    // オブジェクトのバウンディングボックスを計算
+    const group = new fabric.Group(objects, { originX: 'center', originY: 'center' })
+    const groupWidth = group.width! * group.scaleX!
+    const groupHeight = group.height! * group.scaleY!
+
+    // グループを破棄（一時的な計算用のみ）
+    group.destroy()
+
+    // 適切なズームレベルを計算（余白10%）
+    const zoomX = (canvasWidth * 0.9) / groupWidth
+    const zoomY = (canvasHeight * 0.9) / groupHeight
+    const zoom = Math.min(zoomX, zoomY) * 100
+
+    get().setZoom(Math.max(10, Math.min(200, zoom)))
+  },
+  zoomToSelection: () => {
+    const { fabricCanvas, selectedObjectId } = get()
+    if (!fabricCanvas || !selectedObjectId) return
+
+    const activeObject = fabricCanvas.getActiveObject()
+    if (!activeObject) return
+
+    const canvasWidth = fabricCanvas.getWidth()
+    const canvasHeight = fabricCanvas.getHeight()
+
+    // オブジェクトのサイズを取得
+    const objectWidth = activeObject.width! * activeObject.scaleX!
+    const objectHeight = activeObject.height! * activeObject.scaleY!
+
+    // 適切なズームレベルを計算（余白20%）
+    const zoomX = (canvasWidth * 0.8) / objectWidth
+    const zoomY = (canvasHeight * 0.8) / objectHeight
+    const zoom = Math.min(zoomX, zoomY) * 100
+
+    get().setZoom(Math.max(10, Math.min(200, zoom)))
+
+    // オブジェクトをビューポートの中心に移動
+    const vpCenter = fabricCanvas.getVpCenter()
+    fabricCanvas.viewportCenterObject(activeObject)
+    fabricCanvas.renderAll()
+  },
+  resetZoom: () => {
+    get().setZoom(100)
+  },
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
   setLayers: (layers) => set({ layers }),
