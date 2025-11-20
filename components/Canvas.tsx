@@ -254,7 +254,7 @@ export default function Canvas() {
       canvas.renderAll()
 
       // レイヤー状態も更新
-      const layer = layers.find((l) => l.id === activeObject.data.id)
+      const layer = layers.find((l) => l.id === activeObject.data?.id)
       if (layer) {
         // toggleLayerLock は store.ts に既存
       }
