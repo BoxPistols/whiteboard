@@ -57,22 +57,47 @@ describe('Theme Persistence', () => {
     expect(localStorage.setItem).toHaveBeenCalledWith('figma-clone-theme', 'light')
   })
 
-  it('should initialize theme and apply it to DOM', () => {
-    useCanvasStore.setState({ theme: 'dark' })
-    const { initializeTheme } = useCanvasStore.getState()
+  it('should load saved dark theme from localStorage', () => {
+    localStorageMock['figma-clone-theme'] = 'dark'
+    const { loadSavedTheme } = useCanvasStore.getState()
 
-    initializeTheme()
+    loadSavedTheme()
 
+    expect(useCanvasStore.getState().theme).toBe('dark')
     expect(document.documentElement.classList.add).toHaveBeenCalledWith('dark')
   })
 
-  it('should initialize light theme and remove dark class from DOM', () => {
-    useCanvasStore.setState({ theme: 'light' })
-    const { initializeTheme } = useCanvasStore.getState()
+  it('should load saved light theme from localStorage', () => {
+    localStorageMock['figma-clone-theme'] = 'light'
+    const { loadSavedTheme } = useCanvasStore.getState()
 
-    initializeTheme()
+    loadSavedTheme()
 
+    expect(useCanvasStore.getState().theme).toBe('light')
     expect(document.documentElement.classList.remove).toHaveBeenCalledWith('dark')
+  })
+
+  it('should use system preference when no saved theme exists', () => {
+    // Mock dark mode system preference
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query === '(prefers-color-scheme: dark)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    })
+
+    const { loadSavedTheme } = useCanvasStore.getState()
+    loadSavedTheme()
+
+    expect(useCanvasStore.getState().theme).toBe('dark')
+    expect(document.documentElement.classList.add).toHaveBeenCalledWith('dark')
   })
 
   it('should save theme preference to localStorage on toggle', () => {

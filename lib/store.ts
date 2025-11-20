@@ -51,25 +51,10 @@ interface CanvasStore {
   updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
   setLayers: (layers: Layer[]) => void
   toggleTheme: () => void
-  initializeTheme: () => void
+  loadSavedTheme: () => void
 }
 
 const defaultPageId = 'page-1'
-
-// Get initial theme from localStorage or system preference
-const getInitialTheme = (): 'light' | 'dark' => {
-  if (typeof window === 'undefined') return 'light'
-
-  const savedTheme = localStorage.getItem('figma-clone-theme') as 'light' | 'dark' | null
-  if (savedTheme) return savedTheme
-
-  // Check system preference
-  if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-    return 'dark'
-  }
-
-  return 'light'
-}
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
@@ -81,7 +66,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   clipboard: null,
   pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
   currentPageId: defaultPageId,
-  theme: getInitialTheme(),
+  theme: 'light',
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -232,16 +217,27 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
     set({ theme: newTheme })
   },
-  initializeTheme: () => {
-    const theme = get().theme
+  loadSavedTheme: () => {
+    if (typeof window === 'undefined') return
+
+    // Read from localStorage or use system preference
+    const savedTheme = localStorage.getItem('figma-clone-theme') as 'light' | 'dark' | null
+    let theme: 'light' | 'dark' = 'light'
+
+    if (savedTheme) {
+      theme = savedTheme
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      theme = 'dark'
+    }
 
     // Apply theme to DOM
-    if (typeof window !== 'undefined') {
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
     }
+
+    // Update store
+    set({ theme })
   },
 }))

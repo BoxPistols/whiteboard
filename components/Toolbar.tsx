@@ -31,12 +31,12 @@ const tools: {
 ]
 
 export default function Toolbar() {
-  const { selectedTool, setSelectedTool, theme, toggleTheme, initializeTheme } = useCanvasStore()
+  const { selectedTool, setSelectedTool, theme, toggleTheme, loadSavedTheme } = useCanvasStore()
 
   useEffect(() => {
-    // Initialize theme on mount
-    initializeTheme()
-  }, [initializeTheme])
+    // Load saved theme from localStorage after mount (prevents hydration mismatch)
+    loadSavedTheme()
+  }, [loadSavedTheme])
 
   return (
     <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-3 py-1.5">
