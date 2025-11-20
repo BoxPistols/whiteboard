@@ -1,13 +1,14 @@
 'use client'
 
 import { useCanvasStore } from '@/lib/store'
+import ColorPalette from './ColorPalette'
 
 export default function PropertiesPanel() {
   const { selectedObjectId, selectedObjectProps, updateObjectProperty } = useCanvasStore()
 
   if (!selectedObjectId || !selectedObjectProps) {
     return (
-      <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2">
+      <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2 flex flex-col h-full">
         <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">
           プロパティ
         </h2>
@@ -19,11 +20,13 @@ export default function PropertiesPanel() {
   }
 
   return (
-    <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2">
+    <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2 flex flex-col h-full overflow-hidden">
       <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">
         プロパティ
       </h2>
-      <div className="space-y-2">
+
+      {/* スクロール可能なプロパティエリア */}
+      <div className="flex-1 overflow-y-auto space-y-2">
         {(selectedObjectProps.fill || selectedObjectProps.fill === '') && (
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
@@ -143,6 +146,29 @@ export default function PropertiesPanel() {
             />
           </div>
         )}
+      </div>
+
+      {/* カラーパレット（固定位置：右下） */}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+        <div className="space-y-2">
+          {/* 塗りつぶしカラーパレット */}
+          {(selectedObjectProps.fill || selectedObjectProps.fill === '') && (
+            <ColorPalette
+              label="塗りつぶしカラー"
+              currentColor={selectedObjectProps.fill}
+              onColorSelect={(color) => updateObjectProperty('fill', color)}
+            />
+          )}
+
+          {/* 線の色カラーパレット */}
+          {(selectedObjectProps.stroke || selectedObjectProps.stroke === '') && (
+            <ColorPalette
+              label="線のカラー"
+              currentColor={selectedObjectProps.stroke}
+              onColorSelect={(color) => updateObjectProperty('stroke', color)}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
