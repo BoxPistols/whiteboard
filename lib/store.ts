@@ -150,13 +150,22 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       return
     }
 
-    // オブジェクトのバウンディングボックスを計算
-    const group = new fabric.Group(objects, { originX: 'center', originY: 'center' })
-    const groupWidth = group.width! * group.scaleX!
-    const groupHeight = group.height! * group.scaleY!
+    // オブジェクトのバウンディングボックスを手動で計算
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
 
-    // グループを破棄（一時的な計算用のみ）
-    group.destroy()
+    objects.forEach((obj) => {
+      const bound = obj.getBoundingRect()
+      minX = Math.min(minX, bound.left)
+      minY = Math.min(minY, bound.top)
+      maxX = Math.max(maxX, bound.left + bound.width)
+      maxY = Math.max(maxY, bound.top + bound.height)
+    })
+
+    const groupWidth = maxX - minX
+    const groupHeight = maxY - minY
 
     // 適切なズームレベルを計算（余白10%）
     const zoomX = (canvasWidth * 0.9) / groupWidth

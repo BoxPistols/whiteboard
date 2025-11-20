@@ -9,4 +9,20 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+echo "🔍 Running type check..."
+pnpm type-check
+
+if [ $? -ne 0 ]; then
+  echo "❌ Type errors found. Please fix them before pushing."
+  exit 1
+fi
+
+echo "🔍 Running build test..."
+pnpm build
+
+if [ $? -ne 0 ]; then
+  echo "❌ Build failed. Please fix the errors before pushing."
+  exit 1
+fi
+
 echo "✅ All checks passed!"
