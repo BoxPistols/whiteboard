@@ -46,20 +46,20 @@ export default function Toolbar() {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-3 py-1.5">
+    <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-2 md:px-3 py-1.5">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-base font-semibold mr-3 text-gray-900 dark:text-gray-100">
+        <div className="flex items-center gap-1 md:gap-2">
+          <h1 className="text-sm md:text-base font-semibold mr-1 md:mr-3 text-gray-900 dark:text-gray-100">
             Figma Clone
           </h1>
-          <div className="flex gap-0.5">
+          <div className="flex gap-0.5 overflow-x-auto scrollbar-hide">
             {tools.map((tool) => {
               const Icon = tool.icon
               return (
                 <button
                   key={tool.id}
                   onClick={() => setSelectedTool(tool.id)}
-                  className={`p-1.5 rounded transition-colors ${
+                  className={`p-2 md:p-1.5 rounded transition-colors touch-manipulation ${
                     selectedTool === tool.id
                       ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
                       : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
@@ -73,11 +73,13 @@ export default function Toolbar() {
             })}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <ExportImportControls />
+        <div className="flex items-center gap-1 md:gap-2">
+          <div className="hidden sm:block">
+            <ExportImportControls />
+          </div>
           <button
             onClick={handleReset}
-            className="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
+            className="hidden sm:block px-2 md:px-3 py-1 text-xs md:text-sm bg-red-500 hover:bg-red-600 text-white rounded transition-colors touch-manipulation"
             title="全てのデータをリセット"
             aria-label="全てのデータをリセット"
           >
@@ -85,7 +87,7 @@ export default function Toolbar() {
           </button>
           <button
             onClick={toggleTheme}
-            className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
+            className="p-2 md:p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
             title={theme === 'dark' ? 'ライトモード' : 'ダークモード'}
             aria-label={theme === 'dark' ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
           >

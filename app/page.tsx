@@ -12,12 +12,16 @@ const Canvas = dynamic(() => import('@/components/Canvas'), {
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col">
+    <main className="flex min-h-screen flex-col touch-none">
       <Toolbar />
       <div className="flex flex-1 overflow-hidden">
-        <LayersPanel />
+        <div className="hidden md:block">
+          <LayersPanel />
+        </div>
         <Canvas />
-        <PropertiesPanel />
+        <div className="hidden lg:block">
+          <PropertiesPanel />
+        </div>
       </div>
     </main>
   )

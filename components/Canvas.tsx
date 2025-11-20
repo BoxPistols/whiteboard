@@ -535,6 +535,8 @@ export default function Canvas() {
       width: container.clientWidth,
       height: container.clientHeight,
       backgroundColor: bgColor,
+      enableRetinaScaling: true,
+      allowTouchScrolling: false,
     })
 
     fabricCanvasRef.current = canvas
@@ -1199,6 +1201,107 @@ export default function Canvas() {
       document.removeEventListener('paste', handlePaste)
     }
   }, [addLayer, setSelectedObjectId])
+
+  // タッチジェスチャーサポート（モバイル対応）
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    const canvasElement = canvasRef.current
+    if (!canvas || !canvasElement) return
+
+    let touchStartTime = 0
+    let longPressTimer: NodeJS.Timeout | null = null
+    let lastTapTime = 0
+    let pinchStart = 0
+    let lastZoom = 100
+
+    // ピンチズーム用の距離計算
+    const getDistance = (touches: TouchList) => {
+      const dx = touches[0].clientX - touches[1].clientX
+      const dy = touches[0].clientY - touches[1].clientY
+      return Math.sqrt(dx * dx + dy * dy)
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartTime = Date.now()
+
+      // 2本指タッチ（ピンチズーム）
+      if (e.touches.length === 2) {
+        e.preventDefault()
+        pinchStart = getDistance(e.touches)
+        lastZoom = useCanvasStore.getState().zoom
+        if (longPressTimer) clearTimeout(longPressTimer)
+        return
+      }
+
+      // 1本指タッチ
+      if (e.touches.length === 1) {
+        const now = Date.now()
+        const touch = e.touches[0]
+
+        // ダブルタップ検出（300ms以内）
+        if (now - lastTapTime < 300) {
+          e.preventDefault()
+          // ダブルタップでズーム
+          const currentZoom = useCanvasStore.getState().zoom
+          if (currentZoom >= 100) {
+            useCanvasStore.getState().setZoom(50)
+          } else {
+            useCanvasStore.getState().setZoom(100)
+          }
+          lastTapTime = 0
+        } else {
+          lastTapTime = now
+
+          // ロングプレス検出（500ms）
+          longPressTimer = setTimeout(() => {
+            // ロングプレスでコンテキストメニュー
+            setContextMenu({ x: touch.clientX, y: touch.clientY })
+          }, 500)
+        }
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      // ピンチズーム中
+      if (e.touches.length === 2) {
+        e.preventDefault()
+        const currentDistance = getDistance(e.touches)
+        const scale = currentDistance / pinchStart
+        const newZoom = Math.max(10, Math.min(200, lastZoom * scale))
+        useCanvasStore.getState().setZoom(newZoom)
+        return
+      }
+
+      // ロングプレスタイマーをキャンセル（移動したら）
+      if (longPressTimer) {
+        clearTimeout(longPressTimer)
+        longPressTimer = null
+      }
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer)
+        longPressTimer = null
+      }
+
+      // タッチが終了したらピンチズームをリセット
+      if (e.touches.length < 2) {
+        pinchStart = 0
+      }
+    }
+
+    canvasElement.addEventListener('touchstart', handleTouchStart, { passive: false })
+    canvasElement.addEventListener('touchmove', handleTouchMove, { passive: false })
+    canvasElement.addEventListener('touchend', handleTouchEnd)
+
+    return () => {
+      canvasElement.removeEventListener('touchstart', handleTouchStart)
+      canvasElement.removeEventListener('touchmove', handleTouchMove)
+      canvasElement.removeEventListener('touchend', handleTouchEnd)
+      if (longPressTimer) clearTimeout(longPressTimer)
+    }
+  }, [setContextMenu])
 
   // 右クリックメニュー
   useEffect(() => {
