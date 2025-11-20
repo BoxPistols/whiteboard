@@ -79,6 +79,7 @@ export default function LayersPanel() {
             onClick={handleAddPage}
             className="px-1.5 py-0.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded"
             title="新しいページを追加"
+            aria-label="新しいページを追加"
           >
             +
           </button>
@@ -93,6 +94,7 @@ export default function LayersPanel() {
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
+                aria-label={`${page.name}に切り替え`}
               >
                 {page.name}
               </button>
@@ -101,6 +103,7 @@ export default function LayersPanel() {
                   onClick={(e) => handleRemovePage(page.id, e)}
                   className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                   title="ページを削除"
+                  aria-label={`${page.name}を削除`}
                 >
                   ×
                 </button>

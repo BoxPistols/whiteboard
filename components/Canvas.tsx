@@ -82,7 +82,17 @@ export default function Canvas() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const prevPageIdRef = useRef<string>(currentPageId)
   const [showAlignmentPanel, setShowAlignmentPanel] = useState(false)
-  const shapeCounterRef = useRef({ rectangle: 0, circle: 0, line: 0, arrow: 0, text: 0, pencil: 0 })
+  const shapeCounterRef = useRef({
+    rectangle: 0,
+    circle: 0,
+    line: 0,
+    arrow: 0,
+    text: 0,
+    pencil: 0,
+    paste: 0,
+    group: 0,
+    object: 0,
+  })
 
   // 選択されたオブジェクトを削除（複数選択対応）
   const deleteSelectedObject = useCallback(() => {
@@ -182,12 +192,13 @@ export default function Canvas() {
       canvas.setActiveObject(cloned)
       canvas.renderAll()
 
-      // レイヤー名から元の名前を推測
-      const layerName = `pasted object ${Date.now()}`
+      // カウンターをインクリメント
+      shapeCounterRef.current.paste += 1
+      const counter = shapeCounterRef.current.paste
 
       addLayer({
         id: layerId,
-        name: layerName,
+        name: `paste ${counter}`,
         visible: true,
         locked: false,
         objectId: objectId,
@@ -298,10 +309,14 @@ export default function Canvas() {
       data: { id },
     })
 
+    // カウンターをインクリメント
+    shapeCounterRef.current.group += 1
+    const counter = shapeCounterRef.current.group
+
     // グループのレイヤーを追加
     addLayer({
       id,
-      name: `group ${Date.now()}`,
+      name: `group ${counter}`,
       visible: true,
       locked: false,
       objectId: id,
@@ -333,10 +348,14 @@ export default function Canvas() {
         const id = crypto.randomUUID()
         item.set({ data: { id } })
 
+        // カウンターをインクリメント
+        shapeCounterRef.current.object += 1
+        const counter = shapeCounterRef.current.object
+
         // レイヤーを追加
         addLayer({
           id,
-          name: `object ${Date.now()}`,
+          name: `object ${counter}`,
           visible: true,
           locked: false,
           objectId: id,
