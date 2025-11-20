@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useCanvasStore } from '@/lib/store'
 import type { Tool } from '@/types'
 import ExportImportControls from './ExportImportControls'
+import MobileHelpModal from './MobileHelpModal'
 import {
   SelectIcon,
   RectangleIcon,
@@ -33,6 +34,7 @@ const tools: {
 export default function Toolbar() {
   const { selectedTool, setSelectedTool, theme, toggleTheme, loadSavedTheme, resetAll } =
     useCanvasStore()
+  const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
     // Load saved theme from localStorage after mount (prevents hydration mismatch)
@@ -86,6 +88,25 @@ export default function Toolbar() {
             ALL Reset
           </button>
           <button
+            onClick={() => setShowHelp(true)}
+            className="p-2 md:p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
+            title="ヘルプ"
+            aria-label="ヘルプを表示"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </button>
+          <button
             onClick={toggleTheme}
             className="p-2 md:p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
             title={theme === 'dark' ? 'ライトモード' : 'ダークモード'}
@@ -95,6 +116,7 @@ export default function Toolbar() {
           </button>
         </div>
       </div>
+      <MobileHelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
     </div>
   )
 }
