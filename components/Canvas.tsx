@@ -6,7 +6,6 @@ import { useCanvasStore } from '@/lib/store'
 import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
 import ContextMenu from '@/components/ContextMenu'
 import AlignmentPanel from '@/components/AlignmentPanel'
-import PagePanel from '@/components/PagePanel'
 import type { NodeType } from '@/types'
 
 // ツールをFigmaのNodeTypeに変換するヘルパー関数
@@ -67,12 +66,17 @@ export default function Canvas() {
     setSelectedObjectProps,
     clipboard,
     setClipboard,
+    currentPageId,
+    pages,
+    updatePageData,
+    setLayers,
   } = useCanvasStore()
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
   const [currentShape, setCurrentShape] = useState<fabric.Object | null>(null)
   const [isAltDragging, setIsAltDragging] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const prevPageIdRef = useRef<string>(currentPageId)
   const [showAlignmentPanel, setShowAlignmentPanel] = useState(false)
   const shapeCounterRef = useRef({ rectangle: 0, circle: 0, line: 0, arrow: 0, text: 0, pencil: 0 })
 
@@ -114,29 +118,30 @@ export default function Canvas() {
     const activeObject = canvas.getActiveObject()
     if (activeObject) {
       activeObject.clone((cloned: fabric.Object) => {
-        const id = crypto.randomUUID()
+        const objectId = crypto.randomUUID()
+        const layerId = crypto.randomUUID()
         cloned.set({
           left: (cloned.left || 0) + 10,
           top: (cloned.top || 0) + 10,
-          data: { id },
+          data: { id: objectId },
         })
         canvas.add(cloned)
         canvas.setActiveObject(cloned)
         canvas.renderAll()
 
         // レイヤーを追加
-        const originalLayer = layers.find((l) => l.id === selectedObjectId)
+        const originalLayer = layers.find((l) => l.objectId === selectedObjectId)
         if (originalLayer) {
           addLayer({
-            id,
+            id: layerId,
             name: `${originalLayer.name} copy`,
             visible: true,
             locked: false,
-            objectId: id,
+            objectId: objectId,
             type: originalLayer.type,
           })
         }
-        setSelectedObjectId(id)
+        setSelectedObjectId(objectId)
       })
     }
   }, [selectedObjectId, layers, addLayer, setSelectedObjectId])
@@ -160,11 +165,12 @@ export default function Canvas() {
     if (!canvas || !clipboard) return
 
     clipboard.clone((cloned: fabric.Object) => {
-      const id = crypto.randomUUID()
+      const objectId = crypto.randomUUID()
+      const layerId = crypto.randomUUID()
       cloned.set({
         left: (cloned.left || 0) + 10,
         top: (cloned.top || 0) + 10,
-        data: { id },
+        data: { id: objectId },
         evented: true,
         selectable: true,
       })
@@ -176,14 +182,14 @@ export default function Canvas() {
       const layerName = `pasted object ${Date.now()}`
 
       addLayer({
-        id,
+        id: layerId,
         name: layerName,
         visible: true,
         locked: false,
-        objectId: id,
+        objectId: objectId,
         type: 'VECTOR',
       })
-      setSelectedObjectId(id)
+      setSelectedObjectId(objectId)
       setClipboard(cloned)
     })
   }, [clipboard, addLayer, setSelectedObjectId, setClipboard])
@@ -821,9 +827,10 @@ export default function Canvas() {
         const target = canvas.getActiveObject()
         if (target) {
           target.clone((cloned: fabric.Object) => {
-            const id = crypto.randomUUID()
+            const objectId = crypto.randomUUID()
+            const layerId = crypto.randomUUID()
             cloned.set({
-              data: { id },
+              data: { id: objectId },
               evented: true,
               selectable: true,
             })
@@ -832,18 +839,18 @@ export default function Canvas() {
             setIsAltDragging(true)
 
             // レイヤーを追加
-            const originalLayer = layers.find((l) => l.id === selectedObjectId)
+            const originalLayer = layers.find((l) => l.objectId === selectedObjectId)
             if (originalLayer) {
               addLayer({
-                id,
+                id: layerId,
                 name: `${originalLayer.name} copy`,
                 visible: true,
                 locked: false,
-                objectId: id,
+                objectId: objectId,
                 type: originalLayer.type,
               })
             }
-            setSelectedObjectId(id)
+            setSelectedObjectId(objectId)
           })
         }
       }
@@ -1000,55 +1007,56 @@ export default function Canvas() {
     const timer = setTimeout(() => {
       hasLoadedRef.current = true
 
-      // 初期読み込み
-      const savedCanvas = localStorage.getItem('figma-clone-canvas')
-      const savedLayers = localStorage.getItem('figma-clone-layers')
-
-      if (savedLayers) {
-        try {
-          const parsedLayers = JSON.parse(savedLayers)
-          parsedLayers.forEach((layer: (typeof layers)[0]) => {
-            addLayer(layer)
-          })
-          // カウンターも復元
-          parsedLayers.forEach((layer: (typeof layers)[0]) => {
-            const match = layer.name.match(/(\w+)\s+(\d+)/)
-            if (match) {
-              const [, tool, count] = match
-              const toolKey = tool as keyof typeof shapeCounterRef.current
-              if (toolKey in shapeCounterRef.current) {
-                shapeCounterRef.current[toolKey] = Math.max(
-                  shapeCounterRef.current[toolKey],
-                  parseInt(count, 10)
-                )
-              }
-            }
-          })
-        } catch (error) {
-          console.error('Failed to load layers from localStorage:', error)
-        }
-      }
-
-      if (savedCanvas) {
-        try {
-          canvas.loadFromJSON(JSON.parse(savedCanvas), () => {
-            // 読み込み後、すべてのオブジェクトを選択ツールでのみ選択可能にする
-            canvas.getObjects().forEach((obj) => {
-              obj.selectable = selectedTool === 'select'
-              obj.evented = selectedTool === 'select'
+      // 初期読み込み - 現在のページのデータを読み込む
+      const currentPage = pages.find((p) => p.id === currentPageId)
+      if (currentPage) {
+        // ページのレイヤーを読み込み
+        if (currentPage.layers.length > 0) {
+          try {
+            currentPage.layers.forEach((layer) => {
+              addLayer(layer)
             })
-            canvas.renderAll()
-          })
-        } catch (error) {
-          console.error('Failed to load canvas from localStorage:', error)
+            // カウンターも復元
+            currentPage.layers.forEach((layer) => {
+              const match = layer.name.match(/(\w+)\s+(\d+)/)
+              if (match) {
+                const [, tool, count] = match
+                const toolKey = tool as keyof typeof shapeCounterRef.current
+                if (toolKey in shapeCounterRef.current) {
+                  shapeCounterRef.current[toolKey] = Math.max(
+                    shapeCounterRef.current[toolKey],
+                    parseInt(count, 10)
+                  )
+                }
+              }
+            })
+          } catch (error) {
+            console.error('Failed to load page layers:', error)
+          }
+        }
+
+        // ページのcanvasDataを読み込み
+        if (currentPage.canvasData) {
+          try {
+            canvas.loadFromJSON(currentPage.canvasData, () => {
+              // 読み込み後、すべてのオブジェクトを選択ツールでのみ選択可能にする
+              canvas.getObjects().forEach((obj) => {
+                obj.selectable = selectedTool === 'select'
+                obj.evented = selectedTool === 'select'
+              })
+              canvas.renderAll()
+            })
+          } catch (error) {
+            console.error('Failed to load page canvas data:', error)
+          }
         }
       }
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [selectedTool, addLayer])
+  }, [selectedTool, addLayer, pages, currentPageId])
 
-  // localStorage自動保存（デバウンス）
+  // localStorage自動保存（デバウンス） - ページごとに保存
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas || !hasLoadedRef.current) return
@@ -1059,10 +1067,9 @@ export default function Canvas() {
       saveTimeout = setTimeout(() => {
         try {
           const json = JSON.stringify(canvas.toJSON(['data']))
-          localStorage.setItem('figma-clone-canvas', json)
-          localStorage.setItem('figma-clone-layers', JSON.stringify(layers))
+          updatePageData(currentPageId, json, layers)
         } catch (error) {
-          console.error('Failed to save canvas to localStorage:', error)
+          console.error('Failed to save canvas to page:', error)
         }
       }, 500)
     }
@@ -1077,7 +1084,48 @@ export default function Canvas() {
       canvas.off('object:added', handleCanvasChange)
       canvas.off('object:removed', handleCanvasChange)
     }
-  }, [layers])
+  }, [layers, currentPageId, updatePageData])
+
+  // ページ切り替え処理
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    // ページが変更された場合
+    if (prevPageIdRef.current !== currentPageId) {
+      // 前のページのデータを保存
+      try {
+        const json = JSON.stringify(canvas.toJSON(['data']))
+        updatePageData(prevPageIdRef.current, json, layers)
+      } catch (error) {
+        console.error('Failed to save previous page:', error)
+      }
+
+      // 新しいページのデータを読み込み
+      const currentPage = pages.find((p) => p.id === currentPageId)
+      if (currentPage) {
+        // キャンバスをクリア
+        canvas.clear()
+
+        // 新しいページのレイヤーを設定
+        setLayers(currentPage.layers)
+
+        // 新しいページのcanvasDataを読み込み
+        if (currentPage.canvasData) {
+          try {
+            canvas.loadFromJSON(currentPage.canvasData, () => {
+              canvas.renderAll()
+            })
+          } catch (error) {
+            console.error('Failed to load page canvas data:', error)
+          }
+        }
+      }
+
+      // 前のページIDを更新
+      prevPageIdRef.current = currentPageId
+    }
+  }, [currentPageId, pages, layers, updatePageData, setLayers])
 
   // 画像ペースト機能
   useEffect(() => {
@@ -1180,7 +1228,6 @@ export default function Canvas() {
           onDistributeVertical={distributeVertical}
         />
       )}
-      <PagePanel />
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}

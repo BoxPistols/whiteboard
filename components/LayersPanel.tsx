@@ -13,6 +13,11 @@ export default function LayersPanel() {
     reorderLayers,
     setSelectedObjectId,
     fabricCanvas,
+    pages,
+    currentPageId,
+    addPage,
+    removePage,
+    setCurrentPage,
   } = useCanvasStore()
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -52,9 +57,62 @@ export default function LayersPanel() {
     }
   }
 
+  const handleAddPage = () => {
+    const pageNumber = pages.length + 1
+    addPage(`Page ${pageNumber}`)
+  }
+
+  const handleRemovePage = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (pages.length > 1) {
+      removePage(id)
+    }
+  }
+
   return (
-    <div className="w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 p-2">
-      <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">レイヤー</h2>
+    <div className="w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      {/* ページナビゲーション */}
+      <div className="border-b border-gray-200 dark:border-gray-700 p-2">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-xs font-semibold text-gray-700 dark:text-gray-300">ページ</h2>
+          <button
+            onClick={handleAddPage}
+            className="px-1.5 py-0.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded"
+            title="新しいページを追加"
+          >
+            +
+          </button>
+        </div>
+        <div className="space-y-0.5 max-h-32 overflow-y-auto">
+          {pages.map((page) => (
+            <div key={page.id} className="relative group">
+              <button
+                onClick={() => setCurrentPage(page.id)}
+                className={`w-full text-left px-2 py-1 text-xs rounded transition-colors ${
+                  currentPageId === page.id
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                {page.name}
+              </button>
+              {pages.length > 1 && (
+                <button
+                  onClick={(e) => handleRemovePage(page.id, e)}
+                  className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  title="ページを削除"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* レイヤーリスト */}
+      <div className="flex-1 overflow-hidden p-2">
+        <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">レイヤー</h2>
       {layers.length > 0 ? (
         <div className="space-y-0.5">
           {layers.map((layer, index) => (
@@ -116,6 +174,7 @@ export default function LayersPanel() {
       ) : (
         <p className="text-gray-500 dark:text-gray-400 text-xs px-1">レイヤーがありません</p>
       )}
+      </div>
     </div>
   )
 }

@@ -72,7 +72,7 @@ describe('LayersPanel', () => {
     useCanvasStore.setState({ layers: [layer] })
     render(<LayersPanel />)
 
-    const visibilityButton = screen.getAllByRole('button')[0]
+    const visibilityButton = screen.getByLabelText('レイヤーを非表示にする')
     await user.click(visibilityButton)
 
     const { layers } = useCanvasStore.getState()
@@ -93,7 +93,7 @@ describe('LayersPanel', () => {
     useCanvasStore.setState({ layers: [layer] })
     render(<LayersPanel />)
 
-    const lockButton = screen.getAllByRole('button')[1]
+    const lockButton = screen.getByLabelText('レイヤーをロックする')
     await user.click(lockButton)
 
     const { layers } = useCanvasStore.getState()

@@ -52,6 +52,7 @@ interface CanvasStore {
   setLayers: (layers: Layer[]) => void
   toggleTheme: () => void
   loadSavedTheme: () => void
+  resetAll: () => void
 }
 
 const defaultPageId = 'page-1'
@@ -239,5 +240,26 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
     // Update store
     set({ theme })
+  },
+  resetAll: () => {
+    const { fabricCanvas } = get()
+
+    // キャンバスをクリア
+    if (fabricCanvas) {
+      fabricCanvas.clear()
+      fabricCanvas.renderAll()
+    }
+
+    // ストアを初期状態にリセット
+    set({
+      selectedTool: 'select',
+      selectedObjectId: null,
+      layers: [],
+      zoom: 100,
+      selectedObjectProps: null,
+      clipboard: null,
+      pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
+      currentPageId: defaultPageId,
+    })
   },
 }))

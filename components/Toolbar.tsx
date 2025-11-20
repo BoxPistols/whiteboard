@@ -31,12 +31,19 @@ const tools: {
 ]
 
 export default function Toolbar() {
-  const { selectedTool, setSelectedTool, theme, toggleTheme, loadSavedTheme } = useCanvasStore()
+  const { selectedTool, setSelectedTool, theme, toggleTheme, loadSavedTheme, resetAll } =
+    useCanvasStore()
 
   useEffect(() => {
     // Load saved theme from localStorage after mount (prevents hydration mismatch)
     loadSavedTheme()
   }, [loadSavedTheme])
+
+  const handleReset = () => {
+    if (window.confirm('全てのデータをリセットしますか？この操作は取り消せません。')) {
+      resetAll()
+    }
+  }
 
   return (
     <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-3 py-1.5">
@@ -68,6 +75,14 @@ export default function Toolbar() {
         </div>
         <div className="flex items-center gap-2">
           <ExportImportControls />
+          <button
+            onClick={handleReset}
+            className="px-3 py-1 text-sm bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
+            title="全てのデータをリセット"
+            aria-label="全てのデータをリセット"
+          >
+            ALL Reset
+          </button>
           <button
             onClick={toggleTheme}
             className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
