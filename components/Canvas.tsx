@@ -673,6 +673,11 @@ export default function Canvas() {
       isDrawingRef.current = true
       startPointRef.current = { x: pointer.x, y: pointer.y }
 
+      // ダークモードを検出してデフォルトカラーを決定
+      const isDark = document.documentElement.classList.contains('dark')
+      const defaultStrokeColor = isDark ? '#6B7280' : '#D1D5DB' // Gray 500 for dark, Gray 300 for light
+      const defaultFillColor = isDark ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.5)'
+
       let shape: fabric.Object | null = null
 
       switch (selectedTool) {
@@ -682,8 +687,8 @@ export default function Canvas() {
             top: pointer.y,
             width: 0,
             height: 0,
-            fill: 'rgba(59, 130, 246, 0.5)',
-            stroke: '#3b82f6',
+            fill: defaultFillColor,
+            stroke: defaultStrokeColor,
             strokeWidth: 2,
             selectable: false,
             evented: false,
@@ -694,8 +699,8 @@ export default function Canvas() {
             left: pointer.x,
             top: pointer.y,
             radius: 0,
-            fill: 'rgba(59, 130, 246, 0.5)',
-            stroke: '#3b82f6',
+            fill: defaultFillColor,
+            stroke: defaultStrokeColor,
             strokeWidth: 2,
             selectable: false,
             evented: false,
@@ -703,7 +708,7 @@ export default function Canvas() {
           break
         case 'line':
           shape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-            stroke: '#3b82f6',
+            stroke: defaultStrokeColor,
             strokeWidth: 2,
             selectable: false,
             evented: false,
@@ -712,7 +717,7 @@ export default function Canvas() {
         case 'arrow':
           // 矢印は線と三角形のグループとして作成
           const line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-            stroke: '#3b82f6',
+            stroke: defaultStrokeColor,
             strokeWidth: 2,
           })
           const triangle = new fabric.Triangle({
@@ -720,7 +725,7 @@ export default function Canvas() {
             top: pointer.y,
             width: 10,
             height: 10,
-            fill: '#3b82f6',
+            fill: defaultStrokeColor,
             angle: 0,
           })
           shape = new fabric.Group([line, triangle], {
