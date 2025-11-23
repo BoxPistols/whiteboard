@@ -73,6 +73,7 @@ export default function Canvas() {
     resetZoom,
     zoomToFit,
     zoomToSelection,
+    theme,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -609,11 +610,10 @@ export default function Canvas() {
     canvas.renderAll()
 
     if (selectedTool === 'pencil') {
-      const isDark = document.documentElement.classList.contains('dark')
-      canvas.freeDrawingBrush.color = isDark ? '#ffffff' : '#000000'
+      canvas.freeDrawingBrush.color = theme === 'dark' ? '#ffffff' : '#000000'
       canvas.freeDrawingBrush.width = 2
     }
-  }, [selectedTool])
+  }, [selectedTool, theme])
 
   const handleMouseDown = useCallback(
     (e: fabric.IEvent<Event>) => {
@@ -627,9 +627,8 @@ export default function Canvas() {
       // テキストツールの場合はクリック位置にテキストを追加
       if (selectedTool === 'text') {
         const id = crypto.randomUUID()
-        // ダークモードを検出してテキスト色を決定
-        const isDark = document.documentElement.classList.contains('dark')
-        const textColor = isDark ? '#ffffff' : '#000000'
+        // テーマに応じてテキスト色を決定
+        const textColor = theme === 'dark' ? '#ffffff' : '#000000'
 
         const text = new fabric.IText('テキストを入力', {
           left: pointer.x,
@@ -673,10 +672,9 @@ export default function Canvas() {
       isDrawingRef.current = true
       startPointRef.current = { x: pointer.x, y: pointer.y }
 
-      // ダークモードを検出してデフォルトカラーを決定
-      const isDark = document.documentElement.classList.contains('dark')
-      const defaultStrokeColor = isDark ? '#6B7280' : '#D1D5DB' // Gray 500 for dark, Gray 300 for light
-      const defaultFillColor = isDark ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.5)'
+      // テーマに応じてデフォルトカラーを決定
+      const defaultStrokeColor = theme === 'dark' ? '#6B7280' : '#D1D5DB' // Gray 500 for dark, Gray 300 for light
+      const defaultFillColor = theme === 'dark' ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.5)'
 
       let shape: fabric.Object | null = null
 
@@ -740,7 +738,7 @@ export default function Canvas() {
         currentShapeRef.current = shape
       }
     },
-    [selectedTool, addLayer, setSelectedObjectId, setSelectedTool]
+    [selectedTool, addLayer, setSelectedObjectId, setSelectedTool, theme]
   )
 
   const handleMouseMove = useCallback(
