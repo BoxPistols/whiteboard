@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { fabric } from 'fabric'
 import { useCanvasStore } from '@/lib/store'
 import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
+import { convertColorForTheme } from '@/lib/colorUtils'
 import ContextMenu from '@/components/ContextMenu'
 import AlignmentPanel from '@/components/AlignmentPanel'
 import type { NodeType } from '@/types'
@@ -1231,6 +1232,41 @@ export default function Canvas() {
       document.removeEventListener('paste', handlePaste)
     }
   }, [addLayer, setSelectedObjectId])
+
+  // テーマ切り替え時に既存オブジェクトの色を自動変換
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const objects = canvas.getObjects()
+
+    objects.forEach((obj) => {
+      // Groupオブジェクト（矢印など）の場合
+      if (obj.type === 'group') {
+        const items = (obj as fabric.Group).getObjects()
+        items.forEach((item) => {
+          if (item.fill && typeof item.fill === 'string' && item.fill !== 'transparent') {
+            item.set('fill', convertColorForTheme(item.fill, theme))
+          }
+          if (item.stroke && typeof item.stroke === 'string' && item.stroke !== 'transparent') {
+            item.set('stroke', convertColorForTheme(item.stroke, theme))
+          }
+        })
+      } else {
+        // 通常のオブジェクト
+        if (obj.fill && typeof obj.fill === 'string' && obj.fill !== 'transparent') {
+          obj.set('fill', convertColorForTheme(obj.fill, theme))
+        }
+        if (obj.stroke && typeof obj.stroke === 'string' && obj.stroke !== 'transparent') {
+          obj.set('stroke', convertColorForTheme(obj.stroke, theme))
+        }
+      }
+
+      obj.dirty = true
+    })
+
+    canvas.renderAll()
+  }, [theme])
 
   // タッチジェスチャーサポート（モバイル対応）
   useEffect(() => {
