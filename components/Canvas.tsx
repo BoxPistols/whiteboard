@@ -674,7 +674,8 @@ export default function Canvas() {
 
       // テーマに応じてデフォルトカラーを決定
       const defaultStrokeColor = theme === 'dark' ? '#6B7280' : '#D1D5DB' // Gray 500 for dark, Gray 300 for light
-      const defaultFillColor = theme === 'dark' ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.5)'
+      const defaultFillColor =
+        theme === 'dark' ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.5)'
 
       let shape: fabric.Object | null = null
 
