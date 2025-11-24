@@ -249,7 +249,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
   setLayers: (layers) => set({ layers }),
   updateObjectProperty: (key, value) => {
-    const { fabricCanvas, selectedObjectId, selectedObjectProps } = get()
+    const { fabricCanvas, selectedObjectId, selectedObjectProps, theme } = get()
     if (!fabricCanvas || !selectedObjectId) return
 
     const activeObject = fabricCanvas.getActiveObject()
@@ -269,6 +269,19 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         item.dirty = true
       })
       activeObject.dirty = true
+
+      // 色が変更された場合、baseColorとbaseThemeを更新
+      if (key === 'fill' || key === 'stroke') {
+        const currentData = activeObject.data || { id: selectedObjectId }
+        activeObject.set({
+          data: {
+            ...currentData,
+            ...(key === 'fill' && { baseFill: value as string }),
+            ...(key === 'stroke' && { baseStroke: value as string }),
+            baseTheme: theme,
+          },
+        })
+      }
     } else if (key === 'width' || key === 'height') {
       // 幅と高さはスケールを考慮して設定
       if (key === 'width' && activeObject.width) {
@@ -284,6 +297,19 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       else if (key === 'opacity') activeObject.set('opacity', value as number)
       else if (key === 'left') activeObject.set('left', value as number)
       else if (key === 'top') activeObject.set('top', value as number)
+
+      // 色が変更された場合、baseColorとbaseThemeを更新
+      if (key === 'fill' || key === 'stroke') {
+        const currentData = activeObject.data || { id: selectedObjectId }
+        activeObject.set({
+          data: {
+            ...currentData,
+            ...(key === 'fill' && { baseFill: value as string }),
+            ...(key === 'stroke' && { baseStroke: value as string }),
+            baseTheme: theme,
+          },
+        })
+      }
     }
 
     // 変更を反映

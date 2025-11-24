@@ -160,23 +160,24 @@ export function generateLightModeColor(darkHex: string): string {
   if (!hsl) return darkHex
 
   // darkモードの色から明度を反転
+  // 基本的には 100 - lightness だが、極端な変換を避けるため調整
   let newLightness: number
 
   if (hsl.l < 20) {
-    // 非常に暗い色 → 非常に明るい色
-    newLightness = 90 - hsl.l * 2
+    // 非常に暗い色（900番台） → 非常に明るい色（50-100番台）
+    newLightness = 90 + (20 - hsl.l) * 0.5
   } else if (hsl.l < 35) {
-    // 暗い色 → 明るい色
-    newLightness = 85 - hsl.l * 1.5
+    // 暗い色（700-800番台） → 明るい色（200-300番台）
+    newLightness = 75 + (35 - hsl.l) * 1
   } else if (hsl.l < 50) {
-    // やや暗い色 → やや明るい色
-    newLightness = 75 - hsl.l * 1.2
+    // やや暗い色（500-600番台） → やや明るい色（400-500番台）
+    newLightness = 60 + (50 - hsl.l) * 1.2
   } else if (hsl.l < 70) {
-    // やや明るい色 → やや暗い色
-    newLightness = 60 - (hsl.l - 50) * 1.5
+    // やや明るい色（300-400番台） → やや暗い色（600-700番台）
+    newLightness = 50 - (hsl.l - 50) * 1.2
   } else {
-    // 明るい色 → 暗い色
-    newLightness = 40 - (hsl.l - 70) * 2
+    // 明るい色（100-200番台） → 暗い色（800-900番台）
+    newLightness = 35 - (hsl.l - 70) * 1
   }
 
   newLightness = Math.max(10, Math.min(95, newLightness))
