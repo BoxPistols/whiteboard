@@ -76,9 +76,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setClipboard: (obj) => set({ clipboard: obj }),
   addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
   removeLayer: (id) =>
-    set((state) => ({
-      layers: state.layers.filter((layer) => layer.id !== id),
-    })),
+    set((state) => {
+      const { fabricCanvas } = get()
+      const layer = state.layers.find((l) => l.id === id)
+
+      // Canvasからもオブジェクトを削除
+      if (fabricCanvas && layer) {
+        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+        if (obj) {
+          fabricCanvas.remove(obj)
+          fabricCanvas.renderAll()
+        }
+      }
+
+      return {
+        layers: state.layers.filter((layer) => layer.id !== id),
+      }
+    }),
   toggleLayerVisibility: (id) =>
     set((state) => {
       const { fabricCanvas } = get()
@@ -101,11 +115,39 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       return { layers: updatedLayers }
     }),
   toggleLayerLock: (id) =>
-    set((state) => ({
-      layers: state.layers.map((layer) =>
-        layer.id === id ? { ...layer, locked: !layer.locked } : layer
-      ),
-    })),
+    set((state) => {
+      const { fabricCanvas } = get()
+      const layer = state.layers.find((l) => l.id === id)
+
+      if (fabricCanvas && layer) {
+        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+        if (obj) {
+          const newLockState = !layer.locked
+          // ロック/ロック解除の設定
+          obj.set({
+            lockMovementX: newLockState,
+            lockMovementY: newLockState,
+            lockRotation: newLockState,
+            lockScalingX: newLockState,
+            lockScalingY: newLockState,
+            hasControls: !newLockState,
+            selectable: !newLockState,
+            evented: !newLockState,
+          })
+          // ロックした場合は選択を解除
+          if (newLockState && fabricCanvas.getActiveObject() === obj) {
+            fabricCanvas.discardActiveObject()
+          }
+          fabricCanvas.renderAll()
+        }
+      }
+
+      return {
+        layers: state.layers.map((layer) =>
+          layer.id === id ? { ...layer, locked: !layer.locked } : layer
+        ),
+      }
+    }),
   reorderLayers: (startIndex, endIndex) =>
     set((state) => {
       const result = Array.from(state.layers)

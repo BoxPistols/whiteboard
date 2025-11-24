@@ -107,24 +107,33 @@ export default function Canvas() {
     // 複数選択の場合
     if (activeSelection.type === 'activeSelection') {
       const objects = (activeSelection as fabric.ActiveSelection).getObjects()
+      canvas.discardActiveObject()
       objects.forEach((obj) => {
-        if (obj.data?.id) {
-          canvas.remove(obj)
-          removeLayer(obj.data.id)
+        const objectId = obj.data?.id
+        if (objectId) {
+          // objectIdからlayerIdを見つける
+          const layer = layers.find((l) => l.objectId === objectId)
+          if (layer) {
+            // removeLayerがcanvasからも削除する
+            removeLayer(layer.id)
+          }
         }
       })
-      canvas.discardActiveObject()
     } else {
       // 単一選択の場合
-      if (activeSelection.data?.id) {
-        canvas.remove(activeSelection)
-        removeLayer(activeSelection.data.id)
+      const objectId = activeSelection.data?.id
+      if (objectId) {
+        // objectIdからlayerIdを見つける
+        const layer = layers.find((l) => l.objectId === objectId)
+        if (layer) {
+          // removeLayerがcanvasからも削除する
+          removeLayer(layer.id)
+        }
       }
     }
 
     setSelectedObjectId(null)
-    canvas.renderAll()
-  }, [removeLayer, setSelectedObjectId])
+  }, [removeLayer, setSelectedObjectId, layers])
 
   // 選択されたオブジェクトを複製
   const duplicateSelectedObject = useCallback(() => {
