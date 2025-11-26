@@ -63,7 +63,7 @@ export default function Home() {
         {/* 左パネルトグルボタン */}
         <button
           onClick={toggleLeftPanel}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-6 h-16 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-r flex items-center justify-center text-gray-600 dark:text-gray-300 transition-colors"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-50 w-6 h-16 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-r flex items-center justify-center text-gray-600 dark:text-gray-300 transition-colors shadow-lg"
           style={{ left: showLeftPanel ? `${leftPanelWidth}px` : '0px' }}
           title={showLeftPanel ? 'レイヤーパネルを隠す' : 'レイヤーパネルを表示'}
           aria-label={showLeftPanel ? 'レイヤーパネルを隠す' : 'レイヤーパネルを表示'}
@@ -102,7 +102,7 @@ export default function Home() {
         {/* 右パネルトグルボタン */}
         <button
           onClick={toggleRightPanel}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-6 h-16 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-l flex items-center justify-center text-gray-600 dark:text-gray-300 transition-colors"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-50 w-6 h-16 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-l flex items-center justify-center text-gray-600 dark:text-gray-300 transition-colors shadow-lg"
           style={{ right: showRightPanel ? `${rightPanelWidth}px` : '0px' }}
           title={showRightPanel ? 'プロパティパネルを隠す' : 'プロパティパネルを表示'}
           aria-label={showRightPanel ? 'プロパティパネルを隠す' : 'プロパティパネルを表示'}

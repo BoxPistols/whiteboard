@@ -68,6 +68,25 @@ interface CanvasStore {
 
 const defaultPageId = 'page-1'
 
+// localStorageからページデータを読み込む
+const loadPagesFromStorage = (): Page[] => {
+  if (typeof window === 'undefined') {
+    return [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
+  }
+
+  try {
+    const saved = localStorage.getItem('figma-clone-pages')
+    if (saved) {
+      const pages = JSON.parse(saved) as Page[]
+      return pages.length > 0 ? pages : [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
+    }
+  } catch (error) {
+    console.error('Failed to load pages from localStorage:', error)
+  }
+
+  return [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
+}
+
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
   selectedObjectId: null,
@@ -76,7 +95,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   fabricCanvas: null,
   selectedObjectProps: null,
   clipboard: null,
-  pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
+  pages: loadPagesFromStorage(),
   currentPageId: defaultPageId,
   theme: 'light',
   showLeftPanel: true,
@@ -343,29 +362,62 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       set({ selectedObjectProps: updatedProps })
     }
   },
-  addPage: (name) =>
-    set((state) => {
-      const newPage: Page = {
-        id: `page-${Date.now()}`,
-        name,
-        canvasData: null,
-        layers: [],
+  addPage: (name) => {
+    const newPage: Page = {
+      id: `page-${Date.now()}`,
+      name,
+      canvasData: null,
+      layers: [],
+    }
+    const updatedPages = [...get().pages, newPage]
+
+    // localStorageに保存
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+      } catch (error) {
+        console.error('Failed to save pages to localStorage:', error)
       }
-      return { pages: [...state.pages, newPage] }
-    }),
-  removePage: (id) =>
-    set((state) => ({
-      pages: state.pages.filter((page) => page.id !== id),
-      currentPageId:
-        state.currentPageId === id && state.pages.length > 1
-          ? state.pages.find((p) => p.id !== id)!.id
-          : state.currentPageId,
-    })),
+    }
+
+    set({ pages: updatedPages })
+  },
+  removePage: (id) => {
+    const state = get()
+    const updatedPages = state.pages.filter((page) => page.id !== id)
+    const newCurrentPageId =
+      state.currentPageId === id && state.pages.length > 1
+        ? state.pages.find((p) => p.id !== id)!.id
+        : state.currentPageId
+
+    // localStorageに保存
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+      } catch (error) {
+        console.error('Failed to save pages to localStorage:', error)
+      }
+    }
+
+    set({ pages: updatedPages, currentPageId: newCurrentPageId })
+  },
   setCurrentPage: (id) => set({ currentPageId: id }),
-  updatePageData: (id, canvasData, layers) =>
-    set((state) => ({
-      pages: state.pages.map((page) => (page.id === id ? { ...page, canvasData, layers } : page)),
-    })),
+  updatePageData: (id, canvasData, layers) => {
+    const updatedPages = get().pages.map((page) =>
+      page.id === id ? { ...page, canvasData, layers } : page
+    )
+
+    // localStorageに保存
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+      } catch (error) {
+        console.error('Failed to save pages to localStorage:', error)
+      }
+    }
+
+    set({ pages: updatedPages })
+  },
   toggleLeftPanel: () => set((state) => ({ showLeftPanel: !state.showLeftPanel })),
   toggleRightPanel: () => set((state) => ({ showRightPanel: !state.showRightPanel })),
   setLeftPanelWidth: (width) => set({ leftPanelWidth: Math.max(200, Math.min(width, 400)) }),
