@@ -70,7 +70,7 @@ export default function LayersPanel() {
   }
 
   return (
-    <div className="w-56 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+    <div className="w-full h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
       {/* ページナビゲーション */}
       <div className="border-b border-gray-200 dark:border-gray-700 p-2">
         <div className="flex items-center justify-between mb-1">

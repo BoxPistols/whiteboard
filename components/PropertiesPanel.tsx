@@ -8,7 +8,7 @@ export default function PropertiesPanel() {
 
   if (!selectedObjectId || !selectedObjectProps) {
     return (
-      <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2 flex flex-col h-full">
+      <div className="w-full h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2 flex flex-col">
         <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">
           プロパティ
         </h2>
@@ -20,7 +20,7 @@ export default function PropertiesPanel() {
   }
 
   return (
-    <div className="w-56 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2 flex flex-col h-full overflow-hidden">
+    <div className="w-full h-full bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 p-2 flex flex-col overflow-hidden">
       <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">
         プロパティ
       </h2>

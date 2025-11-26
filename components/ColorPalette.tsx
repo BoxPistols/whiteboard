@@ -11,13 +11,14 @@ interface ColorPaletteProps {
 
 export default function ColorPalette({ onColorSelect, currentColor, label }: ColorPaletteProps) {
   const [colorTokens, setColorTokens] = useState<ColorToken[]>(defaultColorTokens)
+  const [favoriteColors, setFavoriteColors] = useState<string[]>([])
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(['blue', 'gray'])
   )
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [customColor, setCustomColor] = useState('#000000')
 
-  // localStorageからカスタムカラーを読み込み
+  // localStorageからカスタムカラーとお気に入りを読み込み
   useEffect(() => {
     const savedCustomColors = localStorage.getItem('custom-colors')
     if (savedCustomColors) {
@@ -26,6 +27,16 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
         setColorTokens([...defaultColorTokens, ...customColors])
       } catch (e) {
         console.error('Failed to load custom colors', e)
+      }
+    }
+
+    const savedFavorites = localStorage.getItem('favorite-colors')
+    if (savedFavorites) {
+      try {
+        const favorites = JSON.parse(savedFavorites) as string[]
+        setFavoriteColors(favorites)
+      } catch (e) {
+        console.error('Failed to load favorite colors', e)
       }
     }
   }, [])
@@ -50,6 +61,17 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
       newExpanded.add(category)
     }
     setExpandedCategories(newExpanded)
+  }
+
+  const toggleFavorite = (colorValue: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    const newFavorites = favoriteColors.includes(colorValue)
+      ? favoriteColors.filter((c) => c !== colorValue)
+      : [...favoriteColors, colorValue]
+
+    setFavoriteColors(newFavorites)
+    localStorage.setItem('favorite-colors', JSON.stringify(newFavorites))
   }
 
   const handleAddCustomColor = () => {
@@ -82,7 +104,17 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
 
     const customColors = updatedTokens.filter((t) => t.category === 'custom')
     localStorage.setItem('custom-colors', JSON.stringify(customColors))
+
+    // お気に入りからも削除
+    if (favoriteColors.includes(colorValue)) {
+      const newFavorites = favoriteColors.filter((c) => c !== colorValue)
+      setFavoriteColors(newFavorites)
+      localStorage.setItem('favorite-colors', JSON.stringify(newFavorites))
+    }
   }
+
+  // お気に入りカラートークンを取得
+  const favoriteTokens = colorTokens.filter((token) => favoriteColors.includes(token.value))
 
   return (
     <div className="space-y-1">
@@ -93,28 +125,39 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
       )}
 
       <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 p-1">
-        {/* よく使う色（上位10色） */}
-        <div className="mb-2">
-          <div className="text-[10px] font-semibold text-gray-600 dark:text-gray-400 px-1 mb-1">
-            よく使う色
+        {/* お気に入りの色 */}
+        {favoriteTokens.length > 0 && (
+          <div className="mb-2">
+            <div className="text-[10px] font-semibold text-gray-600 dark:text-gray-400 px-1 mb-1 flex items-center gap-1">
+              <span>⭐</span>
+              <span>お気に入り</span>
+              <span className="text-[9px] opacity-70">({favoriteTokens.length})</span>
+            </div>
+            <div className="grid grid-cols-10 gap-0.5">
+              {favoriteTokens.map((token) => (
+                <button
+                  key={token.value}
+                  onClick={() => onColorSelect(token.value)}
+                  className={`w-5 h-5 rounded border-2 transition-all hover:scale-110 ${
+                    currentColor === token.value
+                      ? 'border-blue-500 ring-1 ring-blue-500'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  style={{ backgroundColor: token.value }}
+                  title={token.name}
+                  aria-label={`${token.name}を選択`}
+                />
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-10 gap-0.5">
-            {colorTokens.slice(0, 10).map((token) => (
-              <button
-                key={token.value}
-                onClick={() => onColorSelect(token.value)}
-                className={`w-5 h-5 rounded border-2 transition-all hover:scale-110 ${
-                  currentColor === token.value
-                    ? 'border-blue-500 ring-1 ring-blue-500'
-                    : 'border-gray-300 dark:border-gray-600'
-                }`}
-                style={{ backgroundColor: token.value }}
-                title={token.name}
-                aria-label={`${token.name}を選択`}
-              />
-            ))}
+        )}
+
+        {/* 初回ユーザー向けヒント */}
+        {favoriteTokens.length === 0 && (
+          <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-[10px] text-gray-600 dark:text-gray-400">
+            💡 色の上で★をクリックしてお気に入りに追加できます
           </div>
-        </div>
+        )}
 
         {/* カテゴリー別カラー */}
         {Object.entries(groupedColors).map(([category, tokens]) => (
@@ -146,6 +189,28 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
                       title={token.name}
                       aria-label={`${token.name}を選択`}
                     />
+                    {/* お気に入りボタン */}
+                    <button
+                      onClick={(e) => toggleFavorite(token.value, e)}
+                      className={`absolute -top-1 -left-1 w-3 h-3 rounded-full text-[8px] transition-opacity flex items-center justify-center ${
+                        favoriteColors.includes(token.value)
+                          ? 'bg-yellow-400 opacity-100'
+                          : 'bg-gray-400 opacity-0 group-hover:opacity-100'
+                      }`}
+                      title={
+                        favoriteColors.includes(token.value)
+                          ? 'お気に入りから削除'
+                          : 'お気に入りに追加'
+                      }
+                      aria-label={
+                        favoriteColors.includes(token.value)
+                          ? `${token.name}をお気に入りから削除`
+                          : `${token.name}をお気に入りに追加`
+                      }
+                    >
+                      ★
+                    </button>
+                    {/* カスタムカラー削除ボタン */}
                     {category === 'custom' && (
                       <button
                         onClick={(e) => handleRemoveCustomColor(token.value, e)}

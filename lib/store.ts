@@ -33,6 +33,10 @@ interface CanvasStore {
   pages: Page[]
   currentPageId: string
   theme: 'light' | 'dark'
+  showLeftPanel: boolean
+  showRightPanel: boolean
+  leftPanelWidth: number
+  rightPanelWidth: number
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -52,6 +56,10 @@ interface CanvasStore {
   removePage: (id: string) => void
   setCurrentPage: (id: string) => void
   updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
+  toggleLeftPanel: () => void
+  toggleRightPanel: () => void
+  setLeftPanelWidth: (width: number) => void
+  setRightPanelWidth: (width: number) => void
   setLayers: (layers: Layer[]) => void
   toggleTheme: () => void
   loadSavedTheme: () => void
@@ -71,6 +79,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
   currentPageId: defaultPageId,
   theme: 'light',
+  showLeftPanel: true,
+  showRightPanel: true,
+  leftPanelWidth: 224, // 56 * 4 = w-56
+  rightPanelWidth: 288, // 72 * 4 = w-72
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -354,6 +366,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set((state) => ({
       pages: state.pages.map((page) => (page.id === id ? { ...page, canvasData, layers } : page)),
     })),
+  toggleLeftPanel: () => set((state) => ({ showLeftPanel: !state.showLeftPanel })),
+  toggleRightPanel: () => set((state) => ({ showRightPanel: !state.showRightPanel })),
+  setLeftPanelWidth: (width) => set({ leftPanelWidth: Math.max(200, Math.min(width, 400)) }),
+  setRightPanelWidth: (width) => set({ rightPanelWidth: Math.max(250, Math.min(width, 500)) }),
   toggleTheme: () => {
     const currentTheme = get().theme
     const newTheme = currentTheme === 'light' ? 'dark' : 'light'
