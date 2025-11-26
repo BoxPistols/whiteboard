@@ -78,7 +78,9 @@ const loadPagesFromStorage = (): Page[] => {
     const saved = localStorage.getItem('figma-clone-pages')
     if (saved) {
       const pages = JSON.parse(saved) as Page[]
-      return pages.length > 0 ? pages : [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
+      return pages.length > 0
+        ? pages
+        : [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
     }
   } catch (error) {
     console.error('Failed to load pages from localStorage:', error)
