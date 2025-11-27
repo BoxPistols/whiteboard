@@ -32,10 +32,17 @@ export default function PropertiesPanel() {
             className="rounded border border-gray-200 dark:border-gray-700"
             onToggle={(e) => {
               if (typeof window !== 'undefined') {
-                localStorage.setItem('accordion-fill-open', (e.currentTarget as HTMLDetailsElement).open ? '1' : '0')
+                localStorage.setItem(
+                  'accordion-fill-open',
+                  (e.currentTarget as HTMLDetailsElement).open ? '1' : '0'
+                )
               }
             }}
-            open={typeof window !== 'undefined' ? localStorage.getItem('accordion-fill-open') === '1' : true}
+            open={
+              typeof window !== 'undefined'
+                ? localStorage.getItem('accordion-fill-open') === '1'
+                : true
+            }
           >
             <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
               塗りつぶし
@@ -59,10 +66,17 @@ export default function PropertiesPanel() {
             className="rounded border border-gray-200 dark:border-gray-700"
             onToggle={(e) => {
               if (typeof window !== 'undefined') {
-                localStorage.setItem('accordion-stroke-open', (e.currentTarget as HTMLDetailsElement).open ? '1' : '0')
+                localStorage.setItem(
+                  'accordion-stroke-open',
+                  (e.currentTarget as HTMLDetailsElement).open ? '1' : '0'
+                )
               }
             }}
-            open={typeof window !== 'undefined' ? localStorage.getItem('accordion-stroke-open') === '1' : true}
+            open={
+              typeof window !== 'undefined'
+                ? localStorage.getItem('accordion-stroke-open') === '1'
+                : true
+            }
           >
             <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
               線のカラー
@@ -177,10 +191,17 @@ export default function PropertiesPanel() {
               className="rounded border border-gray-200 dark:border-gray-700"
               onToggle={(e) => {
                 if (typeof window !== 'undefined') {
-                  localStorage.setItem('accordion-fill-palette-open', (e.currentTarget as HTMLDetailsElement).open ? '1' : '0')
+                  localStorage.setItem(
+                    'accordion-fill-palette-open',
+                    (e.currentTarget as HTMLDetailsElement).open ? '1' : '0'
+                  )
                 }
               }}
-              open={typeof window !== 'undefined' ? localStorage.getItem('accordion-fill-palette-open') === '1' : true}
+              open={
+                typeof window !== 'undefined'
+                  ? localStorage.getItem('accordion-fill-palette-open') === '1'
+                  : true
+              }
             >
               <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
                 塗りつぶしカラー
@@ -201,10 +222,17 @@ export default function PropertiesPanel() {
               className="rounded border border-gray-200 dark:border-gray-700"
               onToggle={(e) => {
                 if (typeof window !== 'undefined') {
-                  localStorage.setItem('accordion-stroke-palette-open', (e.currentTarget as HTMLDetailsElement).open ? '1' : '0')
+                  localStorage.setItem(
+                    'accordion-stroke-palette-open',
+                    (e.currentTarget as HTMLDetailsElement).open ? '1' : '0'
+                  )
                 }
               }}
-              open={typeof window !== 'undefined' ? localStorage.getItem('accordion-stroke-palette-open') === '1' : true}
+              open={
+                typeof window !== 'undefined'
+                  ? localStorage.getItem('accordion-stroke-palette-open') === '1'
+                  : true
+              }
             >
               <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
                 線のカラー

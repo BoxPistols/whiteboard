@@ -1126,11 +1126,19 @@ export default function Canvas() {
                   if (obj.type === 'group') {
                     const items = (obj as fabric.Group).getObjects()
                     items.forEach((item) => {
-                      if (item.fill && typeof item.fill === 'string' && item.fill !== 'transparent') {
+                      if (
+                        item.fill &&
+                        typeof item.fill === 'string' &&
+                        item.fill !== 'transparent'
+                      ) {
                         const colorToConvert = baseFill || item.fill
                         item.set('fill', convertColorForTheme(colorToConvert, theme))
                       }
-                      if (item.stroke && typeof item.stroke === 'string' && item.stroke !== 'transparent') {
+                      if (
+                        item.stroke &&
+                        typeof item.stroke === 'string' &&
+                        item.stroke !== 'transparent'
+                      ) {
                         const colorToConvert = baseStroke || item.stroke
                         item.set('stroke', convertColorForTheme(colorToConvert, theme))
                       }
@@ -1140,7 +1148,11 @@ export default function Canvas() {
                       const colorToConvert = baseFill || obj.fill
                       obj.set('fill', convertColorForTheme(colorToConvert, theme))
                     }
-                    if (obj.stroke && typeof obj.stroke === 'string' && obj.stroke !== 'transparent') {
+                    if (
+                      obj.stroke &&
+                      typeof obj.stroke === 'string' &&
+                      obj.stroke !== 'transparent'
+                    ) {
                       const colorToConvert = baseStroke || obj.stroke
                       obj.set('stroke', convertColorForTheme(colorToConvert, theme))
                     }
