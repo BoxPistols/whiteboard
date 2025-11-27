@@ -349,6 +349,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     activeObject.setCoords()
     activeObject.dirty = true
     fabricCanvas.requestRenderAll()
+    // Trigger save via autosave listener
+    fabricCanvas.fire('object:modified', { target: activeObject })
 
     // ストアのプロパティも即座に更新
     if (selectedObjectProps) {
