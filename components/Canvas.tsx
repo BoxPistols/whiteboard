@@ -1038,6 +1038,46 @@ export default function Canvas() {
     canvas.on('mouse:down', handleMouseDown)
     canvas.on('mouse:move', handleMouseMove)
     canvas.on('mouse:up', handleMouseUp)
+
+    // 空白ドラッグでパン（背景移動）・ホイールでズーム
+    let isPanning = false
+    let lastPosX = 0
+    let lastPosY = 0
+    const handlePanMouseDown = (opt: fabric.IEvent) => {
+      if (!opt.target) {
+        isPanning = true
+        const e = opt.e as MouseEvent
+        lastPosX = e.clientX
+        lastPosY = e.clientY
+      }
+    }
+    const handlePanMouseMove = (opt: fabric.IEvent) => {
+      if (isPanning) {
+        const e = opt.e as MouseEvent
+        const vpt = canvas.viewportTransform!
+        vpt[4] += e.clientX - lastPosX
+        vpt[5] += e.clientY - lastPosY
+        lastPosX = e.clientX
+        lastPosY = e.clientY
+        canvas.requestRenderAll()
+      }
+    }
+    const handlePanMouseUp = () => {
+      isPanning = false
+    }
+    const handleMouseWheel = (opt: fabric.IEvent) => {
+      const e = opt.e as WheelEvent
+      e.preventDefault()
+      const delta = -e.deltaY
+      const zoom = Math.max(0.1, Math.min(2, canvas.getZoom() + delta * 0.0015))
+      canvas.zoomToPoint({ x: e.clientX, y: e.clientY }, zoom)
+      useCanvasStore.getState().setZoom(Math.round(zoom * 100))
+    }
+    canvas.on('mouse:down', handlePanMouseDown)
+    canvas.on('mouse:move', handlePanMouseMove)
+    canvas.on('mouse:up', handlePanMouseUp)
+    canvas.on('mouse:wheel', handleMouseWheel)
+
     canvas.on('selection:created', handleSelection)
     canvas.on('selection:updated', handleSelection)
     canvas.on('selection:cleared', handleDeselection)
@@ -1051,6 +1091,12 @@ export default function Canvas() {
       canvas.off('mouse:down', handleMouseDown)
       canvas.off('mouse:move', handleMouseMove)
       canvas.off('mouse:up', handleMouseUp)
+
+      canvas.off('mouse:down', handlePanMouseDown)
+      canvas.off('mouse:move', handlePanMouseMove)
+      canvas.off('mouse:up', handlePanMouseUp)
+      canvas.off('mouse:wheel', handleMouseWheel)
+
       canvas.off('selection:created', handleSelection)
       canvas.off('selection:updated', handleSelection)
       canvas.off('selection:cleared', handleDeselection)
