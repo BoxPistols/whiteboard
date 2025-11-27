@@ -60,57 +60,63 @@ export default function Home() {
     <main className="flex min-h-screen flex-col touch-none">
       <Toolbar />
       <div className="flex flex-1 overflow-hidden relative">
-        {/* 左パネルトグルボタン */}
-        <button
-          onClick={toggleLeftPanel}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-50 w-6 h-16 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-r flex items-center justify-center text-gray-600 dark:text-gray-300 transition-colors shadow-lg"
-          style={{ left: showLeftPanel ? `${leftPanelWidth}px` : '0px' }}
-          title={showLeftPanel ? 'レイヤーパネルを隠す' : 'レイヤーパネルを表示'}
-          aria-label={showLeftPanel ? 'レイヤーパネルを隠す' : 'レイヤーパネルを表示'}
+        {/* 左パネルトグルボタン＋パネル */}
+        <div
+          className="relative z-40 flex-shrink-0"
+          style={{ width: showLeftPanel ? `${leftPanelWidth}px` : '0px' }}
         >
-          {showLeftPanel ? '◀' : '▶'}
-        </button>
+          {/* パネル本体 */}
+          {showLeftPanel && <LayersPanel />}
 
-        {/* 左パネル */}
-        {showLeftPanel && (
-          <div className="relative z-40" style={{ flex: `0 0 ${leftPanelWidth}px` }}>
-            <LayersPanel />
-            {/* リサイズハンドル */}
+          {/* リサイズハンドル */}
+          {showLeftPanel && (
             <div
               className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors z-50"
               onMouseDown={() => setIsResizingLeft(true)}
               title="ドラッグしてリサイズ"
             />
-          </div>
-        )}
+          )}
 
-        <div className="flex-1 min-w-0 flex flex-col">
-          <Canvas />
+          {/* トグルボタン - パネルの右端に固定 */}
+          <button
+            onClick={toggleLeftPanel}
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full z-50 w-6 h-16 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-r flex items-center justify-center text-gray-600 dark:text-gray-300 transition-colors shadow-lg"
+            title={showLeftPanel ? 'レイヤーパネルを隠す' : 'レイヤーパネルを表示'}
+            aria-label={showLeftPanel ? 'レイヤーパネルを隠す' : 'レイヤーパネルを表示'}
+          >
+            {showLeftPanel ? '◀' : '▶'}
+          </button>
         </div>
 
-        {/* 右パネル */}
-        {showRightPanel && (
-          <div className="relative z-40" style={{ flex: `0 0 ${rightPanelWidth}px` }}>
-            {/* リサイズハンドル */}
+        <Canvas />
+
+        {/* 右パネルトグルボタン＋パネル */}
+        <div
+          className="relative z-40 flex-shrink-0"
+          style={{ width: showRightPanel ? `${rightPanelWidth}px` : '0px' }}
+        >
+          {/* トグルボタン - パネルの左端に固定 */}
+          <button
+            onClick={toggleRightPanel}
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full z-50 w-6 h-16 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-l flex items-center justify-center text-gray-600 dark:text-gray-300 transition-colors shadow-lg"
+            title={showRightPanel ? 'プロパティパネルを隠す' : 'プロパティパネルを表示'}
+            aria-label={showRightPanel ? 'プロパティパネルを隠す' : 'プロパティパネルを表示'}
+          >
+            {showRightPanel ? '▶' : '◀'}
+          </button>
+
+          {/* リサイズハンドル */}
+          {showRightPanel && (
             <div
               className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors z-50"
               onMouseDown={() => setIsResizingRight(true)}
               title="ドラッグしてリサイズ"
             />
-            <PropertiesPanel />
-          </div>
-        )}
+          )}
 
-        {/* 右パネルトグルボタン */}
-        <button
-          onClick={toggleRightPanel}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-50 w-6 h-16 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-l flex items-center justify-center text-gray-600 dark:text-gray-300 transition-colors shadow-lg"
-          style={{ right: showRightPanel ? `${rightPanelWidth}px` : '0px' }}
-          title={showRightPanel ? 'プロパティパネルを隠す' : 'プロパティパネルを表示'}
-          aria-label={showRightPanel ? 'プロパティパネルを隠す' : 'プロパティパネルを表示'}
-        >
-          {showRightPanel ? '▶' : '◀'}
-        </button>
+          {/* パネル本体 */}
+          {showRightPanel && <PropertiesPanel />}
+        </div>
       </div>
     </main>
   )

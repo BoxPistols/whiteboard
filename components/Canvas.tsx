@@ -1441,7 +1441,7 @@ export default function Canvas() {
   }, [])
 
   return (
-    <div className="flex-1 relative">
+    <div className="flex-1 min-w-0 relative">
       <canvas ref={canvasRef} />
       {showAlignmentPanel && (
         <AlignmentPanel
