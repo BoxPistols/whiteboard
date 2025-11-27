@@ -31,11 +31,11 @@ export default function Home() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizingLeft) {
-        const newWidth = e.clientX
+        const newWidth = Math.max(200, Math.min(e.clientX, 400))
         setLeftPanelWidth(newWidth)
       }
       if (isResizingRight) {
-        const newWidth = window.innerWidth - e.clientX
+        const newWidth = Math.max(250, Math.min(window.innerWidth - e.clientX, 500))
         setRightPanelWidth(newWidth)
       }
     }
@@ -73,11 +73,14 @@ export default function Home() {
 
         {/* 左パネル */}
         {showLeftPanel && (
-          <div className="relative flex-shrink-0" style={{ width: `${leftPanelWidth}px` }}>
+          <div
+            className="relative z-40"
+            style={{ flex: `0 0 ${leftPanelWidth}px`, width: `${leftPanelWidth}px` }}
+          >
             <LayersPanel />
             {/* リサイズハンドル */}
             <div
-              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors"
+              className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors z-50"
               onMouseDown={() => setIsResizingLeft(true)}
               title="ドラッグしてリサイズ"
             />
@@ -88,10 +91,13 @@ export default function Home() {
 
         {/* 右パネル */}
         {showRightPanel && (
-          <div className="relative flex-shrink-0" style={{ width: `${rightPanelWidth}px` }}>
+          <div
+            className="relative z-40"
+            style={{ flex: `0 0 ${rightPanelWidth}px`, width: `${rightPanelWidth}px` }}
+          >
             {/* リサイズハンドル */}
             <div
-              className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors"
+              className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors z-50"
               onMouseDown={() => setIsResizingRight(true)}
               title="ドラッグしてリサイズ"
             />
