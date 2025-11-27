@@ -1116,6 +1116,37 @@ export default function Canvas() {
               canvas.getObjects().forEach((obj) => {
                 obj.selectable = selectedTool === 'select'
                 obj.evented = selectedTool === 'select'
+
+                // 読み込み直後に現在のテーマへ色を揃える（リロードで色が戻る対策）
+                const baseData = obj.data
+                const baseTheme = baseData?.baseTheme
+                const baseFill = baseData?.baseFill
+                const baseStroke = baseData?.baseStroke
+                if (baseTheme && baseTheme !== theme) {
+                  if (obj.type === 'group') {
+                    const items = (obj as fabric.Group).getObjects()
+                    items.forEach((item) => {
+                      if (item.fill && typeof item.fill === 'string' && item.fill !== 'transparent') {
+                        const colorToConvert = baseFill || item.fill
+                        item.set('fill', convertColorForTheme(colorToConvert, theme))
+                      }
+                      if (item.stroke && typeof item.stroke === 'string' && item.stroke !== 'transparent') {
+                        const colorToConvert = baseStroke || item.stroke
+                        item.set('stroke', convertColorForTheme(colorToConvert, theme))
+                      }
+                    })
+                  } else {
+                    if (obj.fill && typeof obj.fill === 'string' && obj.fill !== 'transparent') {
+                      const colorToConvert = baseFill || obj.fill
+                      obj.set('fill', convertColorForTheme(colorToConvert, theme))
+                    }
+                    if (obj.stroke && typeof obj.stroke === 'string' && obj.stroke !== 'transparent') {
+                      const colorToConvert = baseStroke || obj.stroke
+                      obj.set('stroke', convertColorForTheme(colorToConvert, theme))
+                    }
+                  }
+                  obj.dirty = true
+                }
               })
               canvas.renderAll()
             })
