@@ -430,15 +430,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const currentTheme = get().theme
     const newTheme = currentTheme === 'light' ? 'dark' : 'light'
 
-    // Update DOM
     if (typeof window !== 'undefined') {
+      // Force clean then apply target to avoid stale class on hydration edge cases
+      document.documentElement.classList.remove('dark')
       if (newTheme === 'dark') {
         document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
       }
-
-      // Save to localStorage
       localStorage.setItem('figma-clone-theme', newTheme)
     }
 
@@ -447,7 +444,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   loadSavedTheme: () => {
     if (typeof window === 'undefined') return
 
-    // Read from localStorage or use system preference
+    // Avoid double application: remove both then add needed
+    document.documentElement.classList.remove('dark')
+
     const savedTheme = localStorage.getItem('figma-clone-theme') as 'light' | 'dark' | null
     let theme: 'light' | 'dark' = 'light'
 
@@ -457,14 +456,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       theme = 'dark'
     }
 
-    // Apply theme to DOM
     if (theme === 'dark') {
       document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
     }
 
-    // Update store
     set({ theme })
   },
   resetAll: () => {
