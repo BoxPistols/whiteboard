@@ -73,10 +73,7 @@ export default function Home() {
 
         {/* 左パネル */}
         {showLeftPanel && (
-          <div
-            className="relative z-40"
-            style={{ flex: `0 0 ${leftPanelWidth}px`, width: `${leftPanelWidth}px` }}
-          >
+          <div className="relative z-40" style={{ flex: `0 0 ${leftPanelWidth}px` }}>
             <LayersPanel />
             {/* リサイズハンドル */}
             <div
@@ -87,14 +84,13 @@ export default function Home() {
           </div>
         )}
 
-        <Canvas />
+        <div className="flex-1 min-w-0 flex flex-col">
+          <Canvas />
+        </div>
 
         {/* 右パネル */}
         {showRightPanel && (
-          <div
-            className="relative z-40"
-            style={{ flex: `0 0 ${rightPanelWidth}px`, width: `${rightPanelWidth}px` }}
-          >
+          <div className="relative z-40" style={{ flex: `0 0 ${rightPanelWidth}px` }}>
             {/* リサイズハンドル */}
             <div
               className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors z-50"
