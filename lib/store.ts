@@ -33,6 +33,10 @@ interface CanvasStore {
   pages: Page[]
   currentPageId: string
   theme: 'light' | 'dark'
+  showLeftPanel: boolean
+  showRightPanel: boolean
+  leftPanelWidth: number
+  rightPanelWidth: number
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -52,6 +56,10 @@ interface CanvasStore {
   removePage: (id: string) => void
   setCurrentPage: (id: string) => void
   updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
+  toggleLeftPanel: () => void
+  toggleRightPanel: () => void
+  setLeftPanelWidth: (width: number) => void
+  setRightPanelWidth: (width: number) => void
   setLayers: (layers: Layer[]) => void
   toggleTheme: () => void
   loadSavedTheme: () => void
@@ -59,6 +67,27 @@ interface CanvasStore {
 }
 
 const defaultPageId = 'page-1'
+
+// localStorageからページデータを読み込む
+const loadPagesFromStorage = (): Page[] => {
+  if (typeof window === 'undefined') {
+    return [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
+  }
+
+  try {
+    const saved = localStorage.getItem('figma-clone-pages')
+    if (saved) {
+      const pages = JSON.parse(saved) as Page[]
+      return pages.length > 0
+        ? pages
+        : [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
+    }
+  } catch (error) {
+    console.error('Failed to load pages from localStorage:', error)
+  }
+
+  return [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
+}
 
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
@@ -68,17 +97,35 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   fabricCanvas: null,
   selectedObjectProps: null,
   clipboard: null,
-  pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
+  pages: loadPagesFromStorage(),
   currentPageId: defaultPageId,
   theme: 'light',
+  showLeftPanel: true,
+  showRightPanel: true,
+  leftPanelWidth: 224, // 56 * 4 = w-56
+  rightPanelWidth: 288, // 72 * 4 = w-72
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
   addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
   removeLayer: (id) =>
-    set((state) => ({
-      layers: state.layers.filter((layer) => layer.id !== id),
-    })),
+    set((state) => {
+      const { fabricCanvas } = get()
+      const layer = state.layers.find((l) => l.id === id)
+
+      // Canvasからもオブジェクトを削除
+      if (fabricCanvas && layer) {
+        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+        if (obj) {
+          fabricCanvas.remove(obj)
+          fabricCanvas.renderAll()
+        }
+      }
+
+      return {
+        layers: state.layers.filter((layer) => layer.id !== id),
+      }
+    }),
   toggleLayerVisibility: (id) =>
     set((state) => {
       const { fabricCanvas } = get()
@@ -101,11 +148,39 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       return { layers: updatedLayers }
     }),
   toggleLayerLock: (id) =>
-    set((state) => ({
-      layers: state.layers.map((layer) =>
-        layer.id === id ? { ...layer, locked: !layer.locked } : layer
-      ),
-    })),
+    set((state) => {
+      const { fabricCanvas } = get()
+      const layer = state.layers.find((l) => l.id === id)
+
+      if (fabricCanvas && layer) {
+        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+        if (obj) {
+          const newLockState = !layer.locked
+          // ロック/ロック解除の設定
+          obj.set({
+            lockMovementX: newLockState,
+            lockMovementY: newLockState,
+            lockRotation: newLockState,
+            lockScalingX: newLockState,
+            lockScalingY: newLockState,
+            hasControls: !newLockState,
+            selectable: !newLockState,
+            evented: !newLockState,
+          })
+          // ロックした場合は選択を解除
+          if (newLockState && fabricCanvas.getActiveObject() === obj) {
+            fabricCanvas.discardActiveObject()
+          }
+          fabricCanvas.renderAll()
+        }
+      }
+
+      return {
+        layers: state.layers.map((layer) =>
+          layer.id === id ? { ...layer, locked: !layer.locked } : layer
+        ),
+      }
+    }),
   reorderLayers: (startIndex, endIndex) =>
     set((state) => {
       const result = Array.from(state.layers)
@@ -207,7 +282,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
   setLayers: (layers) => set({ layers }),
   updateObjectProperty: (key, value) => {
-    const { fabricCanvas, selectedObjectId, selectedObjectProps } = get()
+    const { fabricCanvas, selectedObjectId, selectedObjectProps, theme } = get()
     if (!fabricCanvas || !selectedObjectId) return
 
     const activeObject = fabricCanvas.getActiveObject()
@@ -227,6 +302,19 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         item.dirty = true
       })
       activeObject.dirty = true
+
+      // 色が変更された場合、baseColorとbaseThemeを更新
+      if (key === 'fill' || key === 'stroke') {
+        const currentData = activeObject.data || { id: selectedObjectId }
+        activeObject.set({
+          data: {
+            ...currentData,
+            ...(key === 'fill' && { baseFill: value as string }),
+            ...(key === 'stroke' && { baseStroke: value as string }),
+            baseTheme: theme,
+          },
+        })
+      }
     } else if (key === 'width' || key === 'height') {
       // 幅と高さはスケールを考慮して設定
       if (key === 'width' && activeObject.width) {
@@ -242,12 +330,27 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       else if (key === 'opacity') activeObject.set('opacity', value as number)
       else if (key === 'left') activeObject.set('left', value as number)
       else if (key === 'top') activeObject.set('top', value as number)
+
+      // 色が変更された場合、baseColorとbaseThemeを更新
+      if (key === 'fill' || key === 'stroke') {
+        const currentData = activeObject.data || { id: selectedObjectId }
+        activeObject.set({
+          data: {
+            ...currentData,
+            ...(key === 'fill' && { baseFill: value as string }),
+            ...(key === 'stroke' && { baseStroke: value as string }),
+            baseTheme: theme,
+          },
+        })
+      }
     }
 
     // 変更を反映
     activeObject.setCoords()
     activeObject.dirty = true
     fabricCanvas.requestRenderAll()
+    // Trigger save via autosave listener
+    fabricCanvas.fire('object:modified', { target: activeObject })
 
     // ストアのプロパティも即座に更新
     if (selectedObjectProps) {
@@ -263,42 +366,76 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       set({ selectedObjectProps: updatedProps })
     }
   },
-  addPage: (name) =>
-    set((state) => {
-      const newPage: Page = {
-        id: `page-${Date.now()}`,
-        name,
-        canvasData: null,
-        layers: [],
+  addPage: (name) => {
+    const newPage: Page = {
+      id: `page-${Date.now()}`,
+      name,
+      canvasData: null,
+      layers: [],
+    }
+    const updatedPages = [...get().pages, newPage]
+
+    // localStorageに保存
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+      } catch (error) {
+        console.error('Failed to save pages to localStorage:', error)
       }
-      return { pages: [...state.pages, newPage] }
-    }),
-  removePage: (id) =>
-    set((state) => ({
-      pages: state.pages.filter((page) => page.id !== id),
-      currentPageId:
-        state.currentPageId === id && state.pages.length > 1
-          ? state.pages.find((p) => p.id !== id)!.id
-          : state.currentPageId,
-    })),
+    }
+
+    set({ pages: updatedPages })
+  },
+  removePage: (id) => {
+    const state = get()
+    const updatedPages = state.pages.filter((page) => page.id !== id)
+    const newCurrentPageId =
+      state.currentPageId === id && state.pages.length > 1
+        ? state.pages.find((p) => p.id !== id)!.id
+        : state.currentPageId
+
+    // localStorageに保存
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+      } catch (error) {
+        console.error('Failed to save pages to localStorage:', error)
+      }
+    }
+
+    set({ pages: updatedPages, currentPageId: newCurrentPageId })
+  },
   setCurrentPage: (id) => set({ currentPageId: id }),
-  updatePageData: (id, canvasData, layers) =>
-    set((state) => ({
-      pages: state.pages.map((page) => (page.id === id ? { ...page, canvasData, layers } : page)),
-    })),
+  updatePageData: (id, canvasData, layers) => {
+    const updatedPages = get().pages.map((page) =>
+      page.id === id ? { ...page, canvasData, layers } : page
+    )
+
+    // localStorageに保存
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+      } catch (error) {
+        console.error('Failed to save pages to localStorage:', error)
+      }
+    }
+
+    set({ pages: updatedPages })
+  },
+  toggleLeftPanel: () => set((state) => ({ showLeftPanel: !state.showLeftPanel })),
+  toggleRightPanel: () => set((state) => ({ showRightPanel: !state.showRightPanel })),
+  setLeftPanelWidth: (width) => set({ leftPanelWidth: Math.max(200, Math.min(width, 400)) }),
+  setRightPanelWidth: (width) => set({ rightPanelWidth: Math.max(250, Math.min(width, 500)) }),
   toggleTheme: () => {
     const currentTheme = get().theme
     const newTheme = currentTheme === 'light' ? 'dark' : 'light'
 
-    // Update DOM
     if (typeof window !== 'undefined') {
+      // Force clean then apply target to avoid stale class on hydration edge cases
+      document.documentElement.classList.remove('dark')
       if (newTheme === 'dark') {
         document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
       }
-
-      // Save to localStorage
       localStorage.setItem('figma-clone-theme', newTheme)
     }
 
@@ -307,7 +444,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   loadSavedTheme: () => {
     if (typeof window === 'undefined') return
 
-    // Read from localStorage or use system preference
+    // Avoid double application: remove both then add needed
+    document.documentElement.classList.remove('dark')
+
     const savedTheme = localStorage.getItem('figma-clone-theme') as 'light' | 'dark' | null
     let theme: 'light' | 'dark' = 'light'
 
@@ -317,14 +456,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       theme = 'dark'
     }
 
-    // Apply theme to DOM
     if (theme === 'dark') {
       document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
     }
 
-    // Update store
     set({ theme })
   },
   resetAll: () => {

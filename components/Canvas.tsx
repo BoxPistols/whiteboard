@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { fabric } from 'fabric'
 import { useCanvasStore } from '@/lib/store'
 import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
+import { convertColorForTheme } from '@/lib/colorUtils'
 import ContextMenu from '@/components/ContextMenu'
 import AlignmentPanel from '@/components/AlignmentPanel'
 import type { NodeType } from '@/types'
@@ -73,6 +74,7 @@ export default function Canvas() {
     resetZoom,
     zoomToFit,
     zoomToSelection,
+    theme,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -105,24 +107,33 @@ export default function Canvas() {
     // 複数選択の場合
     if (activeSelection.type === 'activeSelection') {
       const objects = (activeSelection as fabric.ActiveSelection).getObjects()
+      canvas.discardActiveObject()
       objects.forEach((obj) => {
-        if (obj.data?.id) {
-          canvas.remove(obj)
-          removeLayer(obj.data.id)
+        const objectId = obj.data?.id
+        if (objectId) {
+          // objectIdからlayerIdを見つける
+          const layer = layers.find((l) => l.objectId === objectId)
+          if (layer) {
+            // removeLayerがcanvasからも削除する
+            removeLayer(layer.id)
+          }
         }
       })
-      canvas.discardActiveObject()
     } else {
       // 単一選択の場合
-      if (activeSelection.data?.id) {
-        canvas.remove(activeSelection)
-        removeLayer(activeSelection.data.id)
+      const objectId = activeSelection.data?.id
+      if (objectId) {
+        // objectIdからlayerIdを見つける
+        const layer = layers.find((l) => l.objectId === objectId)
+        if (layer) {
+          // removeLayerがcanvasからも削除する
+          removeLayer(layer.id)
+        }
       }
     }
 
     setSelectedObjectId(null)
-    canvas.renderAll()
-  }, [removeLayer, setSelectedObjectId])
+  }, [removeLayer, setSelectedObjectId, layers])
 
   // 選択されたオブジェクトを複製
   const duplicateSelectedObject = useCallback(() => {
@@ -609,11 +620,10 @@ export default function Canvas() {
     canvas.renderAll()
 
     if (selectedTool === 'pencil') {
-      const isDark = document.documentElement.classList.contains('dark')
-      canvas.freeDrawingBrush.color = isDark ? '#ffffff' : '#000000'
+      canvas.freeDrawingBrush.color = theme === 'dark' ? '#ffffff' : '#000000'
       canvas.freeDrawingBrush.width = 2
     }
-  }, [selectedTool])
+  }, [selectedTool, theme])
 
   const handleMouseDown = useCallback(
     (e: fabric.IEvent<Event>) => {
@@ -627,9 +637,8 @@ export default function Canvas() {
       // テキストツールの場合はクリック位置にテキストを追加
       if (selectedTool === 'text') {
         const id = crypto.randomUUID()
-        // ダークモードを検出してテキスト色を決定
-        const isDark = document.documentElement.classList.contains('dark')
-        const textColor = isDark ? '#ffffff' : '#000000'
+        // テーマに応じてテキスト色を決定
+        const textColor = theme === 'dark' ? '#ffffff' : '#000000'
 
         const text = new fabric.IText('テキストを入力', {
           left: pointer.x,
@@ -637,7 +646,11 @@ export default function Canvas() {
           fontSize: 20,
           fill: textColor,
           fontFamily: 'Arial',
-          data: { id },
+          data: {
+            id,
+            baseFill: textColor,
+            baseTheme: theme,
+          },
           selectable: true,
           evented: true,
         })
@@ -673,6 +686,11 @@ export default function Canvas() {
       isDrawingRef.current = true
       startPointRef.current = { x: pointer.x, y: pointer.y }
 
+      // テーマに応じてデフォルトカラーを決定
+      const defaultStrokeColor = theme === 'dark' ? '#6B7280' : '#D1D5DB' // Gray 500 for dark, Gray 300 for light
+      const defaultFillColor =
+        theme === 'dark' ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.5)'
+
       let shape: fabric.Object | null = null
 
       switch (selectedTool) {
@@ -682,8 +700,8 @@ export default function Canvas() {
             top: pointer.y,
             width: 0,
             height: 0,
-            fill: 'rgba(59, 130, 246, 0.5)',
-            stroke: '#3b82f6',
+            fill: defaultFillColor,
+            stroke: defaultStrokeColor,
             strokeWidth: 2,
             selectable: false,
             evented: false,
@@ -694,8 +712,8 @@ export default function Canvas() {
             left: pointer.x,
             top: pointer.y,
             radius: 0,
-            fill: 'rgba(59, 130, 246, 0.5)',
-            stroke: '#3b82f6',
+            fill: defaultFillColor,
+            stroke: defaultStrokeColor,
             strokeWidth: 2,
             selectable: false,
             evented: false,
@@ -703,7 +721,7 @@ export default function Canvas() {
           break
         case 'line':
           shape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-            stroke: '#3b82f6',
+            stroke: defaultStrokeColor,
             strokeWidth: 2,
             selectable: false,
             evented: false,
@@ -712,7 +730,7 @@ export default function Canvas() {
         case 'arrow':
           // 矢印は線と三角形のグループとして作成
           const line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-            stroke: '#3b82f6',
+            stroke: defaultStrokeColor,
             strokeWidth: 2,
           })
           const triangle = new fabric.Triangle({
@@ -720,7 +738,7 @@ export default function Canvas() {
             top: pointer.y,
             width: 10,
             height: 10,
-            fill: '#3b82f6',
+            fill: defaultStrokeColor,
             angle: 0,
           })
           shape = new fabric.Group([line, triangle], {
@@ -735,7 +753,7 @@ export default function Canvas() {
         currentShapeRef.current = shape
       }
     },
-    [selectedTool, addLayer, setSelectedObjectId, setSelectedTool]
+    [selectedTool, addLayer, setSelectedObjectId, setSelectedTool, theme]
   )
 
   const handleMouseMove = useCallback(
@@ -812,9 +830,30 @@ export default function Canvas() {
     if (currentShape && selectedTool !== 'select' && selectedTool !== 'pencil') {
       const id = crypto.randomUUID()
 
+      // 現在の色を基本色として保存
+      let baseFill: string | undefined
+      let baseStroke: string | undefined
+
+      if (currentShape.type === 'group') {
+        // グループの場合は最初の要素から色を取得
+        const items = (currentShape as fabric.Group).getObjects()
+        if (items.length > 0) {
+          baseFill = typeof items[0].fill === 'string' ? items[0].fill : undefined
+          baseStroke = typeof items[0].stroke === 'string' ? items[0].stroke : undefined
+        }
+      } else {
+        baseFill = typeof currentShape.fill === 'string' ? currentShape.fill : undefined
+        baseStroke = typeof currentShape.stroke === 'string' ? currentShape.stroke : undefined
+      }
+
       // 描画完了後にオブジェクトを選択可能にする
       currentShape.set({
-        data: { id },
+        data: {
+          id,
+          baseFill,
+          baseStroke,
+          baseTheme: theme,
+        },
         selectable: true,
         evented: true,
         hasControls: true,
@@ -849,7 +888,7 @@ export default function Canvas() {
     isDrawingRef.current = false
     startPointRef.current = null
     currentShapeRef.current = null
-  }, [selectedTool, addLayer, setSelectedTool, setSelectedObjectId])
+  }, [selectedTool, addLayer, setSelectedTool, setSelectedObjectId, theme])
 
   useEffect(() => {
     const canvas = fabricCanvasRef.current
@@ -1077,6 +1116,49 @@ export default function Canvas() {
               canvas.getObjects().forEach((obj) => {
                 obj.selectable = selectedTool === 'select'
                 obj.evented = selectedTool === 'select'
+
+                // 読み込み直後に現在のテーマへ色を揃える（リロードで色が戻る対策）
+                const baseData = obj.data
+                const baseTheme = baseData?.baseTheme
+                const baseFill = baseData?.baseFill
+                const baseStroke = baseData?.baseStroke
+                if (baseTheme && baseTheme !== theme) {
+                  if (obj.type === 'group') {
+                    const items = (obj as fabric.Group).getObjects()
+                    items.forEach((item) => {
+                      if (
+                        item.fill &&
+                        typeof item.fill === 'string' &&
+                        item.fill !== 'transparent'
+                      ) {
+                        const colorToConvert = baseFill || item.fill
+                        item.set('fill', convertColorForTheme(colorToConvert, theme))
+                      }
+                      if (
+                        item.stroke &&
+                        typeof item.stroke === 'string' &&
+                        item.stroke !== 'transparent'
+                      ) {
+                        const colorToConvert = baseStroke || item.stroke
+                        item.set('stroke', convertColorForTheme(colorToConvert, theme))
+                      }
+                    })
+                  } else {
+                    if (obj.fill && typeof obj.fill === 'string' && obj.fill !== 'transparent') {
+                      const colorToConvert = baseFill || obj.fill
+                      obj.set('fill', convertColorForTheme(colorToConvert, theme))
+                    }
+                    if (
+                      obj.stroke &&
+                      typeof obj.stroke === 'string' &&
+                      obj.stroke !== 'transparent'
+                    ) {
+                      const colorToConvert = baseStroke || obj.stroke
+                      obj.set('stroke', convertColorForTheme(colorToConvert, theme))
+                    }
+                  }
+                  obj.dirty = true
+                }
               })
               canvas.renderAll()
             })
@@ -1228,6 +1310,59 @@ export default function Canvas() {
     }
   }, [addLayer, setSelectedObjectId])
 
+  // テーマ切り替え時に既存オブジェクトの色を自動変換
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const objects = canvas.getObjects()
+
+    objects.forEach((obj) => {
+      const baseData = obj.data
+      const baseTheme = baseData?.baseTheme
+      const baseFill = baseData?.baseFill
+      const baseStroke = baseData?.baseStroke
+
+      // baseThemeが現在のテーマと同じなら変換不要
+      if (baseTheme === theme) {
+        return
+      }
+
+      // Groupオブジェクト（矢印など）の場合
+      if (obj.type === 'group') {
+        const items = (obj as fabric.Group).getObjects()
+        items.forEach((item) => {
+          // baseFillから変換、なければ現在の色から変換
+          if (item.fill && typeof item.fill === 'string' && item.fill !== 'transparent') {
+            const colorToConvert = baseFill || item.fill
+            item.set('fill', convertColorForTheme(colorToConvert, theme))
+          }
+          // baseStrokeから変換、なければ現在の色から変換
+          if (item.stroke && typeof item.stroke === 'string' && item.stroke !== 'transparent') {
+            const colorToConvert = baseStroke || item.stroke
+            item.set('stroke', convertColorForTheme(colorToConvert, theme))
+          }
+        })
+      } else {
+        // 通常のオブジェクト
+        // baseFillから変換、なければ現在の色から変換
+        if (obj.fill && typeof obj.fill === 'string' && obj.fill !== 'transparent') {
+          const colorToConvert = baseFill || obj.fill
+          obj.set('fill', convertColorForTheme(colorToConvert, theme))
+        }
+        // baseStrokeから変換、なければ現在の色から変換
+        if (obj.stroke && typeof obj.stroke === 'string' && obj.stroke !== 'transparent') {
+          const colorToConvert = baseStroke || obj.stroke
+          obj.set('stroke', convertColorForTheme(colorToConvert, theme))
+        }
+      }
+
+      obj.dirty = true
+    })
+
+    canvas.renderAll()
+  }, [theme])
+
   // タッチジェスチャーサポート（モバイル対応）
   useEffect(() => {
     const canvas = fabricCanvasRef.current
@@ -1349,7 +1484,7 @@ export default function Canvas() {
   }, [])
 
   return (
-    <div className="flex-1 relative">
+    <div className="flex-1 min-w-0 relative">
       <canvas ref={canvasRef} />
       {showAlignmentPanel && (
         <AlignmentPanel

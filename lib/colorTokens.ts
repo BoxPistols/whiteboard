@@ -1,9 +1,28 @@
 // Figma風カラートークン定義
+import { generateDarkModeColor, generateLightModeColor } from './colorUtils'
 
 export interface ColorToken {
   name: string
   value: string
   category: 'gray' | 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'pink' | 'custom'
+  lightValue?: string // light modeでの値（オプション）
+  darkValue?: string // dark modeでの値（オプション）
+}
+
+/**
+ * テーマに応じたカラー値を取得
+ */
+export function getColorForTheme(token: ColorToken, theme: 'light' | 'dark'): string {
+  // 既にlight/dark値が設定されている場合
+  if (theme === 'dark' && token.darkValue) return token.darkValue
+  if (theme === 'light' && token.lightValue) return token.lightValue
+
+  // 自動生成
+  if (theme === 'dark') {
+    return token.darkValue || generateDarkModeColor(token.value)
+  } else {
+    return token.lightValue || token.value
+  }
 }
 
 // 初期カラーセット（Tailwind CSS互換）
