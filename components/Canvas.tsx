@@ -1068,10 +1068,23 @@ export default function Canvas() {
     const handleMouseWheel = (opt: fabric.IEvent) => {
       const e = opt.e as WheelEvent
       e.preventDefault()
-      const delta = -e.deltaY
-      const zoom = Math.max(0.1, Math.min(2, canvas.getZoom() + delta * 0.0015))
-      canvas.zoomToPoint({ x: e.clientX, y: e.clientY }, zoom)
-      useCanvasStore.getState().setZoom(Math.round(zoom * 100))
+      // Trackpad pinch often sets ctrlKey; use that for zoom. Otherwise scroll pans.
+      if (e.ctrlKey || e.metaKey) {
+        const delta = -e.deltaY
+        const zoom = Math.max(0.1, Math.min(2, canvas.getZoom() + delta * 0.0015))
+        canvas.zoomToPoint({ x: e.clientX, y: e.clientY }, zoom)
+        useCanvasStore.getState().setZoom(Math.round(zoom * 100))
+      } else {
+        const vpt = canvas.viewportTransform!
+        if (e.shiftKey) {
+          // Shift + scroll = horizontal pan
+          vpt[4] += -e.deltaY
+        } else {
+          // Vertical pan
+          vpt[5] += -e.deltaY
+        }
+        canvas.requestRenderAll()
+      }
     }
     canvas.on('mouse:down', handlePanMouseDown)
     canvas.on('mouse:move', handlePanMouseMove)
