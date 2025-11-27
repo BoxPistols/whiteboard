@@ -28,38 +28,58 @@ export default function PropertiesPanel() {
       {/* スクロール可能なプロパティエリア */}
       <div className="flex-1 overflow-y-auto space-y-2">
         {(selectedObjectProps.fill || selectedObjectProps.fill === '') && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
-              塗りつぶし
-            </label>
-            <input
-              type="color"
-              className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-              value={
-                selectedObjectProps.fill && selectedObjectProps.fill.startsWith('#')
-                  ? selectedObjectProps.fill
-                  : '#3b82f6'
+          <details
+            className="rounded border border-gray-200 dark:border-gray-700"
+            onToggle={(e) => {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('accordion-fill-open', (e.currentTarget as HTMLDetailsElement).open ? '1' : '0')
               }
-              onChange={(e) => updateObjectProperty('fill', e.target.value)}
-            />
-          </div>
+            }}
+            open={typeof window !== 'undefined' ? localStorage.getItem('accordion-fill-open') === '1' : true}
+          >
+            <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+              塗りつぶし
+            </summary>
+            <div className="p-2">
+              <input
+                type="color"
+                className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
+                value={
+                  selectedObjectProps.fill && selectedObjectProps.fill.startsWith('#')
+                    ? selectedObjectProps.fill
+                    : '#3b82f6'
+                }
+                onChange={(e) => updateObjectProperty('fill', e.target.value)}
+              />
+            </div>
+          </details>
         )}
         {(selectedObjectProps.stroke || selectedObjectProps.stroke === '') && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
-              線の色
-            </label>
-            <input
-              type="color"
-              className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-              value={
-                selectedObjectProps.stroke && selectedObjectProps.stroke.startsWith('#')
-                  ? selectedObjectProps.stroke
-                  : '#3b82f6'
+          <details
+            className="rounded border border-gray-200 dark:border-gray-700"
+            onToggle={(e) => {
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('accordion-stroke-open', (e.currentTarget as HTMLDetailsElement).open ? '1' : '0')
               }
-              onChange={(e) => updateObjectProperty('stroke', e.target.value)}
-            />
-          </div>
+            }}
+            open={typeof window !== 'undefined' ? localStorage.getItem('accordion-stroke-open') === '1' : true}
+          >
+            <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+              線のカラー
+            </summary>
+            <div className="p-2">
+              <input
+                type="color"
+                className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
+                value={
+                  selectedObjectProps.stroke && selectedObjectProps.stroke.startsWith('#')
+                    ? selectedObjectProps.stroke
+                    : '#3b82f6'
+                }
+                onChange={(e) => updateObjectProperty('stroke', e.target.value)}
+              />
+            </div>
+          </details>
         )}
         {selectedObjectProps.strokeWidth !== undefined && (
           <div>
@@ -153,20 +173,50 @@ export default function PropertiesPanel() {
         <div className="space-y-2">
           {/* 塗りつぶしカラーパレット */}
           {(selectedObjectProps.fill || selectedObjectProps.fill === '') && (
-            <ColorPalette
-              label="塗りつぶしカラー"
-              currentColor={selectedObjectProps.fill}
-              onColorSelect={(color) => updateObjectProperty('fill', color)}
-            />
+            <details
+              className="rounded border border-gray-200 dark:border-gray-700"
+              onToggle={(e) => {
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('accordion-fill-palette-open', (e.currentTarget as HTMLDetailsElement).open ? '1' : '0')
+                }
+              }}
+              open={typeof window !== 'undefined' ? localStorage.getItem('accordion-fill-palette-open') === '1' : true}
+            >
+              <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                塗りつぶしカラー
+              </summary>
+              <div className="p-2">
+                <ColorPalette
+                  label="塗りつぶしカラー"
+                  currentColor={selectedObjectProps.fill}
+                  onColorSelect={(color) => updateObjectProperty('fill', color)}
+                />
+              </div>
+            </details>
           )}
 
           {/* 線の色カラーパレット */}
           {(selectedObjectProps.stroke || selectedObjectProps.stroke === '') && (
-            <ColorPalette
-              label="線のカラー"
-              currentColor={selectedObjectProps.stroke}
-              onColorSelect={(color) => updateObjectProperty('stroke', color)}
-            />
+            <details
+              className="rounded border border-gray-200 dark:border-gray-700"
+              onToggle={(e) => {
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('accordion-stroke-palette-open', (e.currentTarget as HTMLDetailsElement).open ? '1' : '0')
+                }
+              }}
+              open={typeof window !== 'undefined' ? localStorage.getItem('accordion-stroke-palette-open') === '1' : true}
+            >
+              <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                線のカラー
+              </summary>
+              <div className="p-2">
+                <ColorPalette
+                  label="線のカラー"
+                  currentColor={selectedObjectProps.stroke}
+                  onColorSelect={(color) => updateObjectProperty('stroke', color)}
+                />
+              </div>
+            </details>
           )}
         </div>
       </div>
