@@ -1044,6 +1044,8 @@ export default function Canvas() {
     let lastPosX = 0
     let lastPosY = 0
     const handlePanMouseDown = (opt: fabric.IEvent) => {
+      // Only allow panning when select tool is active
+      if (selectedTool !== 'select') return
       if (!opt.target) {
         isPanning = true
         const e = opt.e as MouseEvent
