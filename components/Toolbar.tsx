@@ -32,14 +32,24 @@ const tools: {
 ]
 
 export default function Toolbar() {
-  const { selectedTool, setSelectedTool, theme, toggleTheme, loadSavedTheme, resetAll } =
-    useCanvasStore()
+  const {
+    selectedTool,
+    setSelectedTool,
+    theme,
+    toggleTheme,
+    loadSavedTheme,
+    resetAll,
+    canvasBackground,
+    setCanvasBackground,
+    loadSavedCanvasBackground,
+  } = useCanvasStore()
   const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
-    // Load saved theme from localStorage after mount (prevents hydration mismatch)
+    // Load saved theme and canvas background from localStorage after mount
     loadSavedTheme()
-  }, [loadSavedTheme])
+    loadSavedCanvasBackground()
+  }, [loadSavedTheme, loadSavedCanvasBackground])
 
   const handleReset = () => {
     if (window.confirm('全てのデータをリセットしますか？この操作は取り消せません。')) {
@@ -105,6 +115,18 @@ export default function Toolbar() {
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
               <circle cx="12" cy="17" r="1" fill="currentColor" />
             </svg>
+          </button>
+          <button
+            onClick={() =>
+              setCanvasBackground(canvasBackground === '#1f2937' ? '#f5f5f5' : '#1f2937')
+            }
+            className="p-2 md:p-1.5 rounded border border-gray-200 dark:border-gray-700 transition-colors touch-manipulation"
+            title="Canvas背景色を切替"
+            aria-label="Canvas背景色を切替"
+            style={{ backgroundColor: canvasBackground }}
+          >
+            {/* 色見本用の小さなスウォッチ */}
+            <span className="block w-4 h-4 rounded" style={{ backgroundColor: canvasBackground }} />
           </button>
           <button
             onClick={toggleTheme}
