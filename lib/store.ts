@@ -33,6 +33,7 @@ interface CanvasStore {
   pages: Page[]
   currentPageId: string
   theme: 'light' | 'dark'
+  canvasBackground: string
   showLeftPanel: boolean
   showRightPanel: boolean
   leftPanelWidth: number
@@ -63,6 +64,8 @@ interface CanvasStore {
   setLayers: (layers: Layer[]) => void
   toggleTheme: () => void
   loadSavedTheme: () => void
+  setCanvasBackground: (color: string) => void
+  loadSavedCanvasBackground: () => void
   resetAll: () => void
 }
 
@@ -100,6 +103,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   pages: loadPagesFromStorage(),
   currentPageId: defaultPageId,
   theme: 'light',
+  canvasBackground: '#f5f5f5',
   showLeftPanel: true,
   showRightPanel: true,
   leftPanelWidth: 224, // 56 * 4 = w-56
@@ -461,6 +465,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }
 
     set({ theme })
+  },
+  setCanvasBackground: (color) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-canvas-bg', color)
+      } catch (e) {
+        console.error('Failed to save canvas background:', e)
+      }
+    }
+    set({ canvasBackground: color })
+  },
+  loadSavedCanvasBackground: () => {
+    if (typeof window === 'undefined') return
+    const saved = localStorage.getItem('figma-clone-canvas-bg')
+    if (saved) {
+      set({ canvasBackground: saved })
+    }
   },
   resetAll: () => {
     const { fabricCanvas } = get()

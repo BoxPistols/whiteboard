@@ -75,6 +75,7 @@ export default function Canvas() {
     zoomToFit,
     zoomToSelection,
     theme,
+    canvasBackground,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -558,32 +559,19 @@ export default function Canvas() {
     const container = canvasRef.current.parentElement
     if (!container) return
 
-    // ダークモードの検出
-    const isDark = document.documentElement.classList.contains('dark')
-    const bgColor = isDark ? '#1f2937' : '#f5f5f5'
+    // キャンバス背景色（テーマとは独立）
+    const canvasBg = canvasBackground || (theme === 'dark' ? '#1f2937' : '#f5f5f5')
 
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: container.clientWidth,
       height: container.clientHeight,
-      backgroundColor: bgColor,
+      backgroundColor: canvasBg,
       enableRetinaScaling: true,
       allowTouchScrolling: false,
     })
 
     fabricCanvasRef.current = canvas
     setFabricCanvas(canvas)
-
-    // ダークモード変更の監視
-    const observer = new MutationObserver(() => {
-      const isDark = document.documentElement.classList.contains('dark')
-      canvas.backgroundColor = isDark ? '#1f2937' : '#f5f5f5'
-      canvas.renderAll()
-    })
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    })
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0]
@@ -597,7 +585,6 @@ export default function Canvas() {
     resizeObserver.observe(container)
 
     return () => {
-      observer.disconnect()
       resizeObserver.disconnect()
       canvas.dispose()
       setFabricCanvas(null)
@@ -617,13 +604,15 @@ export default function Canvas() {
       obj.selectable = selectedTool === 'select'
       obj.evented = selectedTool === 'select'
     })
+    // キャンバス背景色を反映
+    canvas.backgroundColor = canvasBackground || (theme === 'dark' ? '#1f2937' : '#f5f5f5')
     canvas.renderAll()
 
     if (selectedTool === 'pencil') {
       canvas.freeDrawingBrush.color = theme === 'dark' ? '#ffffff' : '#000000'
       canvas.freeDrawingBrush.width = 2
     }
-  }, [selectedTool, theme])
+  }, [selectedTool, theme, canvasBackground])
 
   const handleMouseDown = useCallback(
     (e: fabric.IEvent<Event>) => {
