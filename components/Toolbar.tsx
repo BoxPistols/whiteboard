@@ -32,8 +32,17 @@ const tools: {
 ]
 
 export default function Toolbar() {
-  const { selectedTool, setSelectedTool, theme, toggleTheme, loadSavedTheme, resetAll, canvasBackground, setCanvasBackground, loadSavedCanvasBackground } =
-    useCanvasStore()
+  const {
+    selectedTool,
+    setSelectedTool,
+    theme,
+    toggleTheme,
+    loadSavedTheme,
+    resetAll,
+    canvasBackground,
+    setCanvasBackground,
+    loadSavedCanvasBackground,
+  } = useCanvasStore()
   const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
@@ -108,9 +117,9 @@ export default function Toolbar() {
             </svg>
           </button>
           <button
-            onClick={() => setCanvasBackground(
-              canvasBackground === '#1f2937' ? '#f5f5f5' : '#1f2937'
-            )}
+            onClick={() =>
+              setCanvasBackground(canvasBackground === '#1f2937' ? '#f5f5f5' : '#1f2937')
+            }
             className="p-2 md:p-1.5 rounded border border-gray-200 dark:border-gray-700 transition-colors touch-manipulation"
             title="Canvas背景色を切替"
             aria-label="Canvas背景色を切替"
