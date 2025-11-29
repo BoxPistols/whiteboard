@@ -6,13 +6,8 @@ import { formatShortcut, CATEGORY_LABELS } from '@/lib/shortcuts'
 import type { ShortcutConfig, ShortcutCategory, ShortcutModifiers } from '@/types'
 
 export default function ShortcutsModal() {
-  const {
-    showShortcutsModal,
-    setShowShortcutsModal,
-    shortcuts,
-    updateShortcut,
-    resetShortcuts,
-  } = useCanvasStore()
+  const { showShortcutsModal, setShowShortcutsModal, shortcuts, updateShortcut, resetShortcuts } =
+    useCanvasStore()
 
   const [activeTab, setActiveTab] = useState<'list' | 'customize'>('list')
   const [editingId, setEditingId] = useState<string | null>(null)

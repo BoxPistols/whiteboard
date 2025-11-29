@@ -577,7 +577,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         }[]
         const shortcuts = DEFAULT_SHORTCUTS.map((shortcut) => {
           const custom = customShortcuts.find((c) => c.id === shortcut.id)
-          return custom ? { ...shortcut, customKey: custom.customKey, modifiers: custom.modifiers } : shortcut
+          return custom
+            ? { ...shortcut, customKey: custom.customKey, modifiers: custom.modifiers }
+            : shortcut
         })
         set({ shortcuts })
       }

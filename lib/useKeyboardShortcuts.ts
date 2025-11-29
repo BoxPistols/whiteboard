@@ -39,11 +39,7 @@ export const useKeyboardShortcuts = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       // テキスト入力中は無効化
       const target = e.target as HTMLElement
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      ) {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return
       }
 
