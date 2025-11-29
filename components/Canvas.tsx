@@ -552,6 +552,8 @@ export default function Canvas() {
     resetZoom,
     zoomToFit,
     zoomToSelection,
+    bringToFront,
+    sendToBack,
   })
 
   useEffect(() => {
@@ -936,6 +938,38 @@ export default function Canvas() {
         (activeObject as fabric.ActiveSelection).getObjects().length >= 2
       ) {
         setShowAlignmentPanel(true)
+
+        // 複数選択時：最初のオブジェクトのプロパティを表示（一括変更のベースとして）
+        const objects = (activeObject as fabric.ActiveSelection).getObjects()
+        const firstObj = objects[0]
+        if (firstObj) {
+          let fillColor = ''
+          let strokeColor = ''
+          let strokeWidth = 0
+
+          if (firstObj.type === 'group') {
+            const items = (firstObj as fabric.Group).getObjects()
+            if (items.length > 0) {
+              fillColor = colorToHex(items[0].fill)
+              strokeColor = colorToHex(items[0].stroke)
+              strokeWidth = items[0].strokeWidth || 2
+            }
+          } else {
+            fillColor = colorToHex(firstObj.fill)
+            strokeColor = colorToHex(firstObj.stroke)
+            strokeWidth = firstObj.strokeWidth || 0
+          }
+
+          // 複数選択用のIDを設定（プロパティパネルで変更を可能にするため）
+          setSelectedObjectId('__multi_selection__')
+          setSelectedObjectProps({
+            fill: fillColor,
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
+            opacity: firstObj.opacity !== undefined ? firstObj.opacity : 1,
+          })
+        }
+        return
       } else {
         setShowAlignmentPanel(false)
       }
@@ -1035,9 +1069,11 @@ export default function Canvas() {
     const handlePanMouseDown = (opt: fabric.IEvent) => {
       // Only allow panning when select tool is active
       if (selectedTool !== 'select') return
+      const e = opt.e as MouseEvent
+      // Cmd/Ctrl + Click はオブジェクト選択に専念するためパンを無効化
+      if (e.metaKey || e.ctrlKey) return
       if (!opt.target) {
         isPanning = true
-        const e = opt.e as MouseEvent
         lastPosX = e.clientX
         lastPosY = e.clientY
       }
