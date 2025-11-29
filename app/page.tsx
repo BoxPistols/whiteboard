@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import Toolbar from '@/components/Toolbar'
 import LayersPanel from '@/components/LayersPanel'
 import PropertiesPanel from '@/components/PropertiesPanel'
+import ShortcutsModal from '@/components/ShortcutsModal'
 import { useCanvasStore } from '@/lib/store'
 
 const Canvas = dynamic(() => import('@/components/Canvas'), {
@@ -22,7 +23,13 @@ export default function Home() {
     toggleRightPanel,
     setLeftPanelWidth,
     setRightPanelWidth,
+    loadSavedShortcuts,
   } = useCanvasStore()
+
+  // 保存されたショートカット設定を読み込み
+  useEffect(() => {
+    loadSavedShortcuts()
+  }, [loadSavedShortcuts])
 
   const [isResizingLeft, setIsResizingLeft] = useState(false)
   const [isResizingRight, setIsResizingRight] = useState(false)
@@ -118,6 +125,9 @@ export default function Home() {
           {showRightPanel && <PropertiesPanel />}
         </div>
       </div>
+
+      {/* ショートカット一覧モーダル */}
+      <ShortcutsModal />
     </main>
   )
 }

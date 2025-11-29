@@ -76,6 +76,8 @@ export default function Canvas() {
     zoomToSelection,
     theme,
     canvasBackground,
+    shortcuts,
+    setShowShortcutsModal,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -540,8 +542,14 @@ export default function Canvas() {
     canvas?.renderAll()
   }, [getSelectedObjects])
 
+  // ショートカット一覧表示
+  const showShortcuts = useCallback(() => {
+    setShowShortcutsModal(true)
+  }, [setShowShortcutsModal])
+
   // キーボードショートカットの設定
   useKeyboardShortcuts({
+    shortcuts,
     setSelectedTool,
     deleteSelectedObject,
     duplicateSelectedObject,
@@ -554,6 +562,7 @@ export default function Canvas() {
     zoomToSelection,
     bringToFront,
     sendToBack,
+    showShortcuts,
   })
 
   useEffect(() => {

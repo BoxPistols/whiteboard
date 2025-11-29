@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import type { Tool, Layer } from '@/types'
+import type { Tool, Layer, ShortcutConfig, ShortcutModifiers } from '@/types'
 import type { fabric } from 'fabric'
+import { DEFAULT_SHORTCUTS } from './shortcuts'
 
 interface ObjectProperties {
   fill?: string
@@ -38,6 +39,9 @@ interface CanvasStore {
   showRightPanel: boolean
   leftPanelWidth: number
   rightPanelWidth: number
+  // ショートカット関連
+  shortcuts: ShortcutConfig[]
+  showShortcutsModal: boolean
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -67,6 +71,11 @@ interface CanvasStore {
   setCanvasBackground: (color: string) => void
   loadSavedCanvasBackground: () => void
   resetAll: () => void
+  // ショートカット関連
+  updateShortcut: (id: string, newKey: string, modifiers: ShortcutModifiers) => void
+  resetShortcuts: () => void
+  loadSavedShortcuts: () => void
+  setShowShortcutsModal: (show: boolean) => void
 }
 
 const defaultPageId = 'page-1'
@@ -108,6 +117,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   showRightPanel: true,
   leftPanelWidth: 224, // 56 * 4 = w-56
   rightPanelWidth: 288, // 72 * 4 = w-72
+  shortcuts: DEFAULT_SHORTCUTS,
+  showShortcutsModal: false,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -518,5 +529,60 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
       currentPageId: defaultPageId,
     })
+  },
+  // ショートカット関連
+  setShowShortcutsModal: (show) => set({ showShortcutsModal: show }),
+  updateShortcut: (id, newKey, modifiers) => {
+    const shortcuts = get().shortcuts.map((shortcut) =>
+      shortcut.id === id ? { ...shortcut, customKey: newKey, modifiers } : shortcut
+    )
+
+    // localStorageに保存
+    if (typeof window !== 'undefined') {
+      try {
+        const customShortcuts = shortcuts
+          .filter((s) => s.customKey)
+          .map((s) => ({ id: s.id, customKey: s.customKey, modifiers: s.modifiers }))
+        localStorage.setItem('figma-clone-shortcuts', JSON.stringify(customShortcuts))
+      } catch (e) {
+        console.error('Failed to save shortcuts:', e)
+      }
+    }
+
+    set({ shortcuts })
+  },
+  resetShortcuts: () => {
+    // localStorageからカスタムショートカットを削除
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('figma-clone-shortcuts')
+      } catch (e) {
+        console.error('Failed to remove shortcuts:', e)
+      }
+    }
+
+    // デフォルトに戻す
+    set({ shortcuts: DEFAULT_SHORTCUTS })
+  },
+  loadSavedShortcuts: () => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const saved = localStorage.getItem('figma-clone-shortcuts')
+      if (saved) {
+        const customShortcuts = JSON.parse(saved) as {
+          id: string
+          customKey: string
+          modifiers: ShortcutModifiers
+        }[]
+        const shortcuts = DEFAULT_SHORTCUTS.map((shortcut) => {
+          const custom = customShortcuts.find((c) => c.id === shortcut.id)
+          return custom ? { ...shortcut, customKey: custom.customKey, modifiers: custom.modifiers } : shortcut
+        })
+        set({ shortcuts })
+      }
+    } catch (e) {
+      console.error('Failed to load shortcuts:', e)
+    }
   },
 }))
