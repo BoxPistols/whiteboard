@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import type { Tool, Layer } from '@/types'
+import type { Tool, Layer, ShortcutConfig, ShortcutModifiers } from '@/types'
 import type { fabric } from 'fabric'
+import { DEFAULT_SHORTCUTS } from './shortcuts'
 
 interface ObjectProperties {
   fill?: string
@@ -38,6 +39,9 @@ interface CanvasStore {
   showRightPanel: boolean
   leftPanelWidth: number
   rightPanelWidth: number
+  // ショートカット関連
+  shortcuts: ShortcutConfig[]
+  showShortcutsModal: boolean
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -67,6 +71,11 @@ interface CanvasStore {
   setCanvasBackground: (color: string) => void
   loadSavedCanvasBackground: () => void
   resetAll: () => void
+  // ショートカット関連
+  updateShortcut: (id: string, newKey: string, modifiers: ShortcutModifiers) => void
+  resetShortcuts: () => void
+  loadSavedShortcuts: () => void
+  setShowShortcutsModal: (show: boolean) => void
 }
 
 const defaultPageId = 'page-1'
@@ -108,6 +117,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   showRightPanel: true,
   leftPanelWidth: 224, // 56 * 4 = w-56
   rightPanelWidth: 288, // 72 * 4 = w-72
+  shortcuts: DEFAULT_SHORTCUTS,
+  showShortcutsModal: false,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -287,66 +298,81 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setLayers: (layers) => set({ layers }),
   updateObjectProperty: (key, value) => {
     const { fabricCanvas, selectedObjectId, selectedObjectProps, theme } = get()
-    if (!fabricCanvas || !selectedObjectId) return
+    if (!fabricCanvas) return
 
     const activeObject = fabricCanvas.getActiveObject()
     if (!activeObject) return
 
-    // Groupオブジェクト（矢印など）の場合、子要素のプロパティを更新
-    if (
-      activeObject.type === 'group' &&
-      (key === 'fill' || key === 'stroke' || key === 'strokeWidth')
-    ) {
-      const group = activeObject as fabric.Group
-      const items = group.getObjects()
-      items.forEach((item) => {
-        if (key === 'fill') item.set('fill', value as string)
-        else if (key === 'stroke') item.set('stroke', value as string)
-        else if (key === 'strokeWidth') item.set('strokeWidth', value as number)
-        item.dirty = true
+    // 単一オブジェクトのプロパティを更新するヘルパー関数
+    const updateSingleObject = (obj: fabric.Object) => {
+      // Groupオブジェクト（矢印など）の場合、子要素のプロパティを更新
+      if (obj.type === 'group' && (key === 'fill' || key === 'stroke' || key === 'strokeWidth')) {
+        const group = obj as fabric.Group
+        const items = group.getObjects()
+        items.forEach((item) => {
+          if (key === 'fill') item.set('fill', value as string)
+          else if (key === 'stroke') item.set('stroke', value as string)
+          else if (key === 'strokeWidth') item.set('strokeWidth', value as number)
+          item.dirty = true
+        })
+        obj.dirty = true
+
+        // 色が変更された場合、baseColorとbaseThemeを更新
+        if (key === 'fill' || key === 'stroke') {
+          const currentData = obj.data || { id: crypto.randomUUID() }
+          obj.set({
+            data: {
+              ...currentData,
+              ...(key === 'fill' && { baseFill: value as string }),
+              ...(key === 'stroke' && { baseStroke: value as string }),
+              baseTheme: theme,
+            },
+          })
+        }
+      } else if (key === 'width' || key === 'height') {
+        // 幅と高さはスケールを考慮して設定
+        if (key === 'width' && obj.width) {
+          obj.scaleX = (value as number) / obj.width
+        } else if (key === 'height' && obj.height) {
+          obj.scaleY = (value as number) / obj.height
+        }
+      } else {
+        // 色や他のプロパティを直接設定
+        if (key === 'fill') obj.set('fill', value as string)
+        else if (key === 'stroke') obj.set('stroke', value as string)
+        else if (key === 'strokeWidth') obj.set('strokeWidth', value as number)
+        else if (key === 'opacity') obj.set('opacity', value as number)
+        else if (key === 'left') obj.set('left', value as number)
+        else if (key === 'top') obj.set('top', value as number)
+
+        // 色が変更された場合、baseColorとbaseThemeを更新
+        if (key === 'fill' || key === 'stroke') {
+          const currentData = obj.data || { id: crypto.randomUUID() }
+          obj.set({
+            data: {
+              ...currentData,
+              ...(key === 'fill' && { baseFill: value as string }),
+              ...(key === 'stroke' && { baseStroke: value as string }),
+              baseTheme: theme,
+            },
+          })
+        }
+      }
+
+      obj.setCoords()
+      obj.dirty = true
+    }
+
+    // 複数選択の場合、すべてのオブジェクトを更新
+    if (activeObject.type === 'activeSelection') {
+      const selection = activeObject as fabric.ActiveSelection
+      const objects = selection.getObjects()
+      objects.forEach((obj) => {
+        updateSingleObject(obj)
       })
-      activeObject.dirty = true
-
-      // 色が変更された場合、baseColorとbaseThemeを更新
-      if (key === 'fill' || key === 'stroke') {
-        const currentData = activeObject.data || { id: selectedObjectId }
-        activeObject.set({
-          data: {
-            ...currentData,
-            ...(key === 'fill' && { baseFill: value as string }),
-            ...(key === 'stroke' && { baseStroke: value as string }),
-            baseTheme: theme,
-          },
-        })
-      }
-    } else if (key === 'width' || key === 'height') {
-      // 幅と高さはスケールを考慮して設定
-      if (key === 'width' && activeObject.width) {
-        activeObject.scaleX = (value as number) / activeObject.width
-      } else if (key === 'height' && activeObject.height) {
-        activeObject.scaleY = (value as number) / activeObject.height
-      }
     } else {
-      // 色や他のプロパティを直接設定
-      if (key === 'fill') activeObject.set('fill', value as string)
-      else if (key === 'stroke') activeObject.set('stroke', value as string)
-      else if (key === 'strokeWidth') activeObject.set('strokeWidth', value as number)
-      else if (key === 'opacity') activeObject.set('opacity', value as number)
-      else if (key === 'left') activeObject.set('left', value as number)
-      else if (key === 'top') activeObject.set('top', value as number)
-
-      // 色が変更された場合、baseColorとbaseThemeを更新
-      if (key === 'fill' || key === 'stroke') {
-        const currentData = activeObject.data || { id: selectedObjectId }
-        activeObject.set({
-          data: {
-            ...currentData,
-            ...(key === 'fill' && { baseFill: value as string }),
-            ...(key === 'stroke' && { baseStroke: value as string }),
-            baseTheme: theme,
-          },
-        })
-      }
+      // 単一選択の場合
+      updateSingleObject(activeObject)
     }
 
     // 変更を反映
@@ -503,5 +529,62 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
       currentPageId: defaultPageId,
     })
+  },
+  // ショートカット関連
+  setShowShortcutsModal: (show) => set({ showShortcutsModal: show }),
+  updateShortcut: (id, newKey, modifiers) => {
+    const shortcuts = get().shortcuts.map((shortcut) =>
+      shortcut.id === id ? { ...shortcut, customKey: newKey, modifiers } : shortcut
+    )
+
+    // localStorageに保存
+    if (typeof window !== 'undefined') {
+      try {
+        const customShortcuts = shortcuts
+          .filter((s) => s.customKey)
+          .map((s) => ({ id: s.id, customKey: s.customKey, modifiers: s.modifiers }))
+        localStorage.setItem('figma-clone-shortcuts', JSON.stringify(customShortcuts))
+      } catch (e) {
+        console.error('Failed to save shortcuts:', e)
+      }
+    }
+
+    set({ shortcuts })
+  },
+  resetShortcuts: () => {
+    // localStorageからカスタムショートカットを削除
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('figma-clone-shortcuts')
+      } catch (e) {
+        console.error('Failed to remove shortcuts:', e)
+      }
+    }
+
+    // デフォルトに戻す
+    set({ shortcuts: DEFAULT_SHORTCUTS })
+  },
+  loadSavedShortcuts: () => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const saved = localStorage.getItem('figma-clone-shortcuts')
+      if (saved) {
+        const customShortcuts = JSON.parse(saved) as {
+          id: string
+          customKey: string
+          modifiers: ShortcutModifiers
+        }[]
+        const shortcuts = DEFAULT_SHORTCUTS.map((shortcut) => {
+          const custom = customShortcuts.find((c) => c.id === shortcut.id)
+          return custom
+            ? { ...shortcut, customKey: custom.customKey, modifiers: custom.modifiers }
+            : shortcut
+        })
+        set({ shortcuts })
+      }
+    } catch (e) {
+      console.error('Failed to load shortcuts:', e)
+    }
   },
 }))

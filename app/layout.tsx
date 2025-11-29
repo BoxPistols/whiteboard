@@ -2,8 +2,17 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Figma Clone',
+  title: 'Whiteboard - Figma Clone',
   description: 'A collaborative design tool built with Next.js',
+  applicationName: 'Whiteboard',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Whiteboard',
+  },
+  formatDetection: {
+    telephone: false,
+  },
 }
 
 export const viewport: Viewport = {

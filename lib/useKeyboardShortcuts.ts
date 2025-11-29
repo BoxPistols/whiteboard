@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
-import type { Tool } from '@/types'
+import type { Tool, ShortcutConfig } from '@/types'
+import { matchesShortcut } from './shortcuts'
 
 interface UseKeyboardShortcutsProps {
+  shortcuts: ShortcutConfig[]
   setSelectedTool: (tool: Tool) => void
   deleteSelectedObject?: () => void
   duplicateSelectedObject?: () => void
@@ -12,9 +14,13 @@ interface UseKeyboardShortcutsProps {
   resetZoom?: () => void
   zoomToFit?: () => void
   zoomToSelection?: () => void
+  bringToFront?: () => void
+  sendToBack?: () => void
+  showShortcuts?: () => void
 }
 
 export const useKeyboardShortcuts = ({
+  shortcuts,
   setSelectedTool,
   deleteSelectedObject,
   duplicateSelectedObject,
@@ -25,96 +31,106 @@ export const useKeyboardShortcuts = ({
   resetZoom,
   zoomToFit,
   zoomToSelection,
+  bringToFront,
+  sendToBack,
+  showShortcuts,
 }: UseKeyboardShortcutsProps) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // テキスト入力中は無効化
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
         return
       }
 
-      // Figmaショートカット
-      switch (e.key.toLowerCase()) {
-        case 'v':
-          setSelectedTool('select')
-          break
-        case 'r':
-          setSelectedTool('rectangle')
-          break
-        case 'o':
-          setSelectedTool('circle')
-          break
-        case 'l':
-          setSelectedTool('line')
-          break
-        case 'a':
-          setSelectedTool('arrow')
-          break
-        case 't':
-          setSelectedTool('text')
-          break
-        case 'p':
-          setSelectedTool('pencil')
-          break
-        case 'delete':
-        case 'backspace':
-          if (deleteSelectedObject) {
-            deleteSelectedObject()
-            e.preventDefault()
-          }
-          break
-        case 'd':
-          if ((e.metaKey || e.ctrlKey) && duplicateSelectedObject) {
-            e.preventDefault()
-            duplicateSelectedObject()
-          }
-          break
-        case 'c':
-          if ((e.metaKey || e.ctrlKey) && copySelectedObject) {
+      // ショートカット設定から該当するものを検索
+      const matchedShortcut = shortcuts.find((s) => matchesShortcut(e, s))
+
+      if (!matchedShortcut) return
+
+      // アクションに基づいて処理を実行
+      const action = matchedShortcut.action
+
+      // ツール切り替え
+      if (action.startsWith('setTool:')) {
+        const tool = action.replace('setTool:', '') as Tool
+        e.preventDefault()
+        setSelectedTool(tool)
+        return
+      }
+
+      // その他のアクション
+      switch (action) {
+        case 'copy':
+          if (copySelectedObject) {
             e.preventDefault()
             copySelectedObject()
           }
           break
-        case 'v':
-          if ((e.metaKey || e.ctrlKey) && pasteObject) {
+        case 'paste':
+          if (pasteObject) {
             e.preventDefault()
             pasteObject()
-          } else if (!e.metaKey && !e.ctrlKey) {
-            // Vキー単独で選択ツール
-            setSelectedTool('select')
           }
           break
-        case 'g':
-          if ((e.metaKey || e.ctrlKey) && e.shiftKey && ungroupObjects) {
-            // Cmd/Ctrl+Shift+G: グループ解除
+        case 'duplicate':
+          if (duplicateSelectedObject) {
             e.preventDefault()
-            ungroupObjects()
-          } else if ((e.metaKey || e.ctrlKey) && groupObjects) {
-            // Cmd/Ctrl+G: グループ化
+            duplicateSelectedObject()
+          }
+          break
+        case 'delete':
+          if (deleteSelectedObject) {
+            e.preventDefault()
+            deleteSelectedObject()
+          }
+          break
+        case 'group':
+          if (groupObjects) {
             e.preventDefault()
             groupObjects()
           }
           break
-        case '0':
-          if (e.shiftKey && resetZoom) {
-            // Shift+0: 100%ズーム
+        case 'ungroup':
+          if (ungroupObjects) {
+            e.preventDefault()
+            ungroupObjects()
+          }
+          break
+        case 'bringToFront':
+          if (bringToFront) {
+            e.preventDefault()
+            bringToFront()
+          }
+          break
+        case 'sendToBack':
+          if (sendToBack) {
+            e.preventDefault()
+            sendToBack()
+          }
+          break
+        case 'resetZoom':
+          if (resetZoom) {
             e.preventDefault()
             resetZoom()
           }
           break
-        case '1':
-          if (e.shiftKey && zoomToFit) {
-            // Shift+1: 画面に合わせて表示
+        case 'zoomToFit':
+          if (zoomToFit) {
             e.preventDefault()
             zoomToFit()
           }
           break
-        case '2':
-          if (e.shiftKey && zoomToSelection) {
-            // Shift+2: 選択範囲にズーム
+        case 'zoomToSelection':
+          if (zoomToSelection) {
             e.preventDefault()
             zoomToSelection()
+          }
+          break
+        case 'showShortcuts':
+          if (showShortcuts) {
+            e.preventDefault()
+            showShortcuts()
           }
           break
       }
@@ -123,6 +139,7 @@ export const useKeyboardShortcuts = ({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
+    shortcuts,
     setSelectedTool,
     deleteSelectedObject,
     duplicateSelectedObject,
@@ -133,5 +150,8 @@ export const useKeyboardShortcuts = ({
     resetZoom,
     zoomToFit,
     zoomToSelection,
+    bringToFront,
+    sendToBack,
+    showShortcuts,
   ])
 }

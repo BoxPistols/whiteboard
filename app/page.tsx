@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import Toolbar from '@/components/Toolbar'
 import LayersPanel from '@/components/LayersPanel'
 import PropertiesPanel from '@/components/PropertiesPanel'
+import ShortcutsModal from '@/components/ShortcutsModal'
 import { useCanvasStore } from '@/lib/store'
 
 const Canvas = dynamic(() => import('@/components/Canvas'), {
@@ -22,7 +23,13 @@ export default function Home() {
     toggleRightPanel,
     setLeftPanelWidth,
     setRightPanelWidth,
+    loadSavedShortcuts,
   } = useCanvasStore()
+
+  // 保存されたショートカット設定を読み込み
+  useEffect(() => {
+    loadSavedShortcuts()
+  }, [loadSavedShortcuts])
 
   const [isResizingLeft, setIsResizingLeft] = useState(false)
   const [isResizingRight, setIsResizingRight] = useState(false)
@@ -60,9 +67,9 @@ export default function Home() {
     <main className="flex min-h-screen flex-col touch-none">
       <Toolbar />
       <div className="flex flex-1 overflow-hidden relative">
-        {/* 左パネルトグルボタン＋パネル */}
+        {/* 左パネルトグルボタン＋パネル（モバイルでは非表示） */}
         <div
-          className="relative z-40 flex-shrink-0"
+          className="relative z-40 flex-shrink-0 hidden md:block"
           style={{ width: showLeftPanel ? `${leftPanelWidth}px` : '0px' }}
         >
           {/* パネル本体 */}
@@ -90,9 +97,9 @@ export default function Home() {
 
         <Canvas />
 
-        {/* 右パネルトグルボタン＋パネル */}
+        {/* 右パネルトグルボタン＋パネル（モバイルでは非表示） */}
         <div
-          className="relative z-40 flex-shrink-0"
+          className="relative z-40 flex-shrink-0 hidden md:block"
           style={{ width: showRightPanel ? `${rightPanelWidth}px` : '0px' }}
         >
           {/* トグルボタン - パネルの左端に固定 */}
@@ -118,6 +125,9 @@ export default function Home() {
           {showRightPanel && <PropertiesPanel />}
         </div>
       </div>
+
+      {/* ショートカット一覧モーダル */}
+      <ShortcutsModal />
     </main>
   )
 }
