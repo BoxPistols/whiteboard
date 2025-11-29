@@ -1459,16 +1459,23 @@ export default function Canvas() {
   }, [theme])
 
   // タッチジェスチャーサポート（モバイル対応）
+  // 注意: Fabric.js が標準でタッチ→マウス変換を行うため、
+  // ここではピンチズームとロングプレスのみカスタム処理
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     const canvasElement = canvasRef.current
     if (!canvas || !canvasElement) return
 
-    let touchStartTime = 0
+    // Fabric.js の upper-canvas を取得（タッチイベントはここで発生）
+    const upperCanvas = (canvas as unknown as { upperCanvasEl: HTMLCanvasElement }).upperCanvasEl
+    if (!upperCanvas) return
+
     let longPressTimer: NodeJS.Timeout | null = null
     let lastTapTime = 0
     let pinchStart = 0
     let lastZoom = 100
+    let isPinching = false
+    let touchStartPos = { x: 0, y: 0 }
 
     // ピンチズーム用の距離計算
     const getDistance = (touches: TouchList) => {
@@ -1478,26 +1485,29 @@ export default function Canvas() {
     }
 
     const handleTouchStart = (e: TouchEvent) => {
-      touchStartTime = Date.now()
-
       // 2本指タッチ（ピンチズーム）
       if (e.touches.length === 2) {
         e.preventDefault()
+        e.stopPropagation()
+        isPinching = true
         pinchStart = getDistance(e.touches)
         lastZoom = useCanvasStore.getState().zoom
-        if (longPressTimer) clearTimeout(longPressTimer)
+        if (longPressTimer) {
+          clearTimeout(longPressTimer)
+          longPressTimer = null
+        }
         return
       }
 
-      // 1本指タッチ
+      // 1本指タッチ - Fabric.js に処理を任せるが、追加機能も提供
       if (e.touches.length === 1) {
         const now = Date.now()
         const touch = e.touches[0]
+        touchStartPos = { x: touch.clientX, y: touch.clientY }
 
-        // ダブルタップ検出（300ms以内）
+        // ダブルタップ検出（300ms以内）- ズームトグル
         if (now - lastTapTime < 300) {
-          e.preventDefault()
-          // ダブルタップでズーム
+          // ダブルタップでズーム切り替え
           const currentZoom = useCanvasStore.getState().zoom
           if (currentZoom >= 100) {
             useCanvasStore.getState().setZoom(50)
@@ -1505,12 +1515,12 @@ export default function Canvas() {
             useCanvasStore.getState().setZoom(100)
           }
           lastTapTime = 0
+          // Fabric.js の処理は継続させる（preventDefault しない）
         } else {
           lastTapTime = now
 
-          // ロングプレス検出（500ms）
+          // ロングプレス検出（500ms）- コンテキストメニュー
           longPressTimer = setTimeout(() => {
-            // ロングプレスでコンテキストメニュー
             setContextMenu({ x: touch.clientX, y: touch.clientY })
           }, 500)
         }
@@ -1519,8 +1529,9 @@ export default function Canvas() {
 
     const handleTouchMove = (e: TouchEvent) => {
       // ピンチズーム中
-      if (e.touches.length === 2) {
+      if (e.touches.length === 2 && isPinching && pinchStart > 0) {
         e.preventDefault()
+        e.stopPropagation()
         const currentDistance = getDistance(e.touches)
         const scale = currentDistance / pinchStart
         const newZoom = Math.max(10, Math.min(200, lastZoom * scale))
@@ -1528,10 +1539,17 @@ export default function Canvas() {
         return
       }
 
-      // ロングプレスタイマーをキャンセル（移動したら）
-      if (longPressTimer) {
-        clearTimeout(longPressTimer)
-        longPressTimer = null
+      // 移動したらロングプレスタイマーをキャンセル
+      if (longPressTimer && e.touches.length === 1) {
+        const touch = e.touches[0]
+        const dx = touch.clientX - touchStartPos.x
+        const dy = touch.clientY - touchStartPos.y
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        // 10px以上移動したらキャンセル
+        if (distance > 10) {
+          clearTimeout(longPressTimer)
+          longPressTimer = null
+        }
       }
     }
 
@@ -1541,20 +1559,22 @@ export default function Canvas() {
         longPressTimer = null
       }
 
-      // タッチが終了したらピンチズームをリセット
+      // ピンチズーム終了
       if (e.touches.length < 2) {
+        isPinching = false
         pinchStart = 0
       }
     }
 
-    canvasElement.addEventListener('touchstart', handleTouchStart, { passive: false })
-    canvasElement.addEventListener('touchmove', handleTouchMove, { passive: false })
-    canvasElement.addEventListener('touchend', handleTouchEnd)
+    // upper-canvas にイベントリスナーを追加
+    upperCanvas.addEventListener('touchstart', handleTouchStart, { passive: false })
+    upperCanvas.addEventListener('touchmove', handleTouchMove, { passive: false })
+    upperCanvas.addEventListener('touchend', handleTouchEnd)
 
     return () => {
-      canvasElement.removeEventListener('touchstart', handleTouchStart)
-      canvasElement.removeEventListener('touchmove', handleTouchMove)
-      canvasElement.removeEventListener('touchend', handleTouchEnd)
+      upperCanvas.removeEventListener('touchstart', handleTouchStart)
+      upperCanvas.removeEventListener('touchmove', handleTouchMove)
+      upperCanvas.removeEventListener('touchend', handleTouchEnd)
       if (longPressTimer) clearTimeout(longPressTimer)
     }
   }, [setContextMenu])
