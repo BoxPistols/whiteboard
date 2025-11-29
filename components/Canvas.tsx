@@ -632,7 +632,31 @@ export default function Canvas() {
       const canvas = fabricCanvasRef.current
       if (!canvas) return
 
-      const pointer = canvas.getPointer(e.e as MouseEvent)
+      // タッチイベントとマウスイベントの両方に対応
+      const originalEvent = e.e as MouseEvent | TouchEvent
+      let clientX: number, clientY: number
+
+      if ('touches' in originalEvent && originalEvent.touches.length > 0) {
+        clientX = originalEvent.touches[0].clientX
+        clientY = originalEvent.touches[0].clientY
+      } else if ('clientX' in originalEvent) {
+        clientX = originalEvent.clientX
+        clientY = originalEvent.clientY
+      } else {
+        return
+      }
+
+      // キャンバス要素の位置を取得して正確な座標を計算
+      const canvasElement = canvas.getElement()
+      const rect = canvasElement.getBoundingClientRect()
+      const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+      const zoom = canvas.getZoom()
+
+      // クライアント座標をキャンバス座標に変換
+      const pointer = {
+        x: (clientX - rect.left - vpt[4]) / zoom,
+        y: (clientY - rect.top - vpt[5]) / zoom,
+      }
 
       // テキストツールの場合はクリック位置にテキストを追加
       if (selectedTool === 'text') {
@@ -767,7 +791,30 @@ export default function Canvas() {
       const canvas = fabricCanvasRef.current
       if (!canvas) return
 
-      const pointer = canvas.getPointer(e.e as MouseEvent)
+      // タッチイベントとマウスイベントの両方に対応
+      const originalEvent = e.e as MouseEvent | TouchEvent
+      let clientX: number, clientY: number
+
+      if ('touches' in originalEvent && originalEvent.touches.length > 0) {
+        clientX = originalEvent.touches[0].clientX
+        clientY = originalEvent.touches[0].clientY
+      } else if ('clientX' in originalEvent) {
+        clientX = originalEvent.clientX
+        clientY = originalEvent.clientY
+      } else {
+        return
+      }
+
+      // キャンバス要素の位置を取得して正確な座標を計算
+      const canvasElement = canvas.getElement()
+      const rect = canvasElement.getBoundingClientRect()
+      const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+      const zoom = canvas.getZoom()
+
+      const pointer = {
+        x: (clientX - rect.left - vpt[4]) / zoom,
+        y: (clientY - rect.top - vpt[5]) / zoom,
+      }
 
       switch (selectedTool) {
         case 'rectangle':

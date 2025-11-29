@@ -67,9 +67,9 @@ export default function Home() {
     <main className="flex min-h-screen flex-col touch-none">
       <Toolbar />
       <div className="flex flex-1 overflow-hidden relative">
-        {/* 左パネルトグルボタン＋パネル */}
+        {/* 左パネルトグルボタン＋パネル（モバイルでは非表示） */}
         <div
-          className="relative z-40 flex-shrink-0"
+          className="relative z-40 flex-shrink-0 hidden md:block"
           style={{ width: showLeftPanel ? `${leftPanelWidth}px` : '0px' }}
         >
           {/* パネル本体 */}
@@ -97,9 +97,9 @@ export default function Home() {
 
         <Canvas />
 
-        {/* 右パネルトグルボタン＋パネル */}
+        {/* 右パネルトグルボタン＋パネル（モバイルでは非表示） */}
         <div
-          className="relative z-40 flex-shrink-0"
+          className="relative z-40 flex-shrink-0 hidden md:block"
           style={{ width: showRightPanel ? `${rightPanelWidth}px` : '0px' }}
         >
           {/* トグルボタン - パネルの左端に固定 */}
