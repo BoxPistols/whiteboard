@@ -275,20 +275,35 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const canvasWidth = fabricCanvas.getWidth()
     const canvasHeight = fabricCanvas.getHeight()
 
-    // オブジェクトのサイズを取得
-    const objectWidth = activeObject.width! * activeObject.scaleX!
-    const objectHeight = activeObject.height! * activeObject.scaleY!
+    // オブジェクトのバウンディングボックスを取得（現在のtransformを考慮）
+    const bound = activeObject.getBoundingRect()
+    const objectCenterX = bound.left + bound.width / 2
+    const objectCenterY = bound.top + bound.height / 2
 
     // 適切なズームレベルを計算（余白20%）
-    const zoomX = (canvasWidth * 0.8) / objectWidth
-    const zoomY = (canvasHeight * 0.8) / objectHeight
-    const zoom = Math.min(zoomX, zoomY) * 100
+    const zoomX = (canvasWidth * 0.8) / bound.width
+    const zoomY = (canvasHeight * 0.8) / bound.height
+    let zoom = Math.min(zoomX, zoomY) * 100
+    zoom = Math.max(10, Math.min(200, zoom))
 
-    get().setZoom(Math.max(10, Math.min(200, zoom)))
+    // オブジェクトを中心にビューポートを移動（オブジェクト自体は動かさない）
+    const zoomLevel = zoom / 100
+    const vpCenterX = canvasWidth / 2
+    const vpCenterY = canvasHeight / 2
 
-    // オブジェクトをビューポートの中心に移動
-    const vpCenter = fabricCanvas.getVpCenter()
-    fabricCanvas.viewportCenterObject(activeObject)
+    // 現在のビューポート座標でのオブジェクト中心を計算
+    const currentVpt = fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+    const currentZoom = currentVpt[0]
+    // 画面座標からキャンバス座標に変換
+    const objCanvasX = (objectCenterX - currentVpt[4]) / currentZoom
+    const objCanvasY = (objectCenterY - currentVpt[5]) / currentZoom
+
+    // 新しいパン位置を計算（オブジェクトがビューポート中央に来るように）
+    const panX = vpCenterX - objCanvasX * zoomLevel
+    const panY = vpCenterY - objCanvasY * zoomLevel
+
+    fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
+    set({ zoom })
     fabricCanvas.renderAll()
   },
   resetZoom: () => {
