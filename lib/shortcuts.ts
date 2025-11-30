@@ -147,6 +147,15 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
 
   // 表示/ズーム系
   {
+    id: 'view-resetView',
+    action: 'resetView',
+    defaultKey: '0',
+    modifiers: { meta: true },
+    category: 'view',
+    label: '初期表示',
+    description: 'ズーム100%、位置リセット、全体俯瞰',
+  },
+  {
     id: 'view-zoom100',
     action: 'resetZoom',
     defaultKey: '0',

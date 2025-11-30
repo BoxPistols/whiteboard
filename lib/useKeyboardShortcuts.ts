@@ -12,6 +12,7 @@ interface UseKeyboardShortcutsProps {
   groupObjects?: () => void
   ungroupObjects?: () => void
   resetZoom?: () => void
+  resetView?: () => void
   zoomToFit?: () => void
   zoomToSelection?: () => void
   bringToFront?: () => void
@@ -29,6 +30,7 @@ export const useKeyboardShortcuts = ({
   groupObjects,
   ungroupObjects,
   resetZoom,
+  resetView,
   zoomToFit,
   zoomToSelection,
   bringToFront,
@@ -68,10 +70,9 @@ export const useKeyboardShortcuts = ({
           }
           break
         case 'paste':
-          if (pasteObject) {
-            e.preventDefault()
-            pasteObject()
-          }
+          // ペースト処理はCanvas.tsxのhandlePasteで統合処理される
+          // (画像ペーストと内部クリップボードペーストの両方に対応)
+          // ここでe.preventDefault()を呼ばないことで、ブラウザのネイティブpasteイベントを許可
           break
         case 'duplicate':
           if (duplicateSelectedObject) {
@@ -115,6 +116,12 @@ export const useKeyboardShortcuts = ({
             resetZoom()
           }
           break
+        case 'resetView':
+          if (resetView) {
+            e.preventDefault()
+            resetView()
+          }
+          break
         case 'zoomToFit':
           if (zoomToFit) {
             e.preventDefault()
@@ -148,6 +155,7 @@ export const useKeyboardShortcuts = ({
     groupObjects,
     ungroupObjects,
     resetZoom,
+    resetView,
     zoomToFit,
     zoomToSelection,
     bringToFront,

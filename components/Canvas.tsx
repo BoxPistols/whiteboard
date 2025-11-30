@@ -72,6 +72,7 @@ export default function Canvas() {
     updatePageData,
     setLayers,
     resetZoom,
+    resetView,
     zoomToFit,
     zoomToSelection,
     theme,
@@ -558,6 +559,7 @@ export default function Canvas() {
     groupObjects,
     ungroupObjects,
     resetZoom,
+    resetView,
     zoomToFit,
     zoomToSelection,
     bringToFront,
@@ -1385,21 +1387,35 @@ export default function Canvas() {
     }
   }, [currentPageId, pages, layers, updatePageData, setLayers])
 
-  // 画像ペースト機能
+  // 画像ペースト機能（内部クリップボードからのペーストも統合）
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas) return
 
     const handlePaste = (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items
-      if (!items) return
+      // テキスト入力中は無効化
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
 
+      const items = e.clipboardData?.items
+      if (!items) {
+        // クリップボードデータがない場合、内部クリップボードからペースト
+        pasteFromInternalClipboard()
+        return
+      }
+
+      // 画像があるかチェック
+      let hasImage = false
       for (let i = 0; i < items.length; i++) {
         const item = items[i]
         if (item.type.indexOf('image') !== -1) {
+          hasImage = true
           const blob = item.getAsFile()
           if (!blob) continue
 
+          e.preventDefault()
           const reader = new FileReader()
           reader.onload = (event) => {
             const imgUrl = event.target?.result as string
@@ -1444,6 +1460,47 @@ export default function Canvas() {
           break
         }
       }
+
+      // 画像がなく、内部クリップボードにオブジェクトがある場合
+      if (!hasImage) {
+        e.preventDefault()
+        pasteFromInternalClipboard()
+      }
+    }
+
+    // 内部クリップボードからペーストするヘルパー関数
+    const pasteFromInternalClipboard = () => {
+      const currentClipboard = useCanvasStore.getState().clipboard
+      if (!currentClipboard) return
+
+      currentClipboard.clone((cloned: fabric.Object) => {
+        const objectId = crypto.randomUUID()
+        const layerId = crypto.randomUUID()
+        cloned.set({
+          left: (cloned.left || 0) + 10,
+          top: (cloned.top || 0) + 10,
+          data: { id: objectId },
+          evented: true,
+          selectable: true,
+        })
+        canvas.add(cloned)
+        canvas.setActiveObject(cloned)
+        canvas.renderAll()
+
+        shapeCounterRef.current.paste += 1
+        const counter = shapeCounterRef.current.paste
+
+        addLayer({
+          id: layerId,
+          name: `paste ${counter}`,
+          visible: true,
+          locked: false,
+          objectId: objectId,
+          type: 'VECTOR',
+        })
+        setSelectedObjectId(objectId)
+        useCanvasStore.getState().setClipboard(cloned)
+      })
     }
 
     document.addEventListener('paste', handlePaste)

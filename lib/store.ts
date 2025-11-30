@@ -53,6 +53,7 @@ interface CanvasStore {
   zoomToFit: () => void
   zoomToSelection: () => void
   resetZoom: () => void
+  resetView: () => void
   setFabricCanvas: (canvas: fabric.Canvas | null) => void
   setSelectedObjectProps: (props: ObjectProperties | null) => void
   updateObjectProperty: (key: keyof ObjectProperties, value: number | string) => void
@@ -291,7 +292,79 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     fabricCanvas.renderAll()
   },
   resetZoom: () => {
+    const { fabricCanvas } = get()
+    if (fabricCanvas) {
+      // ビューポートのtransformをリセット（初期位置に戻す）
+      fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0])
+    }
     get().setZoom(100)
+  },
+  // 全体俯瞰（すべてのオブジェクトが見えるようにズームと位置を調整）
+  resetView: () => {
+    const { fabricCanvas } = get()
+    if (!fabricCanvas) return
+
+    // まずビューポートをリセット
+    fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0])
+
+    const objects = fabricCanvas.getObjects()
+    if (objects.length === 0) {
+      // オブジェクトがない場合は100%表示
+      get().setZoom(100)
+      return
+    }
+
+    const canvasWidth = fabricCanvas.getWidth()
+    const canvasHeight = fabricCanvas.getHeight()
+
+    // オブジェクトのバウンディングボックスを計算
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+
+    objects.forEach((obj) => {
+      const bound = obj.getBoundingRect()
+      minX = Math.min(minX, bound.left)
+      minY = Math.min(minY, bound.top)
+      maxX = Math.max(maxX, bound.left + bound.width)
+      maxY = Math.max(maxY, bound.top + bound.height)
+    })
+
+    // オブジェクトがキャンバス内に収まっているかチェック
+    const allVisible = minX >= 0 && minY >= 0 && maxX <= canvasWidth && maxY <= canvasHeight
+
+    if (allVisible) {
+      // すべて見えている場合は100%表示
+      get().setZoom(100)
+    } else {
+      // 見えていないオブジェクトがある場合はzoomToFitを実行
+      const groupWidth = maxX - minX
+      const groupHeight = maxY - minY
+
+      // 適切なズームレベルを計算（余白10%）
+      const zoomX = (canvasWidth * 0.9) / groupWidth
+      const zoomY = (canvasHeight * 0.9) / groupHeight
+      let zoom = Math.min(zoomX, zoomY) * 100
+
+      // ズームは100%を上限とする（拡大はしない）
+      zoom = Math.min(zoom, 100)
+      zoom = Math.max(zoom, 10)
+
+      // オブジェクトを中央に配置
+      const centerX = (minX + maxX) / 2
+      const centerY = (minY + maxY) / 2
+      const vpCenterX = canvasWidth / 2
+      const vpCenterY = canvasHeight / 2
+
+      const zoomLevel = zoom / 100
+      const panX = vpCenterX - centerX * zoomLevel
+      const panY = vpCenterY - centerY * zoomLevel
+
+      fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
+      set({ zoom })
+    }
+    fabricCanvas.renderAll()
   },
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
