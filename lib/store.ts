@@ -331,39 +331,31 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       maxY = Math.max(maxY, bound.top + bound.height)
     })
 
-    // オブジェクトがキャンバス内に収まっているかチェック
-    const allVisible = minX >= 0 && minY >= 0 && maxX <= canvasWidth && maxY <= canvasHeight
+    // オブジェクト全体が収まるようにズームと位置を調整
+    const groupWidth = maxX - minX
+    const groupHeight = maxY - minY
 
-    if (allVisible) {
-      // すべて見えている場合は100%表示
-      get().setZoom(100)
-    } else {
-      // 見えていないオブジェクトがある場合はzoomToFitを実行
-      const groupWidth = maxX - minX
-      const groupHeight = maxY - minY
+    // 適切なズームレベルを計算（余白10%）
+    const zoomX = (canvasWidth * 0.9) / groupWidth
+    const zoomY = (canvasHeight * 0.9) / groupHeight
+    let zoom = Math.min(zoomX, zoomY) * 100
 
-      // 適切なズームレベルを計算（余白10%）
-      const zoomX = (canvasWidth * 0.9) / groupWidth
-      const zoomY = (canvasHeight * 0.9) / groupHeight
-      let zoom = Math.min(zoomX, zoomY) * 100
+    // ズームは100%を上限とする（拡大はしない）
+    zoom = Math.min(zoom, 100)
+    zoom = Math.max(zoom, 10)
 
-      // ズームは100%を上限とする（拡大はしない）
-      zoom = Math.min(zoom, 100)
-      zoom = Math.max(zoom, 10)
+    // オブジェクトを中央に配置
+    const centerX = (minX + maxX) / 2
+    const centerY = (minY + maxY) / 2
+    const vpCenterX = canvasWidth / 2
+    const vpCenterY = canvasHeight / 2
 
-      // オブジェクトを中央に配置
-      const centerX = (minX + maxX) / 2
-      const centerY = (minY + maxY) / 2
-      const vpCenterX = canvasWidth / 2
-      const vpCenterY = canvasHeight / 2
+    const zoomLevel = zoom / 100
+    const panX = vpCenterX - centerX * zoomLevel
+    const panY = vpCenterY - centerY * zoomLevel
 
-      const zoomLevel = zoom / 100
-      const panX = vpCenterX - centerX * zoomLevel
-      const panY = vpCenterY - centerY * zoomLevel
-
-      fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
-      set({ zoom })
-    }
+    fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
+    set({ zoom })
     fabricCanvas.renderAll()
   },
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),

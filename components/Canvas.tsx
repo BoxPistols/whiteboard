@@ -1162,11 +1162,13 @@ export default function Canvas() {
       } else {
         const vpt = canvas.viewportTransform!
         if (e.shiftKey) {
-          // Shift + scroll = horizontal pan
+          // Shift + scroll = horizontal pan (for mouse wheel users)
           vpt[4] += -e.deltaY
         } else {
-          // Vertical pan
-          vpt[5] += -e.deltaY
+          // Natural pan: use both deltaX and deltaY for trackpad support
+          // This allows diagonal panning and horizontal scrolling on trackpad
+          vpt[4] += -e.deltaX // Horizontal pan
+          vpt[5] += -e.deltaY // Vertical pan
         }
         canvas.requestRenderAll()
       }
