@@ -147,6 +147,15 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
 
   // 表示/ズーム系
   {
+    id: 'view-resetView',
+    action: 'resetView',
+    defaultKey: '0',
+    modifiers: { meta: true },
+    category: 'view',
+    label: '初期表示',
+    description: 'ズーム100%、位置リセット、全体俯瞰',
+  },
+  {
     id: 'view-zoom100',
     action: 'resetZoom',
     defaultKey: '0',
@@ -234,7 +243,22 @@ export function formatShortcut(shortcut: ShortcutConfig): string {
 // キーイベントがショートカットにマッチするかチェック
 export function matchesShortcut(e: KeyboardEvent, shortcut: ShortcutConfig): boolean {
   const key = shortcut.customKey || shortcut.defaultKey
-  const keyMatches = e.key.toLowerCase() === key.toLowerCase()
+
+  // e.codeを使用して物理キーをチェック（Shift+数字で特殊文字になる問題を回避）
+  // 数字キーの場合: e.code = "Digit0", "Digit1" など
+  // 文字キーの場合: e.code = "KeyV", "KeyC" など
+  let keyMatches = false
+
+  if (/^[0-9]$/.test(key)) {
+    // 数字キーの場合はe.codeでチェック
+    keyMatches = e.code === `Digit${key}`
+  } else if (/^[a-zA-Z]$/.test(key)) {
+    // アルファベットキーの場合はe.codeまたはe.keyでチェック
+    keyMatches = e.code === `Key${key.toUpperCase()}` || e.key.toLowerCase() === key.toLowerCase()
+  } else {
+    // その他のキー（Backspace, [, ] など）はe.keyでチェック
+    keyMatches = e.key.toLowerCase() === key.toLowerCase()
+  }
 
   const metaMatches = shortcut.modifiers.meta ? e.metaKey || e.ctrlKey : !e.metaKey && !e.ctrlKey
   const shiftMatches = shortcut.modifiers.shift ? e.shiftKey : !e.shiftKey

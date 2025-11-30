@@ -53,6 +53,7 @@ interface CanvasStore {
   zoomToFit: () => void
   zoomToSelection: () => void
   resetZoom: () => void
+  resetView: () => void
   setFabricCanvas: (canvas: fabric.Canvas | null) => void
   setSelectedObjectProps: (props: ObjectProperties | null) => void
   updateObjectProperty: (key: keyof ObjectProperties, value: number | string) => void
@@ -274,24 +275,103 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const canvasWidth = fabricCanvas.getWidth()
     const canvasHeight = fabricCanvas.getHeight()
 
-    // オブジェクトのサイズを取得
-    const objectWidth = activeObject.width! * activeObject.scaleX!
-    const objectHeight = activeObject.height! * activeObject.scaleY!
+    // オブジェクトのバウンディングボックスを取得（現在のtransformを考慮）
+    const bound = activeObject.getBoundingRect()
+    const objectCenterX = bound.left + bound.width / 2
+    const objectCenterY = bound.top + bound.height / 2
 
     // 適切なズームレベルを計算（余白20%）
-    const zoomX = (canvasWidth * 0.8) / objectWidth
-    const zoomY = (canvasHeight * 0.8) / objectHeight
-    const zoom = Math.min(zoomX, zoomY) * 100
+    const zoomX = (canvasWidth * 0.8) / bound.width
+    const zoomY = (canvasHeight * 0.8) / bound.height
+    let zoom = Math.min(zoomX, zoomY) * 100
+    zoom = Math.max(10, Math.min(200, zoom))
 
-    get().setZoom(Math.max(10, Math.min(200, zoom)))
+    // オブジェクトを中心にビューポートを移動（オブジェクト自体は動かさない）
+    const zoomLevel = zoom / 100
+    const vpCenterX = canvasWidth / 2
+    const vpCenterY = canvasHeight / 2
 
-    // オブジェクトをビューポートの中心に移動
-    const vpCenter = fabricCanvas.getVpCenter()
-    fabricCanvas.viewportCenterObject(activeObject)
+    // 現在のビューポート座標でのオブジェクト中心を計算
+    const currentVpt = fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+    const currentZoom = currentVpt[0]
+    // 画面座標からキャンバス座標に変換
+    const objCanvasX = (objectCenterX - currentVpt[4]) / currentZoom
+    const objCanvasY = (objectCenterY - currentVpt[5]) / currentZoom
+
+    // 新しいパン位置を計算（オブジェクトがビューポート中央に来るように）
+    const panX = vpCenterX - objCanvasX * zoomLevel
+    const panY = vpCenterY - objCanvasY * zoomLevel
+
+    fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
+    set({ zoom })
     fabricCanvas.renderAll()
   },
   resetZoom: () => {
+    const { fabricCanvas } = get()
+    if (fabricCanvas) {
+      // ビューポートのtransformをリセット（初期位置に戻す）
+      fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0])
+    }
     get().setZoom(100)
+  },
+  // 全体俯瞰（すべてのオブジェクトが見えるようにズームと位置を調整）
+  resetView: () => {
+    const { fabricCanvas } = get()
+    if (!fabricCanvas) return
+
+    // まずビューポートをリセット
+    fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0])
+
+    const objects = fabricCanvas.getObjects()
+    if (objects.length === 0) {
+      // オブジェクトがない場合は100%表示
+      get().setZoom(100)
+      return
+    }
+
+    const canvasWidth = fabricCanvas.getWidth()
+    const canvasHeight = fabricCanvas.getHeight()
+
+    // オブジェクトのバウンディングボックスを計算
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+
+    objects.forEach((obj) => {
+      const bound = obj.getBoundingRect()
+      minX = Math.min(minX, bound.left)
+      minY = Math.min(minY, bound.top)
+      maxX = Math.max(maxX, bound.left + bound.width)
+      maxY = Math.max(maxY, bound.top + bound.height)
+    })
+
+    // オブジェクト全体が収まるようにズームと位置を調整
+    const groupWidth = maxX - minX
+    const groupHeight = maxY - minY
+
+    // 適切なズームレベルを計算（余白10%）
+    const zoomX = (canvasWidth * 0.9) / groupWidth
+    const zoomY = (canvasHeight * 0.9) / groupHeight
+    let zoom = Math.min(zoomX, zoomY) * 100
+
+    // ズームは100%を上限とする（拡大はしない）
+    zoom = Math.min(zoom, 100)
+    zoom = Math.max(zoom, 10)
+
+    // オブジェクトを中央に配置
+    const centerX = (minX + maxX) / 2
+    const centerY = (minY + maxY) / 2
+    const vpCenterX = canvasWidth / 2
+    const vpCenterY = canvasHeight / 2
+
+    const zoomLevel = zoom / 100
+    const panX = vpCenterX - centerX * zoomLevel
+    const panY = vpCenterY - centerY * zoomLevel
+
+    fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
+    set({ zoom })
+    fabricCanvas.renderAll()
   },
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
