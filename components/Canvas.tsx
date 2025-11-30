@@ -1508,6 +1508,7 @@ export default function Canvas() {
   // タッチジェスチャーサポート（モバイル対応）
   // 注意: Fabric.js が標準でタッチ→マウス変換を行うため、
   // ここではピンチズームとロングプレスのみカスタム処理
+  // 描画ツール使用時はFabric.jsに完全に委ねる
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     const canvasElement = canvasRef.current
@@ -1532,7 +1533,13 @@ export default function Canvas() {
     }
 
     const handleTouchStart = (e: TouchEvent) => {
-      // 2本指タッチ（ピンチズーム）
+      const currentTool = useCanvasStore.getState().selectedTool
+
+      // 描画ツール（select, pencil以外）が選択されている場合は
+      // Fabric.jsに完全に処理を委ねる（カスタム処理をスキップ）
+      const isDrawingTool = currentTool !== 'select' && currentTool !== 'pencil'
+
+      // 2本指タッチ（ピンチズーム）- 描画ツール使用時も有効
       if (e.touches.length === 2) {
         e.preventDefault()
         e.stopPropagation()
@@ -1546,7 +1553,12 @@ export default function Canvas() {
         return
       }
 
-      // 1本指タッチ - Fabric.js に処理を任せるが、追加機能も提供
+      // 描画ツール使用中は1本指タッチでFabric.jsに処理を任せる
+      if (isDrawingTool) {
+        return
+      }
+
+      // 1本指タッチ - select/pencil ツール時のみ追加機能を提供
       if (e.touches.length === 1) {
         const now = Date.now()
         const touch = e.touches[0]
@@ -1566,10 +1578,12 @@ export default function Canvas() {
         } else {
           lastTapTime = now
 
-          // ロングプレス検出（500ms）- コンテキストメニュー
-          longPressTimer = setTimeout(() => {
-            setContextMenu({ x: touch.clientX, y: touch.clientY })
-          }, 500)
+          // ロングプレス検出（500ms）- コンテキストメニュー（selectツール時のみ）
+          if (currentTool === 'select') {
+            longPressTimer = setTimeout(() => {
+              setContextMenu({ x: touch.clientX, y: touch.clientY })
+            }, 500)
+          }
         }
       }
     }
