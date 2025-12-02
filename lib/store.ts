@@ -112,8 +112,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   clipboard: null,
   pages: loadPagesFromStorage(),
   currentPageId: defaultPageId,
-  theme: 'light',
-  canvasBackground: '#f5f5f5',
+  theme: 'dark',
+  canvasBackground: '#1f2937',
   showLeftPanel: true,
   showRightPanel: true,
   leftPanelWidth: 224, // 56 * 4 = w-56
@@ -558,13 +558,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     document.documentElement.classList.remove('dark')
 
     const savedTheme = localStorage.getItem('figma-clone-theme') as 'light' | 'dark' | null
-    let theme: 'light' | 'dark' = 'light'
-
-    if (savedTheme) {
-      theme = savedTheme
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      theme = 'dark'
-    }
+    // デフォルトはダークモード
+    const theme: 'light' | 'dark' = savedTheme || 'dark'
 
     if (theme === 'dark') {
       document.documentElement.classList.add('dark')
@@ -585,15 +580,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   loadSavedCanvasBackground: () => {
     if (typeof window === 'undefined') return
     const saved = localStorage.getItem('figma-clone-canvas-bg')
-    if (saved) {
-      set({ canvasBackground: saved })
-    } else {
-      // モバイルではデフォルトでダーク背景を使用
-      const isMobile = window.innerWidth < 768
-      if (isMobile) {
-        set({ canvasBackground: '#1f2937' })
-      }
-    }
+    // デフォルトはダーク背景
+    set({ canvasBackground: saved || '#1f2937' })
   },
   resetAll: () => {
     const { fabricCanvas } = get()
