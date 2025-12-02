@@ -112,7 +112,7 @@ export default function Toolbar() {
   const SelectedToolIcon = tools.find((t) => t.id === selectedTool)?.icon || SelectIcon
 
   return (
-    <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-2 md:px-3 py-1.5">
+    <div className="bg-gray-900 md:bg-white md:dark:bg-gray-900 border-b border-gray-700 md:border-gray-200 md:dark:border-gray-700 px-2 md:px-3 py-1.5">
       <div className="flex items-center justify-between">
         {/* 左側: タイトル + ツール */}
         <div className="flex items-center gap-1 md:gap-2">
@@ -120,7 +120,7 @@ export default function Toolbar() {
           <div className="relative md:hidden" ref={menuRef}>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
+              className="p-2 rounded hover:bg-gray-800 text-gray-300 transition-colors touch-manipulation"
               aria-label="メニュー"
             >
               {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
@@ -186,10 +186,10 @@ export default function Toolbar() {
 
           {/* モバイル: 現在のツールを表示 */}
           <div className="md:hidden flex items-center gap-1">
-            <div className="p-1.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400">
+            <div className="p-1.5 rounded bg-blue-900 text-blue-400">
               <SelectedToolIcon />
             </div>
-            <span className="text-xs text-gray-600 dark:text-gray-400">
+            <span className="text-xs text-gray-400">
               {tools.find((t) => t.id === selectedTool)?.label}
             </span>
           </div>
@@ -228,7 +228,7 @@ export default function Toolbar() {
           <div className="flex items-center gap-0.5 mr-1">
             <button
               onClick={handleZoomOut}
-              className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
+              className="p-1.5 rounded hover:bg-gray-800 md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-gray-300 md:text-gray-700 md:dark:text-gray-300 transition-colors touch-manipulation"
               title="ズームアウト"
               aria-label="ズームアウト"
             >
@@ -245,12 +245,12 @@ export default function Toolbar() {
                 <line x1="8" y1="11" x2="14" y2="11" />
               </svg>
             </button>
-            <span className="text-xs text-gray-600 dark:text-gray-400 min-w-[36px] text-center">
+            <span className="text-xs text-gray-400 md:text-gray-600 md:dark:text-gray-400 min-w-[36px] text-center">
               {zoom}%
             </span>
             <button
               onClick={handleZoomIn}
-              className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
+              className="p-1.5 rounded hover:bg-gray-800 md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-gray-300 md:text-gray-700 md:dark:text-gray-300 transition-colors touch-manipulation"
               title="ズームイン"
               aria-label="ズームイン"
             >
@@ -284,7 +284,7 @@ export default function Toolbar() {
           </button>
           <button
             onClick={() => setShowHelp(true)}
-            className="p-2 md:p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
+            className="p-2 md:p-1.5 rounded hover:bg-gray-800 md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-gray-300 md:text-gray-700 md:dark:text-gray-300 transition-colors touch-manipulation"
             title="ヘルプ"
             aria-label="ヘルプを表示"
           >
@@ -301,21 +301,33 @@ export default function Toolbar() {
               <circle cx="12" cy="17" r="1" fill="currentColor" />
             </svg>
           </button>
+          {/* デスクトップ: Canvas背景色切り替えボタン */}
           <button
             onClick={() =>
               setCanvasBackground(canvasBackground === '#1f2937' ? '#f5f5f5' : '#1f2937')
             }
-            className="hidden sm:flex p-2 md:p-1.5 rounded border border-gray-200 dark:border-gray-700 transition-colors touch-manipulation"
+            className="hidden md:flex p-2 md:p-1.5 rounded border border-gray-200 dark:border-gray-700 transition-colors touch-manipulation"
             title="Canvas背景色を切替"
             aria-label="Canvas背景色を切替"
             style={{ backgroundColor: canvasBackground }}
           >
-            {/* 色見本用の小さなスウォッチ */}
             <span className="block w-4 h-4 rounded" style={{ backgroundColor: canvasBackground }} />
           </button>
+          {/* モバイル: Canvas背景色切り替え（太陽/月アイコン） */}
+          <button
+            onClick={() =>
+              setCanvasBackground(canvasBackground === '#1f2937' ? '#f5f5f5' : '#1f2937')
+            }
+            className="md:hidden p-2 rounded hover:bg-gray-800 text-gray-300 transition-colors touch-manipulation"
+            title={canvasBackground === '#1f2937' ? 'Canvasをライトに' : 'Canvasをダークに'}
+            aria-label={canvasBackground === '#1f2937' ? 'Canvasをライトモードに' : 'Canvasをダークモードに'}
+          >
+            {canvasBackground === '#1f2937' ? <SunIcon /> : <MoonIcon />}
+          </button>
+          {/* デスクトップ: テーマ切り替えボタン */}
           <button
             onClick={toggleTheme}
-            className="p-2 md:p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
+            className="hidden md:block p-2 md:p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
             title={theme === 'dark' ? 'ライトモード' : 'ダークモード'}
             aria-label={theme === 'dark' ? 'ライトモードに切り替え' : 'ダークモードに切り替え'}
           >

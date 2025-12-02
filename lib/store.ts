@@ -587,6 +587,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const saved = localStorage.getItem('figma-clone-canvas-bg')
     if (saved) {
       set({ canvasBackground: saved })
+    } else {
+      // モバイルではデフォルトでダーク背景を使用
+      const isMobile = window.innerWidth < 768
+      if (isMobile) {
+        set({ canvasBackground: '#1f2937' })
+      }
     }
   },
   resetAll: () => {
