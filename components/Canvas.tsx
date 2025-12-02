@@ -662,6 +662,10 @@ export default function Canvas() {
 
       // テキストツールの場合はクリック位置にテキストを追加
       if (selectedTool === 'text') {
+        // モバイルでのタッチ+マウスエミュレーションによる重複防止のため
+        // テキスト作成直後にselectツールに切り替え
+        setSelectedTool('select')
+
         const id = crypto.randomUUID()
         // テーマに応じてテキスト色を決定
         const textColor = theme === 'dark' ? '#ffffff' : '#000000'
@@ -700,11 +704,6 @@ export default function Canvas() {
         })
 
         setSelectedObjectId(id)
-
-        // テキスト編集終了後にselectツールに自動切替
-        text.on('editing:exited', () => {
-          setSelectedTool('select')
-        })
 
         return
       }
