@@ -320,7 +320,9 @@ export default function Toolbar() {
             }
             className="md:hidden p-2 rounded hover:bg-gray-800 text-gray-300 transition-colors touch-manipulation"
             title={canvasBackground === '#1f2937' ? 'Canvasをライトに' : 'Canvasをダークに'}
-            aria-label={canvasBackground === '#1f2937' ? 'Canvasをライトモードに' : 'Canvasをダークモードに'}
+            aria-label={
+              canvasBackground === '#1f2937' ? 'Canvasをライトモードに' : 'Canvasをダークモードに'
+            }
           >
             {canvasBackground === '#1f2937' ? <SunIcon /> : <MoonIcon />}
           </button>
