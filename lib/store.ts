@@ -21,6 +21,7 @@ interface Page {
   name: string
   canvasData: string | null
   layers: Layer[]
+  notes?: string
 }
 
 interface CanvasStore {
@@ -48,6 +49,7 @@ interface CanvasStore {
   removeLayer: (id: string) => void
   toggleLayerVisibility: (id: string) => void
   toggleLayerLock: (id: string) => void
+  updateLayerName: (id: string, name: string) => void
   reorderLayers: (startIndex: number, endIndex: number) => void
   setZoom: (zoom: number) => void
   zoomToFit: () => void
@@ -61,6 +63,8 @@ interface CanvasStore {
   addPage: (name: string) => void
   removePage: (id: string) => void
   setCurrentPage: (id: string) => void
+  updatePageNotes: (id: string, notes: string) => void
+  toggleGroupCollapse: (groupId: string) => void
   updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
@@ -195,6 +199,33 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         layers: state.layers.map((layer) =>
           layer.id === id ? { ...layer, locked: !layer.locked } : layer
         ),
+      }
+    }),
+  updateLayerName: (id, name) =>
+    set((state) => {
+      const updatedLayers = state.layers.map((layer) =>
+        layer.id === id ? { ...layer, name } : layer
+      )
+
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId
+          ? { ...page, layers: updatedLayers }
+          : page
+      )
+
+      // localStorageに保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer name change:', error)
+        }
+      }
+
+      return {
+        layers: updatedLayers,
+        pages: updatedPages,
       }
     }),
   reorderLayers: (startIndex, endIndex) =>
@@ -516,6 +547,30 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ pages: updatedPages, currentPageId: newCurrentPageId })
   },
   setCurrentPage: (id) => set({ currentPageId: id }),
+  updatePageNotes: (id, notes) => {
+    const updatedPages = get().pages.map((page) =>
+      page.id === id ? { ...page, notes } : page
+    )
+
+    // localStorageに保存
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+      } catch (error) {
+        console.error('Failed to save page notes to localStorage:', error)
+      }
+    }
+
+    set({ pages: updatedPages })
+  },
+  toggleGroupCollapse: (groupId) =>
+    set((state) => ({
+      layers: state.layers.map((layer) =>
+        layer.id === groupId && layer.isGroup
+          ? { ...layer, isCollapsed: !layer.isCollapsed }
+          : layer
+      ),
+    })),
   updatePageData: (id, canvasData, layers) => {
     const updatedPages = get().pages.map((page) =>
       page.id === id ? { ...page, canvasData, layers } : page

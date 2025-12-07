@@ -2,7 +2,7 @@
 
 import { useState, DragEvent } from 'react'
 import { useCanvasStore } from '@/lib/store'
-import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon, TrashIcon } from '@/components/icons'
+import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons'
 
 export default function LayersPanel() {
   const {
@@ -10,17 +10,23 @@ export default function LayersPanel() {
     removeLayer,
     toggleLayerVisibility,
     toggleLayerLock,
+    updateLayerName,
     reorderLayers,
     setSelectedObjectId,
+    selectedObjectId,
     fabricCanvas,
     pages,
     currentPageId,
     addPage,
     removePage,
     setCurrentPage,
+    updatePageNotes,
+    toggleGroupCollapse,
   } = useCanvasStore()
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
 
   const handleDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
     setDraggedIndex(index)
@@ -55,6 +61,79 @@ export default function LayersPanel() {
       fabricCanvas.renderAll()
       setSelectedObjectId(layer.objectId)
     }
+  }
+
+  const moveLayerUp = (layer: (typeof layers)[0], e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!fabricCanvas) return
+    const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+    if (obj) {
+      fabricCanvas.bringForward(obj)
+      fabricCanvas.renderAll()
+      // Fabric.jsからレイヤー順序を同期
+      const objects = fabricCanvas.getObjects()
+      const updatedLayers = objects
+        .map((o) => layers.find((l) => l.objectId === o.data?.id))
+        .filter(Boolean)
+        .reverse()
+      if (updatedLayers.length > 0) {
+        reorderLayers(0, updatedLayers.length) // 一時的な同期（実装改善余地あり）
+      }
+    }
+  }
+
+  const moveLayerDown = (layer: (typeof layers)[0], e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!fabricCanvas) return
+    const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+    if (obj) {
+      fabricCanvas.sendBackwards(obj)
+      fabricCanvas.renderAll()
+      // Fabric.jsからレイヤー順序を同期
+      const objects = fabricCanvas.getObjects()
+      const updatedLayers = objects
+        .map((o) => layers.find((l) => l.objectId === o.data?.id))
+        .filter(Boolean)
+        .reverse()
+      if (updatedLayers.length > 0) {
+        reorderLayers(0, updatedLayers.length) // 一時的な同期（実装改善余地あり）
+      }
+    }
+  }
+
+  const startEditing = (layer: (typeof layers)[0], e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingLayerId(layer.id)
+    setEditingName(layer.name)
+  }
+
+  const finishEditing = () => {
+    if (editingLayerId && editingName.trim()) {
+      updateLayerName(editingLayerId, editingName.trim())
+    }
+    setEditingLayerId(null)
+    setEditingName('')
+  }
+
+  const cancelEditing = () => {
+    setEditingLayerId(null)
+    setEditingName('')
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      finishEditing()
+    } else if (e.key === 'Escape') {
+      cancelEditing()
+    }
+  }
+
+  // ルートレイヤーのみを取得（parentIdがない）
+  const rootLayers = layers.filter((l) => !l.parentId)
+
+  // 指定レイヤーの子レイヤーを取得
+  const getChildren = (layerId: string) => {
+    return layers.filter((l) => l.parentId === layerId)
   }
 
   const handleAddPage = () => {
@@ -114,7 +193,7 @@ export default function LayersPanel() {
       </div>
 
       {/* レイヤーリスト */}
-      <div className="flex-1 overflow-hidden p-2">
+      <div className="flex-1 overflow-y-auto p-2">
         <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">
           レイヤー
         </h2>
@@ -129,9 +208,11 @@ export default function LayersPanel() {
                 onDragEnd={handleDragEnd}
                 onDrop={(e) => handleDrop(e, index)}
                 onClick={() => selectLayer(layer)}
-                className={`flex items-center justify-between px-1.5 py-1 bg-gray-50 dark:bg-gray-800 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-move transition-all ${
-                  draggedIndex === index ? 'opacity-50' : ''
-                } ${dragOverIndex === index ? 'border-t-2 border-blue-500' : ''}`}
+                className={`flex items-center justify-between px-1.5 py-1 rounded cursor-move transition-all ${
+                  selectedObjectId === layer.objectId
+                    ? 'bg-blue-500 dark:bg-blue-600 text-white'
+                    : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100'
+                } ${draggedIndex === index ? 'opacity-50' : ''} ${dragOverIndex === index ? 'border-t-2 border-blue-500' : ''}`}
               >
                 <div className="flex items-center gap-1.5 flex-1 min-w-0">
                   <button
@@ -145,11 +226,50 @@ export default function LayersPanel() {
                   >
                     {layer.visible ? <EyeIcon size={14} /> : <EyeOffIcon size={14} />}
                   </button>
-                  <span className="text-xs truncate text-gray-900 dark:text-gray-100 select-none">
-                    {layer.name}
-                  </span>
+                  {editingLayerId === layer.id ? (
+                    <input
+                      type="text"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onBlur={finishEditing}
+                      onKeyDown={handleKeyDown}
+                      autoFocus
+                      className="flex-1 min-w-0 px-1 py-0.5 text-xs bg-white dark:bg-gray-700 border border-blue-500 rounded text-gray-900 dark:text-gray-100"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <span
+                      className={`text-xs truncate select-none cursor-pointer ${
+                        selectedObjectId === layer.objectId
+                          ? 'text-white'
+                          : 'text-gray-900 dark:text-gray-100'
+                      }`}
+                      onDoubleClick={(e) => startEditing(layer, e)}
+                      title="ダブルクリックで編集"
+                    >
+                      {layer.name}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    onClick={(e) => moveLayerUp(layer, e)}
+                    disabled={index === 0}
+                    className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="前面へ移動"
+                    aria-label={`${layer.name}を前面へ移動`}
+                  >
+                    <ArrowUpIcon size={14} />
+                  </button>
+                  <button
+                    onClick={(e) => moveLayerDown(layer, e)}
+                    disabled={index === layers.length - 1}
+                    className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="背面へ移動"
+                    aria-label={`${layer.name}を背面へ移動`}
+                  >
+                    <ArrowDownIcon size={14} />
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -181,6 +301,19 @@ export default function LayersPanel() {
         ) : (
           <p className="text-gray-500 dark:text-gray-400 text-xs px-1">レイヤーがありません</p>
         )}
+      </div>
+
+      {/* ページメモセクション */}
+      <div className="border-t border-gray-200 dark:border-gray-700 p-2 h-32 flex flex-col">
+        <h3 className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">
+          ページメモ
+        </h3>
+        <textarea
+          value={pages.find((p) => p.id === currentPageId)?.notes || ''}
+          onChange={(e) => updatePageNotes(currentPageId, e.target.value)}
+          placeholder="このページに関するメモを入力..."
+          className="flex-1 w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
       </div>
     </div>
   )

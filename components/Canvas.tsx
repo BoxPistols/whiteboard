@@ -7,7 +7,7 @@ import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
 import { convertColorForTheme } from '@/lib/colorUtils'
 import ContextMenu from '@/components/ContextMenu'
 import AlignmentPanel from '@/components/AlignmentPanel'
-import type { NodeType } from '@/types'
+import type { NodeType, Layer } from '@/types'
 
 // ツールをFigmaのNodeTypeに変換するヘルパー関数
 const toolToNodeType = (tool: string): NodeType => {
@@ -247,6 +247,49 @@ export default function Canvas() {
       canvas.renderAll()
     }
   }, [])
+
+  // 1レベル前面へ移動
+  const bringForward = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (activeObject) {
+      canvas.bringForward(activeObject)
+      canvas.renderAll()
+      syncLayersFromCanvas()
+    }
+  }, [setLayers, layers])
+
+  // 1レベル背面へ移動
+  const sendBackward = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (activeObject) {
+      canvas.sendBackwards(activeObject)
+      canvas.renderAll()
+      syncLayersFromCanvas()
+    }
+  }, [setLayers, layers])
+
+  // Fabric.jsからレイヤー順序を同期
+  const syncLayersFromCanvas = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+    const objects = canvas.getObjects()
+    const updatedLayers = objects
+      .map((obj) => {
+        const objectId = obj.data?.id
+        return layers.find((l) => l.objectId === objectId)
+      })
+      .filter(Boolean)
+      .reverse()
+    if (updatedLayers.length > 0) {
+      setLayers(updatedLayers as Layer[])
+    }
+  }, [setLayers, layers])
 
   // ロック
   const lockObject = useCallback(() => {
@@ -564,6 +607,8 @@ export default function Canvas() {
     zoomToSelection,
     bringToFront,
     sendToBack,
+    bringForward,
+    sendBackward,
     showShortcuts,
   })
 
