@@ -22,6 +22,7 @@ export default function LayersPanel() {
     setCurrentPage,
     updatePageNotes,
     toggleGroupCollapse,
+    setLayers,
   } = useCanvasStore()
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -71,14 +72,7 @@ export default function LayersPanel() {
       fabricCanvas.bringForward(obj)
       fabricCanvas.renderAll()
       // Fabric.jsからレイヤー順序を同期
-      const objects = fabricCanvas.getObjects()
-      const updatedLayers = objects
-        .map((o) => layers.find((l) => l.objectId === o.data?.id))
-        .filter(Boolean)
-        .reverse()
-      if (updatedLayers.length > 0) {
-        reorderLayers(0, updatedLayers.length) // 一時的な同期（実装改善余地あり）
-      }
+      syncLayersFromCanvas()
     }
   }
 
@@ -90,13 +84,33 @@ export default function LayersPanel() {
       fabricCanvas.sendBackwards(obj)
       fabricCanvas.renderAll()
       // Fabric.jsからレイヤー順序を同期
-      const objects = fabricCanvas.getObjects()
-      const updatedLayers = objects
-        .map((o) => layers.find((l) => l.objectId === o.data?.id))
-        .filter(Boolean)
-        .reverse()
-      if (updatedLayers.length > 0) {
-        reorderLayers(0, updatedLayers.length) // 一時的な同期（実装改善余地あり）
+      syncLayersFromCanvas()
+    }
+  }
+
+  const syncLayersFromCanvas = () => {
+    if (!fabricCanvas) return
+    const objects = fabricCanvas.getObjects()
+    const syncedLayers = objects
+      .map((o) => layers.find((l) => l.objectId === o.data?.id))
+      .filter(Boolean)
+      .reverse() as typeof layers
+
+    if (syncedLayers.length > 0) {
+      setLayers(syncedLayers)
+      // ページデータも更新
+      const currentPage = pages.find((p) => p.id === currentPageId)
+      if (currentPage) {
+        const updatedPages = pages.map((p) =>
+          p.id === currentPageId ? { ...p, layers: syncedLayers } : p
+        )
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+          } catch (error) {
+            console.error('Failed to save page data:', error)
+          }
+        }
       }
     }
   }

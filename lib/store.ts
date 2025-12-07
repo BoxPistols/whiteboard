@@ -247,7 +247,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         fabricCanvas.renderAll()
       }
 
-      return { layers: result }
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId
+          ? { ...page, layers: result }
+          : page
+      )
+
+      // localStorageに保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer reorder:', error)
+        }
+      }
+
+      return { layers: result, pages: updatedPages }
     }),
   setZoom: (zoom) => {
     const { fabricCanvas } = get()
