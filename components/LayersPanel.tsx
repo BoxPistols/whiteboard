@@ -318,7 +318,7 @@ export default function LayersPanel() {
       </div>
 
       {/* ページメモセクション */}
-      <div className="border-t border-gray-200 dark:border-gray-700 p-2 h-32 flex flex-col">
+      <div className="border-t border-gray-200 dark:border-gray-700 p-2 h-48 flex flex-col">
         <h3 className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">
           ページメモ
         </h3>
@@ -326,7 +326,7 @@ export default function LayersPanel() {
           value={pages.find((p) => p.id === currentPageId)?.notes || ''}
           onChange={(e) => updatePageNotes(currentPageId, e.target.value)}
           placeholder="このページに関するメモを入力..."
-          className="flex-1 w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="flex-1 w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-vertical focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
     </div>
