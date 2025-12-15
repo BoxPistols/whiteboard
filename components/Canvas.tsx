@@ -248,32 +248,6 @@ export default function Canvas() {
     }
   }, [])
 
-  // 1レベル前面へ移動
-  const bringForward = useCallback(() => {
-    const canvas = fabricCanvasRef.current
-    if (!canvas) return
-
-    const activeObject = canvas.getActiveObject()
-    if (activeObject) {
-      canvas.bringForward(activeObject)
-      canvas.renderAll()
-      syncLayersFromCanvas()
-    }
-  }, [setLayers, layers])
-
-  // 1レベル背面へ移動
-  const sendBackward = useCallback(() => {
-    const canvas = fabricCanvasRef.current
-    if (!canvas) return
-
-    const activeObject = canvas.getActiveObject()
-    if (activeObject) {
-      canvas.sendBackwards(activeObject)
-      canvas.renderAll()
-      syncLayersFromCanvas()
-    }
-  }, [setLayers, layers])
-
   // Fabric.jsからレイヤー順序を同期
   const syncLayersFromCanvas = useCallback(() => {
     const canvas = fabricCanvasRef.current
@@ -290,6 +264,32 @@ export default function Canvas() {
       setLayers(updatedLayers as Layer[])
     }
   }, [setLayers, layers])
+
+  // 1レベル前面へ移動
+  const bringForward = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (activeObject) {
+      canvas.bringForward(activeObject)
+      canvas.renderAll()
+      syncLayersFromCanvas()
+    }
+  }, [syncLayersFromCanvas])
+
+  // 1レベル背面へ移動
+  const sendBackward = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const activeObject = canvas.getActiveObject()
+    if (activeObject) {
+      canvas.sendBackwards(activeObject)
+      canvas.renderAll()
+      syncLayersFromCanvas()
+    }
+  }, [syncLayersFromCanvas])
 
   // ロック
   const lockObject = useCallback(() => {
@@ -797,29 +797,44 @@ export default function Canvas() {
             evented: false,
           })
           break
-        case 'arrow':
-          // 矢印は線と三角形のグループとして作成
-          const line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
+        case 'arrow': {
+          // 矢印は線と三角形で作成
+          const line = new fabric.Line([0, 0, 0, 0], {
             stroke: defaultStrokeColor,
             strokeWidth: 2,
-          })
-          const triangle = new fabric.Triangle({
-            left: pointer.x,
-            top: pointer.y,
-            width: 10,
-            height: 10,
-            fill: defaultStrokeColor,
-            angle: 0,
-          })
-          shape = new fabric.Group([line, triangle], {
             selectable: false,
             evented: false,
           })
+
+          // 矢印の頭を三角形で描画
+          const arrowHead = new fabric.Triangle({
+            width: 10,
+            height: 10,
+            fill: defaultStrokeColor,
+            stroke: defaultStrokeColor,
+            selectable: false,
+            evented: false,
+            originX: 'center',
+            originY: 'center',
+            left: 0,
+            top: 0,
+          })
+
+          shape = new fabric.Group([line, arrowHead], {
+            left: pointer.x,
+            top: pointer.y,
+          })
+          currentShapeRef.current = shape
+          canvas.add(shape)
+
           break
+        }
       }
 
-      if (shape) {
+      if (shape && selectedTool !== 'arrow') {
         canvas.add(shape)
+        currentShapeRef.current = shape
+      } else if (!shape && selectedTool !== 'arrow') {
         currentShapeRef.current = shape
       }
     },
@@ -892,20 +907,29 @@ export default function Canvas() {
           if (currentShape instanceof fabric.Group) {
             const items = currentShape.getObjects()
             const line = items[0] as fabric.Line
-            const triangle = items[1] as fabric.Triangle
+            const arrowHead = items.length > 1 ? (items[1] as fabric.Triangle) : null
+
+            // グループの中心から見た相対座標を計算
+            const groupLeft = currentShape.left || startPoint.x
+            const groupTop = currentShape.top || startPoint.y
+
+            const dx = pointer.x - groupLeft
+            const dy = pointer.y - groupTop
 
             // 線を更新
-            const dx = pointer.x - startPoint.x
-            const dy = pointer.y - startPoint.y
             line.set({ x2: dx, y2: dy })
 
-            // 三角形の位置と角度を計算
-            const angle = (Math.atan2(dy, dx) * 180) / Math.PI + 90
-            triangle.set({
-              left: dx,
-              top: dy,
-              angle: angle,
-            })
+            // 矢印の頭の位置と角度を計算
+            if (arrowHead) {
+              const angle = (Math.atan2(dy, dx) * 180) / Math.PI
+
+              // 矢印の頭を線の終点に配置
+              arrowHead.set({
+                left: dx,
+                top: dy,
+                angle: angle - 90,
+              })
+            }
 
             currentShape.setCoords()
           }
@@ -952,6 +976,17 @@ export default function Canvas() {
         hasControls: true,
         hasBorders: true,
       })
+
+      // グループの場合、子要素も設定
+      if (currentShape.type === 'group') {
+        const items = (currentShape as fabric.Group).getObjects()
+        items.forEach((item) => {
+          item.set({
+            selectable: false,
+            evented: false,
+          })
+        })
+      }
 
       // Increment counter for this tool type
       shapeCounterRef.current[selectedTool] += 1
@@ -1276,9 +1311,7 @@ export default function Canvas() {
         // ページのレイヤーを読み込み
         if (currentPage.layers.length > 0) {
           try {
-            currentPage.layers.forEach((layer) => {
-              addLayer(layer)
-            })
+            setLayers(currentPage.layers)
             // カウンターも復元
             currentPage.layers.forEach((layer) => {
               const match = layer.name.match(/(\w+)\s+(\d+)/)
@@ -1304,8 +1337,24 @@ export default function Canvas() {
             canvas.loadFromJSON(currentPage.canvasData, () => {
               // 読み込み後、すべてのオブジェクトを選択ツールでのみ選択可能にする
               canvas.getObjects().forEach((obj) => {
+                // 初回読み込み時点でのselectedToolを使用
                 obj.selectable = selectedTool === 'select'
                 obj.evented = selectedTool === 'select'
+
+                // グループの場合、子要素も設定
+                if (obj.type === 'group') {
+                  const items = (obj as fabric.Group).getObjects()
+                  items.forEach((item) => {
+                    item.selectable = false
+                    item.evented = false
+                  })
+                }
+
+                // objectIdが設定されていない場合はスキップ
+                if (!obj.data?.id) {
+                  console.warn('Object without ID found after loadFromJSON, skipping')
+                  return
+                }
 
                 // 読み込み直後に現在のテーマへ色を揃える（リロードで色が戻る対策）
                 const baseData = obj.data
@@ -1360,7 +1409,7 @@ export default function Canvas() {
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [selectedTool, addLayer, pages, currentPageId])
+  }, [pages, currentPageId, theme, setLayers, selectedTool])
 
   // localStorage自動保存（デバウンス） - ページごとに保存
   useEffect(() => {
@@ -1402,7 +1451,8 @@ export default function Canvas() {
       // 前のページのデータを保存
       try {
         const json = JSON.stringify(canvas.toJSON(['data']))
-        updatePageData(prevPageIdRef.current, json, layers)
+        const currentState = useCanvasStore.getState()
+        updatePageData(prevPageIdRef.current, json, currentState.layers)
       } catch (error) {
         console.error('Failed to save previous page:', error)
       }
@@ -1431,7 +1481,7 @@ export default function Canvas() {
       // 前のページIDを更新
       prevPageIdRef.current = currentPageId
     }
-  }, [currentPageId, pages, layers, updatePageData, setLayers])
+  }, [currentPageId, pages, updatePageData, setLayers])
 
   // 画像ペースト機能（内部クリップボードからのペーストも統合）
   useEffect(() => {

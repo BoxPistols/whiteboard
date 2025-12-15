@@ -64,7 +64,6 @@ interface CanvasStore {
   removePage: (id: string) => void
   setCurrentPage: (id: string) => void
   updatePageNotes: (id: string, notes: string) => void
-  toggleGroupCollapse: (groupId: string) => void
   updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
   toggleLeftPanel: () => void
   toggleRightPanel: () => void
@@ -209,9 +208,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
       // ページデータにも反映
       const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId
-          ? { ...page, layers: updatedLayers }
-          : page
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
       )
 
       // localStorageに保存
@@ -249,9 +246,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
       // ページデータにも反映
       const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId
-          ? { ...page, layers: result }
-          : page
+        page.id === state.currentPageId ? { ...page, layers: result } : page
       )
 
       // localStorageに保存
@@ -422,7 +417,18 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
-  setLayers: (layers) => set({ layers }),
+  setLayers: (layers) => {
+    // 重複排除：同じidを持つレイヤーを削除
+    const seenIds = new Set<string>()
+    const uniqueLayers = layers.filter((layer) => {
+      if (seenIds.has(layer.id)) {
+        return false
+      }
+      seenIds.add(layer.id)
+      return true
+    })
+    set({ layers: uniqueLayers })
+  },
   updateObjectProperty: (key, value) => {
     const { fabricCanvas, selectedObjectId, selectedObjectProps, theme } = get()
     if (!fabricCanvas) return
@@ -564,9 +570,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   setCurrentPage: (id) => set({ currentPageId: id }),
   updatePageNotes: (id, notes) => {
-    const updatedPages = get().pages.map((page) =>
-      page.id === id ? { ...page, notes } : page
-    )
+    const updatedPages = get().pages.map((page) => (page.id === id ? { ...page, notes } : page))
 
     // localStorageに保存
     if (typeof window !== 'undefined') {
@@ -579,14 +583,6 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
     set({ pages: updatedPages })
   },
-  toggleGroupCollapse: (groupId) =>
-    set((state) => ({
-      layers: state.layers.map((layer) =>
-        layer.id === groupId && layer.isGroup
-          ? { ...layer, isCollapsed: !layer.isCollapsed }
-          : layer
-      ),
-    })),
   updatePageData: (id, canvasData, layers) => {
     const updatedPages = get().pages.map((page) =>
       page.id === id ? { ...page, canvasData, layers } : page

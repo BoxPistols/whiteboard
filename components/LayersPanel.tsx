@@ -2,7 +2,15 @@
 
 import { useState, DragEvent } from 'react'
 import { useCanvasStore } from '@/lib/store'
-import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from '@/components/icons'
+import {
+  EyeIcon,
+  EyeOffIcon,
+  LockIcon,
+  UnlockIcon,
+  TrashIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+} from '@/components/icons'
 
 export default function LayersPanel() {
   const {
@@ -21,7 +29,6 @@ export default function LayersPanel() {
     removePage,
     setCurrentPage,
     updatePageNotes,
-    toggleGroupCollapse,
     setLayers,
   } = useCanvasStore()
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -91,10 +98,17 @@ export default function LayersPanel() {
   const syncLayersFromCanvas = () => {
     if (!fabricCanvas) return
     const objects = fabricCanvas.getObjects()
+    const seenIds = new Set<string>()
     const syncedLayers = objects
       .map((o) => layers.find((l) => l.objectId === o.data?.id))
-      .filter(Boolean)
-      .reverse() as typeof layers
+      .filter((layer): layer is typeof layers[number] => {
+        if (!layer) return false
+        // 重複を排除
+        if (seenIds.has(layer.id)) return false
+        seenIds.add(layer.id)
+        return true
+      })
+      .reverse()
 
     if (syncedLayers.length > 0) {
       setLayers(syncedLayers)
@@ -140,14 +154,6 @@ export default function LayersPanel() {
     } else if (e.key === 'Escape') {
       cancelEditing()
     }
-  }
-
-  // ルートレイヤーのみを取得（parentIdがない）
-  const rootLayers = layers.filter((l) => !l.parentId)
-
-  // 指定レイヤーの子レイヤーを取得
-  const getChildren = (layerId: string) => {
-    return layers.filter((l) => l.parentId === layerId)
   }
 
   const handleAddPage = () => {
@@ -319,9 +325,7 @@ export default function LayersPanel() {
 
       {/* ページメモセクション */}
       <div className="border-t border-gray-200 dark:border-gray-700 p-2 h-48 flex flex-col">
-        <h3 className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">
-          ページメモ
-        </h3>
+        <h3 className="text-xs font-semibold mb-1 text-gray-700 dark:text-gray-300">ページメモ</h3>
         <textarea
           value={pages.find((p) => p.id === currentPageId)?.notes || ''}
           onChange={(e) => updatePageNotes(currentPageId, e.target.value)}
