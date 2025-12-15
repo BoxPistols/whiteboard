@@ -935,7 +935,6 @@ export default function Canvas() {
     if (currentShape && selectedTool !== 'select' && selectedTool !== 'pencil') {
       const id = crypto.randomUUID()
 
-
       // 現在の色を基本色として保存
       let baseFill: string | undefined
       let baseStroke: string | undefined

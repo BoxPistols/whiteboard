@@ -325,12 +325,22 @@ export default function ShortcutsModal() {
                     </div>
                   </div>
                   <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
-                      使い方
-                    </h4>
+                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">使い方</h4>
                     <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                      <li>• <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs">↑ ↓ ← →</kbd> : 1pxずつ移動</li>
-                      <li>• <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs">Shift + ↑ ↓ ← →</kbd> : {nudgeAmount}pxずつ移動</li>
+                      <li>
+                        •{' '}
+                        <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs">
+                          ↑ ↓ ← →
+                        </kbd>{' '}
+                        : 1pxずつ移動
+                      </li>
+                      <li>
+                        •{' '}
+                        <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs">
+                          Shift + ↑ ↓ ← →
+                        </kbd>{' '}
+                        : {nudgeAmount}pxずつ移動
+                      </li>
                     </ul>
                   </div>
                 </div>
@@ -345,8 +355,20 @@ export default function ShortcutsModal() {
                     操作の履歴は最大20回まで保存されます。
                   </p>
                   <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                    <li>• <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">⌘ + Z</kbd> : 元に戻す (Undo)</li>
-                    <li>• <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">⌘ + Shift + Z</kbd> : やり直し (Redo)</li>
+                    <li>
+                      •{' '}
+                      <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">
+                        ⌘ + Z
+                      </kbd>{' '}
+                      : 元に戻す (Undo)
+                    </li>
+                    <li>
+                      •{' '}
+                      <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">
+                        ⌘ + Shift + Z
+                      </kbd>{' '}
+                      : やり直し (Redo)
+                    </li>
                   </ul>
                 </div>
               </div>
