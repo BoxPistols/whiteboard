@@ -931,10 +931,8 @@ export default function Canvas() {
         // 矢印の方向を計算
         const angle = (Math.atan2(y2, x2) * 180) / Math.PI
 
-        // 矢印の頭を作成
-        const arrowHead = new fabric.Triangle({
-          width: 10,
-          height: 10,
+        // SVG パスで矢印の頭を作成
+        const arrowHeadPath = new fabric.Path('M 0 -8 L -8 8 L 0 4 L 8 8 Z', {
           fill: typeof line.stroke === 'string' ? line.stroke : '#000000',
           stroke: 'none',
           selectable: false,
@@ -943,10 +941,12 @@ export default function Canvas() {
           originY: 'center',
           left: x2,
           top: y2,
-          angle: angle - 90,
+          angle: angle,
+          scaleX: 0.8,
+          scaleY: 0.8,
         })
 
-        currentShape.addWithUpdate(arrowHead)
+        currentShape.addWithUpdate(arrowHeadPath)
         currentShape.setCoords()
       }
 
