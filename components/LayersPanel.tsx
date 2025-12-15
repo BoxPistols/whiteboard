@@ -101,7 +101,7 @@ export default function LayersPanel() {
     const seenIds = new Set<string>()
     const syncedLayers = objects
       .map((o) => layers.find((l) => l.objectId === o.data?.id))
-      .filter((layer): layer is typeof layers[number] => {
+      .filter((layer): layer is (typeof layers)[number] => {
         if (!layer) return false
         // 重複を排除
         if (seenIds.has(layer.id)) return false

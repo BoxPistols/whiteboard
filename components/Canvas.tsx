@@ -798,7 +798,7 @@ export default function Canvas() {
           })
           break
         case 'arrow': {
-          // 矢印は線と三角形で作成
+          // 矢印は線のみで作成（矢印の頭は後で追加）
           const line = new fabric.Line([0, 0, 0, 0], {
             stroke: defaultStrokeColor,
             strokeWidth: 2,
@@ -806,21 +806,7 @@ export default function Canvas() {
             evented: false,
           })
 
-          // 矢印の頭を三角形で描画
-          const arrowHead = new fabric.Triangle({
-            width: 10,
-            height: 10,
-            fill: defaultStrokeColor,
-            stroke: defaultStrokeColor,
-            selectable: false,
-            evented: false,
-            originX: 'center',
-            originY: 'center',
-            left: 0,
-            top: 0,
-          })
-
-          shape = new fabric.Group([line, arrowHead], {
+          shape = new fabric.Group([line], {
             left: pointer.x,
             top: pointer.y,
           })
@@ -907,7 +893,6 @@ export default function Canvas() {
           if (currentShape instanceof fabric.Group) {
             const items = currentShape.getObjects()
             const line = items[0] as fabric.Line
-            const arrowHead = items.length > 1 ? (items[1] as fabric.Triangle) : null
 
             // グループの中心から見た相対座標を計算
             const groupLeft = currentShape.left || startPoint.x
@@ -918,19 +903,6 @@ export default function Canvas() {
 
             // 線を更新
             line.set({ x2: dx, y2: dy })
-
-            // 矢印の頭の位置と角度を計算
-            if (arrowHead) {
-              const angle = (Math.atan2(dy, dx) * 180) / Math.PI
-
-              // 矢印の頭を線の終点に配置
-              arrowHead.set({
-                left: dx,
-                top: dy,
-                angle: angle - 90,
-              })
-            }
-
             currentShape.setCoords()
           }
           break
@@ -946,6 +918,37 @@ export default function Canvas() {
 
     if (currentShape && selectedTool !== 'select' && selectedTool !== 'pencil') {
       const id = crypto.randomUUID()
+
+      // 矢印の場合、矢印の頭を追加
+      if (selectedTool === 'arrow' && currentShape instanceof fabric.Group) {
+        const items = currentShape.getObjects()
+        const line = items[0] as fabric.Line
+
+        // 線の終点座標を取得
+        const x2 = line.x2 || 0
+        const y2 = line.y2 || 0
+
+        // 矢印の方向を計算
+        const angle = (Math.atan2(y2, x2) * 180) / Math.PI
+
+        // 矢印の頭を作成
+        const arrowHead = new fabric.Triangle({
+          width: 10,
+          height: 10,
+          fill: typeof line.stroke === 'string' ? line.stroke : '#000000',
+          stroke: 'none',
+          selectable: false,
+          evented: false,
+          originX: 'center',
+          originY: 'center',
+          left: x2,
+          top: y2,
+          angle: angle - 90,
+        })
+
+        currentShape.addWithUpdate(arrowHead)
+        currentShape.setCoords()
+      }
 
       // 現在の色を基本色として保存
       let baseFill: string | undefined
