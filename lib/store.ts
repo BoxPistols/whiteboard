@@ -16,6 +16,12 @@ interface ObjectProperties {
   opacity?: number
 }
 
+// Undo/Redo用の履歴スナップショット
+interface HistorySnapshot {
+  canvasJSON: string
+  layers: Layer[]
+}
+
 interface Page {
   id: string
   name: string
@@ -43,6 +49,12 @@ interface CanvasStore {
   // ショートカット関連
   shortcuts: ShortcutConfig[]
   showShortcutsModal: boolean
+  // ナッジ設定
+  nudgeAmount: number
+  // Undo/Redo履歴
+  history: HistorySnapshot[]
+  historyIndex: number
+  isUndoRedoAction: boolean
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -80,6 +92,16 @@ interface CanvasStore {
   resetShortcuts: () => void
   loadSavedShortcuts: () => void
   setShowShortcutsModal: (show: boolean) => void
+  // ナッジ関連
+  setNudgeAmount: (amount: number) => void
+  loadSavedNudgeAmount: () => void
+  moveSelectedObject: (direction: 'up' | 'down' | 'left' | 'right', useNudge: boolean) => void
+  // Undo/Redo関連
+  saveHistory: () => void
+  undo: () => void
+  redo: () => void
+  canUndo: () => boolean
+  canRedo: () => boolean
 }
 
 const defaultPageId = 'page-1'
@@ -105,6 +127,8 @@ const loadPagesFromStorage = (): Page[] => {
   return [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
 }
 
+const MAX_HISTORY_LENGTH = 20
+
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
   selectedObjectId: null,
@@ -123,6 +147,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   rightPanelWidth: 288, // 72 * 4 = w-72
   shortcuts: DEFAULT_SHORTCUTS,
   showShortcutsModal: false,
+  // ナッジ設定（デフォルト10px）
+  nudgeAmount: 10,
+  // Undo/Redo履歴
+  history: [],
+  historyIndex: -1,
+  isUndoRedoAction: false,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -727,5 +757,157 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     } catch (e) {
       console.error('Failed to load shortcuts:', e)
     }
+  },
+  // ナッジ関連
+  setNudgeAmount: (amount) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-nudge-amount', String(amount))
+      } catch (e) {
+        console.error('Failed to save nudge amount:', e)
+      }
+    }
+    set({ nudgeAmount: amount })
+  },
+  loadSavedNudgeAmount: () => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const saved = localStorage.getItem('figma-clone-nudge-amount')
+      if (saved) {
+        const amount = parseInt(saved, 10)
+        if (!isNaN(amount) && amount > 0) {
+          set({ nudgeAmount: amount })
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load nudge amount:', e)
+    }
+  },
+  moveSelectedObject: (direction, useNudge) => {
+    const { fabricCanvas, nudgeAmount, selectedObjectProps } = get()
+    if (!fabricCanvas) return
+
+    const activeObject = fabricCanvas.getActiveObject()
+    if (!activeObject) return
+
+    // 移動量を決定（通常は1px、Shift押下時はnudgeAmount）
+    const moveAmount = useNudge ? nudgeAmount : 1
+
+    let deltaX = 0
+    let deltaY = 0
+
+    switch (direction) {
+      case 'up':
+        deltaY = -moveAmount
+        break
+      case 'down':
+        deltaY = moveAmount
+        break
+      case 'left':
+        deltaX = -moveAmount
+        break
+      case 'right':
+        deltaX = moveAmount
+        break
+    }
+
+    // 現在の位置を取得
+    const currentLeft = activeObject.left || 0
+    const currentTop = activeObject.top || 0
+
+    // 新しい位置を設定
+    activeObject.set({
+      left: currentLeft + deltaX,
+      top: currentTop + deltaY,
+    })
+
+    activeObject.setCoords()
+    fabricCanvas.requestRenderAll()
+    fabricCanvas.fire('object:modified', { target: activeObject })
+
+    // ストアのプロパティも更新
+    if (selectedObjectProps) {
+      set({
+        selectedObjectProps: {
+          ...selectedObjectProps,
+          left: currentLeft + deltaX,
+          top: currentTop + deltaY,
+        },
+      })
+    }
+  },
+  // Undo/Redo関連
+  saveHistory: () => {
+    const { fabricCanvas, layers, history, historyIndex, isUndoRedoAction } = get()
+    if (!fabricCanvas || isUndoRedoAction) return
+
+    const canvasJSON = JSON.stringify(fabricCanvas.toJSON(['data']))
+    const snapshot: HistorySnapshot = {
+      canvasJSON,
+      layers: [...layers],
+    }
+
+    // 現在位置より後の履歴を削除
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(snapshot)
+
+    // 最大履歴数を超えたら古いものを削除
+    if (newHistory.length > MAX_HISTORY_LENGTH) {
+      newHistory.shift()
+    }
+
+    set({
+      history: newHistory,
+      historyIndex: newHistory.length - 1,
+    })
+  },
+  undo: () => {
+    const { fabricCanvas, history, historyIndex } = get()
+    if (!fabricCanvas || historyIndex <= 0) return
+
+    const newIndex = historyIndex - 1
+    const snapshot = history[newIndex]
+
+    set({ isUndoRedoAction: true })
+
+    fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
+      fabricCanvas.renderAll()
+      set({
+        layers: [...snapshot.layers],
+        historyIndex: newIndex,
+        isUndoRedoAction: false,
+        selectedObjectId: null,
+        selectedObjectProps: null,
+      })
+    })
+  },
+  redo: () => {
+    const { fabricCanvas, history, historyIndex } = get()
+    if (!fabricCanvas || historyIndex >= history.length - 1) return
+
+    const newIndex = historyIndex + 1
+    const snapshot = history[newIndex]
+
+    set({ isUndoRedoAction: true })
+
+    fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
+      fabricCanvas.renderAll()
+      set({
+        layers: [...snapshot.layers],
+        historyIndex: newIndex,
+        isUndoRedoAction: false,
+        selectedObjectId: null,
+        selectedObjectProps: null,
+      })
+    })
+  },
+  canUndo: () => {
+    const { historyIndex } = get()
+    return historyIndex > 0
+  },
+  canRedo: () => {
+    const { history, historyIndex } = get()
+    return historyIndex < history.length - 1
   },
 }))

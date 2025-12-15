@@ -6,10 +6,17 @@ import { formatShortcut, CATEGORY_LABELS } from '@/lib/shortcuts'
 import type { ShortcutConfig, ShortcutCategory, ShortcutModifiers } from '@/types'
 
 export default function ShortcutsModal() {
-  const { showShortcutsModal, setShowShortcutsModal, shortcuts, updateShortcut, resetShortcuts } =
-    useCanvasStore()
+  const {
+    showShortcutsModal,
+    setShowShortcutsModal,
+    shortcuts,
+    updateShortcut,
+    resetShortcuts,
+    nudgeAmount,
+    setNudgeAmount,
+  } = useCanvasStore()
 
-  const [activeTab, setActiveTab] = useState<'list' | 'customize'>('list')
+  const [activeTab, setActiveTab] = useState<'list' | 'customize' | 'settings'>('list')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [pendingKey, setPendingKey] = useState<string>('')
   const [pendingModifiers, setPendingModifiers] = useState<ShortcutModifiers>({})
@@ -156,6 +163,16 @@ export default function ShortcutsModal() {
           >
             カスタマイズ
           </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'settings'
+                ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            設定
+          </button>
         </div>
 
         {/* Content */}
@@ -267,6 +284,72 @@ export default function ShortcutsModal() {
                   このショートカットは「{conflict.label}」と競合しています。
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
+                  ナッジ設定
+                </h3>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                  <div className="mb-4">
+                    <label
+                      htmlFor="nudgeAmount"
+                      className="block font-medium text-gray-900 dark:text-gray-100 mb-2"
+                    >
+                      Shift + 矢印キーの移動量
+                    </label>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                      Shiftキーを押しながら矢印キーを押したときに移動するピクセル数を設定します。
+                      <br />
+                      通常の矢印キーは1pxずつ移動します。
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="nudgeAmount"
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={nudgeAmount}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value, 10)
+                          if (!isNaN(value) && value > 0 && value <= 100) {
+                            setNudgeAmount(value)
+                          }
+                        }}
+                        className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <span className="text-gray-600 dark:text-gray-400">px</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                      使い方
+                    </h4>
+                    <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                      <li>• <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs">↑ ↓ ← →</kbd> : 1pxずつ移動</li>
+                      <li>• <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs">Shift + ↑ ↓ ← →</kbd> : {nudgeAmount}pxずつ移動</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
+                  Undo / Redo
+                </h3>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    操作の履歴は最大20回まで保存されます。
+                  </p>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                    <li>• <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">⌘ + Z</kbd> : 元に戻す (Undo)</li>
+                    <li>• <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">⌘ + Shift + Z</kbd> : やり直し (Redo)</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           )}
         </div>

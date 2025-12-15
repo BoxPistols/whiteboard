@@ -20,6 +20,9 @@ interface UseKeyboardShortcutsProps {
   bringForward?: () => void
   sendBackward?: () => void
   showShortcuts?: () => void
+  moveSelectedObject?: (direction: 'up' | 'down' | 'left' | 'right', useNudge: boolean) => void
+  undo?: () => void
+  redo?: () => void
 }
 
 export const useKeyboardShortcuts = ({
@@ -40,6 +43,9 @@ export const useKeyboardShortcuts = ({
   bringForward,
   sendBackward,
   showShortcuts,
+  moveSelectedObject,
+  undo,
+  redo,
 }: UseKeyboardShortcutsProps) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -65,8 +71,32 @@ export const useKeyboardShortcuts = ({
         return
       }
 
+      // ナッジ（矢印キー移動）
+      if (action.startsWith('nudge:')) {
+        if (moveSelectedObject) {
+          e.preventDefault()
+          const parts = action.split(':')
+          const direction = parts[1] as 'up' | 'down' | 'left' | 'right'
+          const useNudge = parts[2] === 'big'
+          moveSelectedObject(direction, useNudge)
+        }
+        return
+      }
+
       // その他のアクション
       switch (action) {
+        case 'undo':
+          if (undo) {
+            e.preventDefault()
+            undo()
+          }
+          break
+        case 'redo':
+          if (redo) {
+            e.preventDefault()
+            redo()
+          }
+          break
         case 'copy':
           if (copySelectedObject) {
             e.preventDefault()
@@ -167,5 +197,8 @@ export const useKeyboardShortcuts = ({
     bringForward,
     sendBackward,
     showShortcuts,
+    moveSelectedObject,
+    undo,
+    redo,
   ])
 }

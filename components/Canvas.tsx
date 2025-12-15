@@ -79,6 +79,10 @@ export default function Canvas() {
     canvasBackground,
     shortcuts,
     setShowShortcutsModal,
+    moveSelectedObject,
+    undo,
+    redo,
+    saveHistory,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -610,6 +614,9 @@ export default function Canvas() {
     bringForward,
     sendBackward,
     showShortcuts,
+    moveSelectedObject,
+    undo,
+    redo,
   })
 
   useEffect(() => {
@@ -1422,6 +1429,27 @@ export default function Canvas() {
       canvas.off('object:removed', handleCanvasChange)
     }
   }, [layers, currentPageId, updatePageData])
+
+  // Undo/Redo履歴の保存
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const handleHistorySave = () => {
+      // 履歴を保存
+      saveHistory()
+    }
+
+    canvas.on('object:modified', handleHistorySave)
+    canvas.on('object:added', handleHistorySave)
+    canvas.on('object:removed', handleHistorySave)
+
+    return () => {
+      canvas.off('object:modified', handleHistorySave)
+      canvas.off('object:added', handleHistorySave)
+      canvas.off('object:removed', handleHistorySave)
+    }
+  }, [saveHistory])
 
   // ページ切り替え処理
   useEffect(() => {
