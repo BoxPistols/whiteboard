@@ -931,6 +931,13 @@ export default function Canvas() {
         // 矢印の方向を計算
         const angle = (Math.atan2(y2, x2) * 180) / Math.PI
 
+        // グループ内での相対座標として矢印の頭を配置
+        // グループの left/top からの相対位置を計算
+        const groupLeft = currentShape.left || 0
+        const groupTop = currentShape.top || 0
+        const relativeX = x2 - (currentShape.width || 0) / 2
+        const relativeY = y2 - (currentShape.height || 0) / 2
+
         // SVG パスで矢印の頭を作成
         const arrowHeadPath = new fabric.Path('M 0 -8 L -8 8 L 0 4 L 8 8 Z', {
           fill: typeof line.stroke === 'string' ? line.stroke : '#000000',
@@ -939,8 +946,8 @@ export default function Canvas() {
           evented: false,
           originX: 'center',
           originY: 'center',
-          left: x2,
-          top: y2,
+          left: relativeX,
+          top: relativeY,
           angle: angle,
           scaleX: 0.8,
           scaleY: 0.8,
