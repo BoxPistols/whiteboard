@@ -798,15 +798,17 @@ export default function Canvas() {
           })
           break
         case 'arrow': {
-          // 矢印は線のみで作成（矢印の頭は後で追加）
-          const line = new fabric.Line([0, 0, 0, 0], {
-            stroke: defaultStrokeColor,
-            strokeWidth: 2,
+          // 矢印の頭のみを作成
+          const arrowHeadPath = new fabric.Path('M 0 -8 L -8 8 L 0 4 L 8 8 Z', {
+            fill: defaultStrokeColor,
+            stroke: 'none',
             selectable: false,
             evented: false,
+            originX: 'center',
+            originY: 'center',
           })
 
-          shape = new fabric.Group([line], {
+          shape = new fabric.Group([arrowHeadPath], {
             left: pointer.x,
             top: pointer.y,
           })
@@ -892,7 +894,7 @@ export default function Canvas() {
         case 'arrow':
           if (currentShape instanceof fabric.Group) {
             const items = currentShape.getObjects()
-            const line = items[0] as fabric.Line
+            const arrowHead = items[0] as fabric.Path
 
             // グループの中心から見た相対座標を計算
             const groupLeft = currentShape.left || startPoint.x
@@ -901,8 +903,15 @@ export default function Canvas() {
             const dx = pointer.x - groupLeft
             const dy = pointer.y - groupTop
 
-            // 線を更新
-            line.set({ x2: dx, y2: dy })
+            // 矢印の方向を計算
+            const angle = (Math.atan2(dy, dx) * 180) / Math.PI
+
+            // 矢印の頭の位置と角度を更新
+            arrowHead.set({
+              left: dx,
+              top: dy,
+              angle: angle,
+            })
             currentShape.setCoords()
           }
           break
@@ -919,43 +928,6 @@ export default function Canvas() {
     if (currentShape && selectedTool !== 'select' && selectedTool !== 'pencil') {
       const id = crypto.randomUUID()
 
-      // 矢印の場合、矢印の頭を追加
-      if (selectedTool === 'arrow' && currentShape instanceof fabric.Group) {
-        const items = currentShape.getObjects()
-        const line = items[0] as fabric.Line
-
-        // 線の終点座標を取得
-        const x2 = line.x2 || 0
-        const y2 = line.y2 || 0
-
-        // 矢印の方向を計算
-        const angle = (Math.atan2(y2, x2) * 180) / Math.PI
-
-        // グループ内での相対座標として矢印の頭を配置
-        // グループの left/top からの相対位置を計算
-        const groupLeft = currentShape.left || 0
-        const groupTop = currentShape.top || 0
-        const relativeX = x2 - (currentShape.width || 0) / 2
-        const relativeY = y2 - (currentShape.height || 0) / 2
-
-        // SVG パスで矢印の頭を作成
-        const arrowHeadPath = new fabric.Path('M 0 -8 L -8 8 L 0 4 L 8 8 Z', {
-          fill: typeof line.stroke === 'string' ? line.stroke : '#000000',
-          stroke: 'none',
-          selectable: false,
-          evented: false,
-          originX: 'center',
-          originY: 'center',
-          left: relativeX,
-          top: relativeY,
-          angle: angle,
-          scaleX: 0.8,
-          scaleY: 0.8,
-        })
-
-        currentShape.addWithUpdate(arrowHeadPath)
-        currentShape.setCoords()
-      }
 
       // 現在の色を基本色として保存
       let baseFill: string | undefined
