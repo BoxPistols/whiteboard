@@ -105,7 +105,7 @@ export default function PropertiesPanel() {
               className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               value={Math.round(selectedObjectProps.strokeWidth)}
               onChange={(e) => updateObjectProperty('strokeWidth', parseInt(e.target.value, 10))}
-              min={1}
+              min={0}
               max={20}
             />
           </div>

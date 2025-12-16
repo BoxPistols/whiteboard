@@ -99,6 +99,8 @@ export default function Canvas() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const prevPageIdRef = useRef<string>(currentPageId)
   const [showAlignmentPanel, setShowAlignmentPanel] = useState(false)
+  // グリッドオーバーレイ用のビューポートオフセット
+  const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
   const shapeCounterRef = useRef({
     rectangle: 0,
     circle: 0,
@@ -793,7 +795,7 @@ export default function Canvas() {
             height: 0,
             fill: defaultFillColor,
             stroke: defaultStrokeColor,
-            strokeWidth: 2,
+            strokeWidth: 0, // デフォルトはボーダーなし
             selectable: false,
             evented: false,
           })
@@ -805,7 +807,7 @@ export default function Canvas() {
             radius: 0,
             fill: defaultFillColor,
             stroke: defaultStrokeColor,
-            strokeWidth: 2,
+            strokeWidth: 0, // デフォルトはボーダーなし
             selectable: false,
             evented: false,
           })
@@ -1261,6 +1263,8 @@ export default function Canvas() {
         lastPosX = e.clientX
         lastPosY = e.clientY
         canvas.requestRenderAll()
+        // グリッドオーバーレイ用にビューポートオフセットを更新
+        setViewportOffset({ x: vpt[4], y: vpt[5] })
       }
     }
     const handlePanMouseUp = () => {
@@ -1275,6 +1279,9 @@ export default function Canvas() {
         const zoom = Math.max(0.1, Math.min(2, canvas.getZoom() + delta * 0.0015))
         canvas.zoomToPoint({ x: e.clientX, y: e.clientY }, zoom)
         useCanvasStore.getState().setZoom(Math.round(zoom * 100))
+        // ズーム後のビューポートオフセットを更新
+        const vpt = canvas.viewportTransform!
+        setViewportOffset({ x: vpt[4], y: vpt[5] })
       } else {
         const vpt = canvas.viewportTransform!
         if (e.shiftKey) {
@@ -1287,6 +1294,8 @@ export default function Canvas() {
           vpt[5] += -e.deltaY // Vertical pan
         }
         canvas.requestRenderAll()
+        // グリッドオーバーレイ用にビューポートオフセットを更新
+        setViewportOffset({ x: vpt[4], y: vpt[5] })
       }
     }
     canvas.on('mouse:down', handlePanMouseDown)
@@ -1391,6 +1400,33 @@ export default function Canvas() {
       canvas.off('object:moving', handleObjectMoving)
     }
   }, [gridSnapEnabled, gridSize])
+
+  // Shift+回転で15度スナップ機能
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const handleObjectRotating = (e: fabric.IEvent) => {
+      const event = e.e as MouseEvent | TouchEvent | KeyboardEvent
+      // Shiftキーが押されている場合は15度単位でスナップ
+      if (event && 'shiftKey' in event && event.shiftKey) {
+        const obj = e.target
+        if (!obj) return
+
+        const angle = obj.angle || 0
+        // 15度単位に丸める
+        obj.set({
+          angle: Math.round(angle / 15) * 15,
+        })
+      }
+    }
+
+    canvas.on('object:rotating', handleObjectRotating)
+
+    return () => {
+      canvas.off('object:rotating', handleObjectRotating)
+    }
+  }, [])
 
   // localStorage初期読み込み（初回のみ）
   const hasLoadedRef = useRef(false)
@@ -1963,6 +1999,9 @@ export default function Canvas() {
         (() => {
           // ズームレベルに応じてグリッドサイズを調整
           const scaledGridSize = gridSize * (zoom / 100)
+          // ビューポートオフセットをグリッドサイズでモジュロして、パターンの位置を調整
+          const offsetX = viewportOffset.x % scaledGridSize
+          const offsetY = viewportOffset.y % scaledGridSize
           return (
             <svg
               className="absolute inset-0 w-full h-full pointer-events-none"
@@ -1974,6 +2013,7 @@ export default function Canvas() {
                   width={scaledGridSize}
                   height={scaledGridSize}
                   patternUnits="userSpaceOnUse"
+                  patternTransform={`translate(${offsetX}, ${offsetY})`}
                 >
                   <path
                     d={`M ${scaledGridSize} 0 L 0 0 0 ${scaledGridSize}`}
