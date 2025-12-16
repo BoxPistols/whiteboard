@@ -817,19 +817,31 @@ export default function Canvas() {
           })
           break
         case 'arrow': {
-          // 矢印の頭のみを作成
-          const arrowHeadPath = new fabric.Path('M 0 -8 L -8 8 L 0 4 L 8 8 Z', {
+          // ライン＋矢印頭を作成（Figmaスタイル: ------> ）
+          const arrowLine = new fabric.Line([0, 0, 0, 0], {
+            stroke: defaultStrokeColor,
+            strokeWidth: 1,
+            selectable: false,
+            evented: false,
+            originX: 'left',
+            originY: 'center',
+          })
+
+          // 矢印の頭（三角形）- サイズを小さく
+          const arrowHeadPath = new fabric.Path('M 0 0 L -8 -4 L -8 4 Z', {
             fill: defaultStrokeColor,
             stroke: 'none',
             selectable: false,
             evented: false,
-            originX: 'center',
+            originX: 'left',
             originY: 'center',
           })
 
-          shape = new fabric.Group([arrowHeadPath], {
+          shape = new fabric.Group([arrowLine, arrowHeadPath], {
             left: pointer.x,
             top: pointer.y,
+            originX: 'left',
+            originY: 'center',
           })
           currentShapeRef.current = shape
           canvas.add(shape)
@@ -913,22 +925,31 @@ export default function Canvas() {
         case 'arrow':
           if (currentShape instanceof fabric.Group) {
             const items = currentShape.getObjects()
-            const arrowHead = items[0] as fabric.Path
+            const arrowLine = items[0] as fabric.Line
+            const arrowHead = items[1] as fabric.Path
 
-            // グループの中心から見た相対座標を計算
-            const groupLeft = currentShape.left || startPoint.x
-            const groupTop = currentShape.top || startPoint.y
-
-            const dx = pointer.x - groupLeft
-            const dy = pointer.y - groupTop
-
-            // 矢印の方向を計算
+            // 始点から終点までの距離と角度を計算
+            const dx = pointer.x - startPoint.x
+            const dy = pointer.y - startPoint.y
+            const length = Math.sqrt(dx * dx + dy * dy)
             const angle = (Math.atan2(dy, dx) * 180) / Math.PI
 
-            // 矢印の頭の位置と角度を更新
+            // ラインを更新（グループ内のローカル座標）
+            arrowLine.set({
+              x1: 0,
+              y1: 0,
+              x2: length,
+              y2: 0,
+            })
+
+            // 矢印の頭の位置を更新（ラインの終点に配置）
             arrowHead.set({
-              left: dx,
-              top: dy,
+              left: length,
+              top: 0,
+            })
+
+            // グループ全体の角度を更新
+            currentShape.set({
               angle: angle,
             })
             currentShape.setCoords()
