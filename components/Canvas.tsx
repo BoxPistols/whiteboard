@@ -1956,31 +1956,35 @@ export default function Canvas() {
     <div className="flex-1 min-w-0 relative">
       <canvas ref={canvasRef} />
       {/* グリッドオーバーレイ */}
-      {gridEnabled && (() => {
-        // ズームレベルに応じてグリッドサイズを調整
-        const scaledGridSize = gridSize * (zoom / 100)
-        return (
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
-            <defs>
-              <pattern
-                id="grid-pattern"
-                width={scaledGridSize}
-                height={scaledGridSize}
-                patternUnits="userSpaceOnUse"
-              >
-                <path
-                  d={`M ${scaledGridSize} 0 L 0 0 0 ${scaledGridSize}`}
-                  fill="none"
-                  stroke={gridColor}
-                  strokeWidth="0.5"
-                  strokeOpacity={gridOpacity / 100}
-                />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid-pattern)" />
-          </svg>
-        )
-      })()}
+      {gridEnabled &&
+        (() => {
+          // ズームレベルに応じてグリッドサイズを調整
+          const scaledGridSize = gridSize * (zoom / 100)
+          return (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{ zIndex: 1 }}
+            >
+              <defs>
+                <pattern
+                  id="grid-pattern"
+                  width={scaledGridSize}
+                  height={scaledGridSize}
+                  patternUnits="userSpaceOnUse"
+                >
+                  <path
+                    d={`M ${scaledGridSize} 0 L 0 0 0 ${scaledGridSize}`}
+                    fill="none"
+                    stroke={gridColor}
+                    strokeWidth="0.5"
+                    strokeOpacity={gridOpacity / 100}
+                  />
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+            </svg>
+          )
+        })()}
       {showAlignmentPanel && (
         <AlignmentPanel
           onAlignLeft={alignLeft}
