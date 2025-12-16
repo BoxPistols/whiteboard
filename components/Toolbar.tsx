@@ -64,16 +64,20 @@ export default function Toolbar() {
     resetView,
     zoomToFit,
     setShowShortcutsModal,
+    gridEnabled,
+    toggleGrid,
+    loadSavedGridSettings,
   } = useCanvasStore()
   const [showHelp, setShowHelp] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Load saved theme and canvas background from localStorage after mount
+    // Load saved theme, canvas background, and grid settings from localStorage after mount
     loadSavedTheme()
     loadSavedCanvasBackground()
-  }, [loadSavedTheme, loadSavedCanvasBackground])
+    loadSavedGridSettings()
+  }, [loadSavedTheme, loadSavedCanvasBackground, loadSavedGridSettings])
 
   // メニュー外クリックで閉じる
   useEffect(() => {
@@ -331,6 +335,31 @@ export default function Toolbar() {
             aria-label="全てのデータをリセット"
           >
             ALL Reset
+          </button>
+          {/* グリッド表示切り替えボタン */}
+          <button
+            onClick={toggleGrid}
+            className={`hidden md:flex p-2 md:p-1.5 rounded transition-colors touch-manipulation ${
+              gridEnabled
+                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}
+            title={`グリッド ${gridEnabled ? 'OFF' : 'ON'}`}
+            aria-label="グリッド表示を切り替え"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
           </button>
           {/* ショートカット/設定ボタン */}
           <button

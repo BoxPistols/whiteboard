@@ -84,6 +84,10 @@ export default function Canvas() {
     redo,
     saveHistory,
     clearHistory,
+    gridEnabled,
+    gridSize,
+    gridColor,
+    gridOpacity,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -1886,6 +1890,31 @@ export default function Canvas() {
   return (
     <div className="flex-1 min-w-0 relative">
       <canvas ref={canvasRef} />
+      {/* グリッドオーバーレイ */}
+      {gridEnabled && (
+        <svg
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          style={{ zIndex: 1 }}
+        >
+          <defs>
+            <pattern
+              id="grid-pattern"
+              width={gridSize}
+              height={gridSize}
+              patternUnits="userSpaceOnUse"
+            >
+              <path
+                d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
+                fill="none"
+                stroke={gridColor}
+                strokeWidth="0.5"
+                strokeOpacity={gridOpacity / 100}
+              />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+        </svg>
+      )}
       {showAlignmentPanel && (
         <AlignmentPanel
           onAlignLeft={alignLeft}

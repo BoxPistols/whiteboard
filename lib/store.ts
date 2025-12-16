@@ -55,6 +55,11 @@ interface CanvasStore {
   history: HistorySnapshot[]
   historyIndex: number
   isUndoRedoAction: boolean
+  // グリッド設定
+  gridEnabled: boolean
+  gridSize: number
+  gridColor: string
+  gridOpacity: number
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -103,6 +108,12 @@ interface CanvasStore {
   redo: () => void
   canUndo: () => boolean
   canRedo: () => boolean
+  // グリッド関連
+  toggleGrid: () => void
+  setGridSize: (size: number) => void
+  setGridColor: (color: string) => void
+  setGridOpacity: (opacity: number) => void
+  loadSavedGridSettings: () => void
 }
 
 const defaultPageId = 'page-1'
@@ -154,6 +165,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   history: [],
   historyIndex: -1,
   isUndoRedoAction: false,
+  // グリッド設定（デフォルト値）
+  gridEnabled: false,
+  gridSize: 10,
+  gridColor: '#888888',
+  gridOpacity: 20,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -916,5 +932,96 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   canRedo: () => {
     const { history, historyIndex } = get()
     return historyIndex < history.length - 1
+  },
+  // グリッド関連
+  toggleGrid: () => {
+    const newEnabled = !get().gridEnabled
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: newEnabled,
+          size: get().gridSize,
+          color: get().gridColor,
+          opacity: get().gridOpacity,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridEnabled: newEnabled })
+  },
+  setGridSize: (size) => {
+    const validSize = Math.max(5, Math.min(100, size))
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: get().gridEnabled,
+          size: validSize,
+          color: get().gridColor,
+          opacity: get().gridOpacity,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridSize: validSize })
+  },
+  setGridColor: (color) => {
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: get().gridEnabled,
+          size: get().gridSize,
+          color: color,
+          opacity: get().gridOpacity,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridColor: color })
+  },
+  setGridOpacity: (opacity) => {
+    const validOpacity = Math.max(5, Math.min(100, opacity))
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: get().gridEnabled,
+          size: get().gridSize,
+          color: get().gridColor,
+          opacity: validOpacity,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridOpacity: validOpacity })
+  },
+  loadSavedGridSettings: () => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const saved = localStorage.getItem('figma-clone-grid-settings')
+      if (saved) {
+        const settings = JSON.parse(saved) as {
+          enabled: boolean
+          size: number
+          color: string
+          opacity: number
+        }
+        set({
+          gridEnabled: settings.enabled ?? false,
+          gridSize: settings.size ?? 10,
+          gridColor: settings.color ?? '#888888',
+          gridOpacity: settings.opacity ?? 20,
+        })
+      }
+    } catch (e) {
+      console.error('Failed to load grid settings:', e)
+    }
   },
 }))
