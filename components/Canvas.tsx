@@ -843,11 +843,26 @@ export default function Canvas() {
             evented: false,
           })
 
-          shape = new fabric.Group([arrowLine, arrowHead], {
+          // ヒットエリア用の透明な矩形（クリック検出を改善）
+          const hitArea = new fabric.Rect({
+            left: 0,
+            top: -10,
+            width: 1,
+            height: 20,
+            fill: 'transparent',
+            stroke: 'transparent',
+            originX: 'center',
+            originY: 'center',
+            selectable: false,
+            evented: false,
+          })
+
+          shape = new fabric.Group([hitArea, arrowLine, arrowHead], {
             left: pointer.x,
             top: pointer.y,
             originX: 'center',
             originY: 'center',
+            lockUniScaling: true, // アスペクト比を保持
           })
           currentShapeRef.current = shape
           canvas.add(shape)
@@ -931,8 +946,9 @@ export default function Canvas() {
         case 'arrow':
           if (currentShape instanceof fabric.Group) {
             const items = currentShape.getObjects()
-            const arrowLine = items[0] as fabric.Line
-            const arrowHead = items[1] as fabric.Triangle
+            const hitArea = items[0] as fabric.Rect
+            const arrowLine = items[1] as fabric.Line
+            const arrowHead = items[2] as fabric.Triangle
 
             // 始点から終点までの距離と角度を計算
             const dx = pointer.x - startPoint.x
@@ -951,6 +967,13 @@ export default function Canvas() {
               y1: 0,
               x2: halfLength,
               y2: 0,
+            })
+
+            // ヒットエリアを矢印の全長に合わせて更新
+            hitArea.set({
+              left: 0,
+              width: length,
+              height: 20,
             })
 
             // 矢印の頭の位置を更新（ラインの終点に配置）
