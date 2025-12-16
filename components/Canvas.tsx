@@ -1892,10 +1892,7 @@ export default function Canvas() {
       <canvas ref={canvasRef} />
       {/* グリッドオーバーレイ */}
       {gridEnabled && (
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{ zIndex: 1 }}
-        >
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
           <defs>
             <pattern
               id="grid-pattern"
