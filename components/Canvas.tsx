@@ -823,25 +823,25 @@ export default function Canvas() {
             strokeWidth: 1,
             selectable: false,
             evented: false,
-            originX: 'left',
-            originY: 'center',
           })
 
-          // 矢印の頭（三角形）- サイズを小さく
-          const arrowHeadPath = new fabric.Path('M 0 0 L -8 -4 L -8 4 Z', {
+          // 矢印の頭（三角形）- Triangleを使用
+          const arrowHead = new fabric.Triangle({
+            width: 12,
+            height: 10,
             fill: defaultStrokeColor,
-            stroke: 'none',
+            left: 0,
+            top: 0,
+            angle: 90, // 右向き
+            originX: 'center',
+            originY: 'center',
             selectable: false,
             evented: false,
-            originX: 'left',
-            originY: 'center',
           })
 
-          shape = new fabric.Group([arrowLine, arrowHeadPath], {
+          shape = new fabric.Group([arrowLine, arrowHead], {
             left: pointer.x,
             top: pointer.y,
-            originX: 'left',
-            originY: 'center',
           })
           currentShapeRef.current = shape
           canvas.add(shape)
@@ -926,7 +926,7 @@ export default function Canvas() {
           if (currentShape instanceof fabric.Group) {
             const items = currentShape.getObjects()
             const arrowLine = items[0] as fabric.Line
-            const arrowHead = items[1] as fabric.Path
+            const arrowHead = items[1] as fabric.Triangle
 
             // 始点から終点までの距離と角度を計算
             const dx = pointer.x - startPoint.x
@@ -934,18 +934,21 @@ export default function Canvas() {
             const length = Math.sqrt(dx * dx + dy * dy)
             const angle = (Math.atan2(dy, dx) * 180) / Math.PI
 
-            // ラインを更新（グループ内のローカル座標）
+            // グループを一時的に解除して要素を更新
+            // ラインの終点を更新（グループ内のローカル座標系）
+            const halfLength = length / 2
             arrowLine.set({
-              x1: 0,
+              x1: -halfLength,
               y1: 0,
-              x2: length,
+              x2: halfLength,
               y2: 0,
             })
 
             // 矢印の頭の位置を更新（ラインの終点に配置）
             arrowHead.set({
-              left: length,
+              left: halfLength,
               top: 0,
+              angle: 90, // 右向きを維持
             })
 
             // グループ全体の角度を更新
