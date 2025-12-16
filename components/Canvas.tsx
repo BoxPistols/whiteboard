@@ -83,6 +83,7 @@ export default function Canvas() {
     undo,
     redo,
     saveHistory,
+    clearHistory,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -125,6 +126,9 @@ export default function Canvas() {
             // removeLayerがcanvasからも削除する
             removeLayer(layer.id)
           }
+        } else {
+          // IDがない場合は直接削除（古いペンシルストローク等）
+          canvas.remove(obj)
         }
       })
     } else {
@@ -137,9 +141,13 @@ export default function Canvas() {
           // removeLayerがcanvasからも削除する
           removeLayer(layer.id)
         }
+      } else {
+        // IDがない場合は直接削除（古いペンシルストローク等）
+        canvas.remove(activeSelection)
       }
     }
 
+    canvas.renderAll()
     setSelectedObjectId(null)
   }, [removeLayer, setSelectedObjectId, layers])
 
@@ -1252,6 +1260,37 @@ export default function Canvas() {
     canvas.on('object:scaled', handleObjectModified)
     canvas.on('object:moved', handleObjectModified)
 
+    // ペンシルツールで描いたパスにIDを付与
+    const handlePathCreated = (e: fabric.IEvent & { path?: fabric.Path }) => {
+      if (e.path) {
+        const id = crypto.randomUUID()
+        e.path.set({
+          data: {
+            id,
+            baseStroke: e.path.stroke,
+            baseTheme: useCanvasStore.getState().theme,
+          },
+          selectable: true,
+          evented: true,
+        })
+
+        shapeCounterRef.current.pencil += 1
+        const counter = shapeCounterRef.current.pencil
+
+        addLayer({
+          id: crypto.randomUUID(),
+          name: `pencil ${counter}`,
+          visible: true,
+          locked: false,
+          objectId: id,
+          type: 'VECTOR',
+        })
+
+        canvas.renderAll()
+      }
+    }
+    canvas.on('path:created', handlePathCreated)
+
     return () => {
       canvas.off('mouse:down:before', handleAltDragStart)
       canvas.off('mouse:up', handleAltDragEnd)
@@ -1270,6 +1309,7 @@ export default function Canvas() {
       canvas.off('object:modified', handleObjectModified)
       canvas.off('object:scaled', handleObjectModified)
       canvas.off('object:moved', handleObjectModified)
+      canvas.off('path:created', handlePathCreated)
     }
   }, [
     handleMouseDown,
@@ -1388,16 +1428,25 @@ export default function Canvas() {
                 }
               })
               canvas.renderAll()
+              // 初期状態を履歴に保存（少し遅延させてobject:addedイベント後に実行）
+              setTimeout(() => {
+                saveHistory()
+              }, 50)
             })
           } catch (error) {
             console.error('Failed to load page canvas data:', error)
           }
+        } else {
+          // 空のキャンバスの場合も初期状態を保存
+          setTimeout(() => {
+            saveHistory()
+          }, 50)
         }
       }
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [pages, currentPageId, theme, setLayers, selectedTool])
+  }, [pages, currentPageId, theme, setLayers, selectedTool, saveHistory])
 
   // localStorage自動保存（デバウンス） - ページごとに保存
   useEffect(() => {
@@ -1429,14 +1478,17 @@ export default function Canvas() {
     }
   }, [layers, currentPageId, updatePageData])
 
-  // Undo/Redo履歴の保存
+  // Undo/Redo履歴の保存（デバウンス付き）
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas) return
 
+    let historyTimeout: NodeJS.Timeout
     const handleHistorySave = () => {
-      // 履歴を保存
-      saveHistory()
+      clearTimeout(historyTimeout)
+      historyTimeout = setTimeout(() => {
+        saveHistory()
+      }, 300)
     }
 
     canvas.on('object:modified', handleHistorySave)
@@ -1444,6 +1496,7 @@ export default function Canvas() {
     canvas.on('object:removed', handleHistorySave)
 
     return () => {
+      clearTimeout(historyTimeout)
       canvas.off('object:modified', handleHistorySave)
       canvas.off('object:added', handleHistorySave)
       canvas.off('object:removed', handleHistorySave)
@@ -1480,17 +1533,26 @@ export default function Canvas() {
           try {
             canvas.loadFromJSON(currentPage.canvasData, () => {
               canvas.renderAll()
+              // 新しいページの初期状態を履歴に保存
+              setTimeout(() => {
+                saveHistory()
+              }, 50)
             })
           } catch (error) {
             console.error('Failed to load page canvas data:', error)
           }
+        } else {
+          // 空のページの場合も初期状態を保存
+          setTimeout(() => {
+            saveHistory()
+          }, 50)
         }
       }
 
       // 前のページIDを更新
       prevPageIdRef.current = currentPageId
     }
-  }, [currentPageId, pages, updatePageData, setLayers])
+  }, [currentPageId, pages, updatePageData, setLayers, saveHistory])
 
   // 画像ペースト機能（内部クリップボードからのペーストも統合）
   useEffect(() => {

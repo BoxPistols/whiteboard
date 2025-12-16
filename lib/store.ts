@@ -98,6 +98,7 @@ interface CanvasStore {
   moveSelectedObject: (direction: 'up' | 'down' | 'left' | 'right', useNudge: boolean) => void
   // Undo/Redo関連
   saveHistory: () => void
+  clearHistory: () => void
   undo: () => void
   redo: () => void
   canUndo: () => boolean
@@ -598,7 +599,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
     set({ pages: updatedPages, currentPageId: newCurrentPageId })
   },
-  setCurrentPage: (id) => set({ currentPageId: id }),
+  setCurrentPage: (id) => {
+    // ページ切り替え時は履歴をクリア
+    set({ currentPageId: id, history: [], historyIndex: -1 })
+  },
   updatePageNotes: (id, notes) => {
     const updatedPages = get().pages.map((page) => (page.id === id ? { ...page, notes } : page))
 
@@ -901,6 +905,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         selectedObjectProps: null,
       })
     })
+  },
+  clearHistory: () => {
+    set({ history: [], historyIndex: -1 })
   },
   canUndo: () => {
     const { historyIndex } = get()
