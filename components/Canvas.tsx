@@ -88,6 +88,7 @@ export default function Canvas() {
     gridSize,
     gridColor,
     gridOpacity,
+    gridSnapEnabled,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -1350,6 +1351,34 @@ export default function Canvas() {
     selectedObjectId,
     addLayer,
   ])
+
+  // グリッドスナップ機能
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const handleObjectMoving = (e: fabric.IEvent) => {
+      if (!gridSnapEnabled) return
+
+      const obj = e.target
+      if (!obj) return
+
+      // オブジェクトの位置をグリッドにスナップ
+      const left = obj.left || 0
+      const top = obj.top || 0
+
+      obj.set({
+        left: Math.round(left / gridSize) * gridSize,
+        top: Math.round(top / gridSize) * gridSize,
+      })
+    }
+
+    canvas.on('object:moving', handleObjectMoving)
+
+    return () => {
+      canvas.off('object:moving', handleObjectMoving)
+    }
+  }, [gridSnapEnabled, gridSize])
 
   // localStorage初期読み込み（初回のみ）
   const hasLoadedRef = useRef(false)

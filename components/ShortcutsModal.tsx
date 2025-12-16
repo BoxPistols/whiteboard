@@ -18,10 +18,12 @@ export default function ShortcutsModal() {
     gridSize,
     gridColor,
     gridOpacity,
+    gridSnapEnabled,
     toggleGrid,
     setGridSize,
     setGridColor,
     setGridOpacity,
+    toggleGridSnap,
   } = useCanvasStore()
 
   const [activeTab, setActiveTab] = useState<'list' | 'customize' | 'settings'>('list')
@@ -435,6 +437,30 @@ export default function ShortcutsModal() {
                       <span
                         className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
                           gridEnabled ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* グリッドスナップ切り替え */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="font-medium text-gray-900 dark:text-gray-100">
+                        グリッドにスナップ
+                      </label>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        オブジェクトをグリッドに吸着させます
+                      </p>
+                    </div>
+                    <button
+                      onClick={toggleGridSnap}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                        gridSnapEnabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                          gridSnapEnabled ? 'translate-x-6' : 'translate-x-0'
                         }`}
                       />
                     </button>

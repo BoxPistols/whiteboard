@@ -60,6 +60,7 @@ interface CanvasStore {
   gridSize: number
   gridColor: string
   gridOpacity: number
+  gridSnapEnabled: boolean
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -113,6 +114,7 @@ interface CanvasStore {
   setGridSize: (size: number) => void
   setGridColor: (color: string) => void
   setGridOpacity: (opacity: number) => void
+  toggleGridSnap: () => void
   loadSavedGridSettings: () => void
 }
 
@@ -170,6 +172,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   gridSize: 10,
   gridColor: '#888888',
   gridOpacity: 20,
+  gridSnapEnabled: false,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -943,6 +946,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           size: get().gridSize,
           color: get().gridColor,
           opacity: get().gridOpacity,
+          snapEnabled: get().gridSnapEnabled,
         }
         localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
       } catch (e) {
@@ -960,6 +964,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           size: validSize,
           color: get().gridColor,
           opacity: get().gridOpacity,
+          snapEnabled: get().gridSnapEnabled,
         }
         localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
       } catch (e) {
@@ -976,6 +981,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           size: get().gridSize,
           color: color,
           opacity: get().gridOpacity,
+          snapEnabled: get().gridSnapEnabled,
         }
         localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
       } catch (e) {
@@ -993,6 +999,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           size: get().gridSize,
           color: get().gridColor,
           opacity: validOpacity,
+          snapEnabled: get().gridSnapEnabled,
         }
         localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
       } catch (e) {
@@ -1000,6 +1007,24 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
     }
     set({ gridOpacity: validOpacity })
+  },
+  toggleGridSnap: () => {
+    const newSnapEnabled = !get().gridSnapEnabled
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: get().gridEnabled,
+          size: get().gridSize,
+          color: get().gridColor,
+          opacity: get().gridOpacity,
+          snapEnabled: newSnapEnabled,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridSnapEnabled: newSnapEnabled })
   },
   loadSavedGridSettings: () => {
     if (typeof window === 'undefined') return
@@ -1012,12 +1037,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           size: number
           color: string
           opacity: number
+          snapEnabled?: boolean
         }
         set({
           gridEnabled: settings.enabled ?? false,
           gridSize: settings.size ?? 10,
           gridColor: settings.color ?? '#888888',
           gridOpacity: settings.opacity ?? 20,
+          gridSnapEnabled: settings.snapEnabled ?? false,
         })
       }
     } catch (e) {
