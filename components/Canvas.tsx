@@ -89,6 +89,7 @@ export default function Canvas() {
     gridColor,
     gridOpacity,
     gridSnapEnabled,
+    zoom,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -843,6 +844,8 @@ export default function Canvas() {
           shape = new fabric.Group([arrowLine, arrowHead], {
             left: pointer.x,
             top: pointer.y,
+            originX: 'center',
+            originY: 'center',
           })
           currentShapeRef.current = shape
           canvas.add(shape)
@@ -935,7 +938,10 @@ export default function Canvas() {
             const length = Math.sqrt(dx * dx + dy * dy)
             const angle = (Math.atan2(dy, dx) * 180) / Math.PI
 
-            // グループを一時的に解除して要素を更新
+            // グループの中心を始点と終点の中間点に移動
+            const midX = (startPoint.x + pointer.x) / 2
+            const midY = (startPoint.y + pointer.y) / 2
+
             // ラインの終点を更新（グループ内のローカル座標系）
             const halfLength = length / 2
             arrowLine.set({
@@ -952,9 +958,13 @@ export default function Canvas() {
               angle: 90, // 右向きを維持
             })
 
-            // グループ全体の角度を更新
+            // グループ全体の位置と角度を更新
             currentShape.set({
+              left: midX,
+              top: midY,
               angle: angle,
+              originX: 'center',
+              originY: 'center',
             })
             currentShape.setCoords()
           }
@@ -1002,7 +1012,7 @@ export default function Canvas() {
         hasBorders: true,
       })
 
-      // グループの場合、子要素も設定
+      // グループの場合、子要素も設定し、座標を更新
       if (currentShape.type === 'group') {
         const items = (currentShape as fabric.Group).getObjects()
         items.forEach((item) => {
@@ -1011,6 +1021,8 @@ export default function Canvas() {
             evented: false,
           })
         })
+        // バウンディングボックスを再計算して選択可能にする
+        currentShape.setCoords()
       }
 
       // Increment counter for this tool type
@@ -1944,27 +1956,31 @@ export default function Canvas() {
     <div className="flex-1 min-w-0 relative">
       <canvas ref={canvasRef} />
       {/* グリッドオーバーレイ */}
-      {gridEnabled && (
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
-          <defs>
-            <pattern
-              id="grid-pattern"
-              width={gridSize}
-              height={gridSize}
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
-                fill="none"
-                stroke={gridColor}
-                strokeWidth="0.5"
-                strokeOpacity={gridOpacity / 100}
-              />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid-pattern)" />
-        </svg>
-      )}
+      {gridEnabled && (() => {
+        // ズームレベルに応じてグリッドサイズを調整
+        const scaledGridSize = gridSize * (zoom / 100)
+        return (
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
+            <defs>
+              <pattern
+                id="grid-pattern"
+                width={scaledGridSize}
+                height={scaledGridSize}
+                patternUnits="userSpaceOnUse"
+              >
+                <path
+                  d={`M ${scaledGridSize} 0 L 0 0 0 ${scaledGridSize}`}
+                  fill="none"
+                  stroke={gridColor}
+                  strokeWidth="0.5"
+                  strokeOpacity={gridOpacity / 100}
+                />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+          </svg>
+        )
+      })()}
       {showAlignmentPanel && (
         <AlignmentPanel
           onAlignLeft={alignLeft}
