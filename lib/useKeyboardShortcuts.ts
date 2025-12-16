@@ -144,6 +144,18 @@ export const useKeyboardShortcuts = ({
             sendToBack()
           }
           break
+        case 'bringForward':
+          if (bringForward) {
+            e.preventDefault()
+            bringForward()
+          }
+          break
+        case 'sendBackward':
+          if (sendBackward) {
+            e.preventDefault()
+            sendBackward()
+          }
+          break
         case 'resetZoom':
           if (resetZoom) {
             e.preventDefault()
