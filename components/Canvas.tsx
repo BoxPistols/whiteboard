@@ -1591,6 +1591,9 @@ export default function Canvas() {
       // 新しいページのデータを読み込み
       const currentPage = pages.find((p) => p.id === currentPageId)
       if (currentPage) {
+        // ページ切り替え時に履歴をクリア（ページごとの履歴管理）
+        clearHistory()
+
         // キャンバスをクリア
         canvas.clear()
 
@@ -1621,7 +1624,7 @@ export default function Canvas() {
       // 前のページIDを更新
       prevPageIdRef.current = currentPageId
     }
-  }, [currentPageId, pages, updatePageData, setLayers, saveHistory])
+  }, [currentPageId, pages, updatePageData, setLayers, saveHistory, clearHistory])
 
   // 画像ペースト機能（内部クリップボードからのペーストも統合）
   useEffect(() => {
