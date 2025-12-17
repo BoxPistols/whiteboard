@@ -1330,29 +1330,48 @@ export default function Canvas() {
     let isPanning = false
     let lastPosX = 0
     let lastPosY = 0
+
+    // イベントからクライアント座標を取得するヘルパー関数
+    const getEventClientCoords = (e: MouseEvent | TouchEvent): { x: number; y: number } | null => {
+      if ('touches' in e && e.touches.length > 0) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      } else if ('changedTouches' in e && e.changedTouches.length > 0) {
+        return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
+      } else if ('clientX' in e && typeof e.clientX === 'number') {
+        return { x: e.clientX, y: e.clientY }
+      }
+      return null
+    }
+
     const handlePanMouseDown = (opt: fabric.IEvent) => {
       // Only allow panning when select tool is active
       if (selectedTool !== 'select') return
-      const e = opt.e as MouseEvent
+      const e = opt.e as MouseEvent | TouchEvent
       // Cmd/Ctrl + Click はオブジェクト選択に専念するためパンを無効化
-      if (e.metaKey || e.ctrlKey) return
+      if ('metaKey' in e && (e.metaKey || e.ctrlKey)) return
       if (!opt.target) {
-        isPanning = true
-        lastPosX = e.clientX
-        lastPosY = e.clientY
+        const coords = getEventClientCoords(e)
+        if (coords) {
+          isPanning = true
+          lastPosX = coords.x
+          lastPosY = coords.y
+        }
       }
     }
     const handlePanMouseMove = (opt: fabric.IEvent) => {
       if (isPanning) {
-        const e = opt.e as MouseEvent
-        const vpt = canvas.viewportTransform!
-        vpt[4] += e.clientX - lastPosX
-        vpt[5] += e.clientY - lastPosY
-        lastPosX = e.clientX
-        lastPosY = e.clientY
-        canvas.requestRenderAll()
-        // グリッドオーバーレイ用にビューポートオフセットを更新
-        setViewportOffset({ x: vpt[4], y: vpt[5] })
+        const e = opt.e as MouseEvent | TouchEvent
+        const coords = getEventClientCoords(e)
+        if (coords) {
+          const vpt = canvas.viewportTransform!
+          vpt[4] += coords.x - lastPosX
+          vpt[5] += coords.y - lastPosY
+          lastPosX = coords.x
+          lastPosY = coords.y
+          canvas.requestRenderAll()
+          // グリッドオーバーレイ用にビューポートオフセットを更新
+          setViewportOffset({ x: vpt[4], y: vpt[5] })
+        }
       }
     }
     const handlePanMouseUp = () => {
