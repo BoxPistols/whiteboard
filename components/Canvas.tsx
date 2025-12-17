@@ -378,32 +378,50 @@ export default function Canvas() {
     // 2つ以上のオブジェクトが選択されている場合のみグループ化
     if (objects.length < 2) return
 
+    // 子オブジェクトのIDを収集
+    const childObjectIds = objects.map((obj) => obj.data?.id).filter((id): id is string => !!id)
+
     selection.toGroup()
     const group = canvas.getActiveObject() as fabric.Group
 
     // グループにIDを割り当て
-    const id = crypto.randomUUID()
+    const groupId = crypto.randomUUID()
     group.set({
-      data: { id },
+      data: { id: groupId },
     })
 
     // カウンターをインクリメント
     shapeCounterRef.current.group += 1
     const counter = shapeCounterRef.current.group
 
-    // グループのレイヤーを追加
-    addLayer({
-      id,
-      name: `group ${counter}`,
+    // 子レイヤーのparentIdを設定し、グループレイヤーを追加
+    const childLayerIds = layers
+      .filter((layer) => childObjectIds.includes(layer.objectId))
+      .map((layer) => layer.id)
+
+    // 子レイヤーのparentIdを設定し、グループレイヤーを追加
+    const updatedLayers = layers.map((layer) => {
+      if (childObjectIds.includes(layer.objectId)) {
+        return { ...layer, parentId: groupId }
+      }
+      return layer
+    })
+    // 新しいグループレイヤーを追加
+    updatedLayers.push({
+      id: groupId,
+      name: `Group ${counter}`,
       visible: true,
       locked: false,
-      objectId: id,
-      type: 'VECTOR',
+      objectId: groupId,
+      type: 'GROUP',
+      children: childLayerIds,
+      expanded: true,
     })
+    setLayers(updatedLayers)
 
-    setSelectedObjectId(id)
+    setSelectedObjectId(groupId)
     canvas.renderAll()
-  }, [addLayer, setSelectedObjectId])
+  }, [setSelectedObjectId, layers, setLayers])
 
   // グループ解除
   const ungroupObjects = useCallback(() => {
@@ -415,6 +433,7 @@ export default function Canvas() {
 
     const group = activeObject as fabric.Group
     const items = group.getObjects()
+    const groupId = activeObject.data?.id
 
     // 矢印グループは解除しない（hitArea, line, triangleの3要素を持つ）
     if (items.length === 3) {
@@ -477,14 +496,24 @@ export default function Canvas() {
       canvas.add(item)
     })
 
-    // グループのレイヤーを削除
-    if (activeObject.data?.id) {
-      removeLayer(activeObject.data.id)
+    // 子レイヤーのparentIdをクリアし、グループレイヤーを削除
+    if (groupId) {
+      const updatedLayers = layers
+        .filter((layer) => layer.id !== groupId) // グループレイヤーを削除
+        .map((layer) => {
+          if (layer.parentId === groupId) {
+            // 子レイヤーをルートに戻す
+            const { parentId, ...rest } = layer
+            return rest
+          }
+          return layer
+        })
+      setLayers(updatedLayers)
     }
 
     canvas.discardActiveObject()
     canvas.renderAll()
-  }, [addLayer, removeLayer])
+  }, [addLayer, layers, setLayers])
 
   // 複数オブジェクトの取得ヘルパー
   const getSelectedObjects = useCallback(() => {

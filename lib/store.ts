@@ -69,6 +69,8 @@ interface CanvasStore {
   toggleLayerLock: (id: string) => void
   updateLayerName: (id: string, name: string) => void
   reorderLayers: (startIndex: number, endIndex: number) => void
+  toggleLayerExpanded: (id: string) => void
+  updateLayerChildren: (parentId: string, childIds: string[]) => void
   setZoom: (zoom: number) => void
   zoomToFit: () => void
   zoomToSelection: () => void
@@ -309,6 +311,57 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
 
       return { layers: result, pages: updatedPages }
+    }),
+  toggleLayerExpanded: (id) =>
+    set((state) => {
+      const updatedLayers = state.layers.map((layer) =>
+        layer.id === id ? { ...layer, expanded: !layer.expanded } : layer
+      )
+
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+      )
+
+      // localStorageに保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer expanded state:', error)
+        }
+      }
+
+      return { layers: updatedLayers, pages: updatedPages }
+    }),
+  updateLayerChildren: (parentId, childIds) =>
+    set((state) => {
+      const updatedLayers = state.layers.map((layer) => {
+        if (layer.id === parentId) {
+          return { ...layer, children: childIds }
+        }
+        // 子レイヤーのparentIdを設定
+        if (childIds.includes(layer.id)) {
+          return { ...layer, parentId }
+        }
+        return layer
+      })
+
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+      )
+
+      // localStorageに保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer children:', error)
+        }
+      }
+
+      return { layers: updatedLayers, pages: updatedPages }
     }),
   setZoom: (zoom) => {
     const { fabricCanvas } = get()
