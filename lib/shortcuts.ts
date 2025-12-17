@@ -129,7 +129,7 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   {
     id: 'arrange-front',
     action: 'bringToFront',
-    defaultKey: ']',
+    defaultKey: '}',
     modifiers: { meta: true, shift: true },
     category: 'arrange',
     label: '最前面へ',
@@ -138,11 +138,29 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   {
     id: 'arrange-back',
     action: 'sendToBack',
-    defaultKey: '[',
+    defaultKey: '{',
     modifiers: { meta: true, shift: true },
     category: 'arrange',
     label: '最背面へ',
     description: 'オブジェクトを最背面に移動',
+  },
+  {
+    id: 'arrange-forward',
+    action: 'bringForward',
+    defaultKey: ']',
+    modifiers: { meta: true },
+    category: 'arrange',
+    label: '前面へ',
+    description: 'オブジェクトを1レベル前面に移動',
+  },
+  {
+    id: 'arrange-backward',
+    action: 'sendBackward',
+    defaultKey: '[',
+    modifiers: { meta: true },
+    category: 'arrange',
+    label: '背面へ',
+    description: 'オブジェクトを1レベル背面に移動',
   },
 
   // 表示/ズーム系

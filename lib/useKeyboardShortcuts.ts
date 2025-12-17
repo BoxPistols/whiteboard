@@ -17,6 +17,8 @@ interface UseKeyboardShortcutsProps {
   zoomToSelection?: () => void
   bringToFront?: () => void
   sendToBack?: () => void
+  bringForward?: () => void
+  sendBackward?: () => void
   showShortcuts?: () => void
 }
 
@@ -35,6 +37,8 @@ export const useKeyboardShortcuts = ({
   zoomToSelection,
   bringToFront,
   sendToBack,
+  bringForward,
+  sendBackward,
   showShortcuts,
 }: UseKeyboardShortcutsProps) => {
   useEffect(() => {
@@ -160,6 +164,8 @@ export const useKeyboardShortcuts = ({
     zoomToSelection,
     bringToFront,
     sendToBack,
+    bringForward,
+    sendBackward,
     showShortcuts,
   ])
 }
