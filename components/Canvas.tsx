@@ -416,12 +416,46 @@ export default function Canvas() {
     const group = activeObject as fabric.Group
     const items = group.getObjects()
 
-    // グループを解除して個別のオブジェクトに戻す
-    group.toActiveSelection()
-    canvas.discardActiveObject()
+    // 矢印グループは解除しない（hitArea, line, triangleの3要素を持つ）
+    if (items.length === 3) {
+      const hasHitArea = items.some(
+        (item) => item.type === 'rect' && item.fill === 'transparent'
+      )
+      const hasLine = items.some((item) => item.type === 'line')
+      const hasTriangle = items.some((item) => item.type === 'triangle')
+      if (hasHitArea && hasLine && hasTriangle) {
+        return // 矢印グループは解除しない
+      }
+    }
 
-    // 各アイテムにIDを割り当て直す
+    // グループの変換行列を取得
+    const groupMatrix = group.calcTransformMatrix()
+
+    // グループをキャンバスから削除
+    canvas.remove(group)
+
+    // 各アイテムをキャンバスに個別に追加
     items.forEach((item) => {
+      // アイテムの変換行列をグループの変換行列と合成
+      const itemMatrix = item.calcTransformMatrix()
+      const finalMatrix = fabric.util.multiplyTransformMatrices(groupMatrix, itemMatrix)
+
+      // 変換行列から位置、角度、スケールを抽出
+      const options = fabric.util.qrDecompose(finalMatrix)
+
+      item.set({
+        left: options.translateX,
+        top: options.translateY,
+        scaleX: options.scaleX,
+        scaleY: options.scaleY,
+        angle: options.angle,
+        skewX: options.skewX,
+        skewY: options.skewY,
+        selectable: true,
+        evented: true,
+      })
+
+      // IDがない場合は新しいIDを割り当て
       if (!item.data?.id) {
         const id = crypto.randomUUID()
         item.set({ data: { id } })
@@ -440,6 +474,9 @@ export default function Canvas() {
           type: 'VECTOR',
         })
       }
+
+      item.setCoords()
+      canvas.add(item)
     })
 
     // グループのレイヤーを削除
@@ -447,6 +484,7 @@ export default function Canvas() {
       removeLayer(activeObject.data.id)
     }
 
+    canvas.discardActiveObject()
     canvas.renderAll()
   }, [addLayer, removeLayer])
 
