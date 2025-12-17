@@ -418,9 +418,7 @@ export default function Canvas() {
 
     // 矢印グループは解除しない（hitArea, line, triangleの3要素を持つ）
     if (items.length === 3) {
-      const hasHitArea = items.some(
-        (item) => item.type === 'rect' && item.fill === 'transparent'
-      )
+      const hasHitArea = items.some((item) => item.type === 'rect' && item.fill === 'transparent')
       const hasLine = items.some((item) => item.type === 'line')
       const hasTriangle = items.some((item) => item.type === 'triangle')
       if (hasHitArea && hasLine && hasTriangle) {
