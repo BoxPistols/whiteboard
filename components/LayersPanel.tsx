@@ -320,7 +320,28 @@ export default function LayersPanel() {
 
   const selectLayer = (layer: (typeof layers)[0]) => {
     if (!fabricCanvas) return
-    const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+
+    // まずトップレベルで検索
+    let obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+
+    // 見つからない場合はグループ内を検索
+    if (!obj) {
+      for (const canvasObj of fabricCanvas.getObjects()) {
+        if (canvasObj.type === 'group') {
+          const group = canvasObj as fabric.Group
+          const found = group.getObjects().find((o) => o.data?.id === layer.objectId)
+          if (found) {
+            // グループ内のオブジェクトを選択する場合、グループを展開してサブオブジェクトを選択
+            // Fabric.jsではActiveSelectionを使って個別選択を実現
+            fabricCanvas.setActiveObject(found)
+            fabricCanvas.renderAll()
+            setSelectedObjectId(layer.objectId)
+            return
+          }
+        }
+      }
+    }
+
     if (obj) {
       fabricCanvas.setActiveObject(obj)
       fabricCanvas.renderAll()

@@ -208,7 +208,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       if (fabricCanvas) {
         const layer = state.layers.find((l) => l.id === id)
         if (layer) {
-          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+          // まずキャンバス直下で探す
+          let obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+
+          // 見つからない場合はグループ内を探す
+          if (!obj) {
+            for (const canvasObj of fabricCanvas.getObjects()) {
+              if (canvasObj.type === 'group') {
+                const group = canvasObj as fabric.Group
+                const found = group.getObjects().find((o) => o.data?.id === layer.objectId)
+                if (found) {
+                  obj = found
+                  break
+                }
+              }
+            }
+          }
+
           if (obj) {
             obj.visible = !layer.visible
             fabricCanvas.renderAll()
@@ -224,7 +240,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       const layer = state.layers.find((l) => l.id === id)
 
       if (fabricCanvas && layer) {
-        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+        // まずキャンバス直下で探す
+        let obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+
+        // 見つからない場合はグループ内を探す
+        if (!obj) {
+          for (const canvasObj of fabricCanvas.getObjects()) {
+            if (canvasObj.type === 'group') {
+              const group = canvasObj as fabric.Group
+              const found = group.getObjects().find((o) => o.data?.id === layer.objectId)
+              if (found) {
+                obj = found
+                break
+              }
+            }
+          }
+        }
+
         if (obj) {
           const newLockState = !layer.locked
           // ロック/ロック解除の設定

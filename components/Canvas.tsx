@@ -384,18 +384,30 @@ export default function Canvas() {
     selection.toGroup()
     const group = canvas.getActiveObject() as fabric.Group
 
-    // グループにIDを割り当て
+    // グループにIDを割り当て、subTargetCheckを有効化
     const groupId = crypto.randomUUID()
     group.set({
       data: { id: groupId },
+      subTargetCheck: true, // グループ内オブジェクトの個別選択を有効化
     })
 
     // カウンターをインクリメント
     shapeCounterRef.current.group += 1
     const counter = shapeCounterRef.current.group
 
-    // 子レイヤーを削除し、グループレイヤーのみを追加
-    const updatedLayers = layers.filter((layer) => !childObjectIds.includes(layer.objectId))
+    // 子レイヤーのparentIdを設定し、グループレイヤーを追加
+    const childLayerIds = layers
+      .filter((layer) => childObjectIds.includes(layer.objectId))
+      .map((layer) => layer.id)
+
+    const updatedLayers = layers.map((layer) => {
+      if (childObjectIds.includes(layer.objectId)) {
+        return { ...layer, parentId: groupId }
+      }
+      return layer
+    })
+
+    // グループレイヤーを追加
     updatedLayers.push({
       id: groupId,
       name: `Group ${counter}`,
@@ -403,6 +415,8 @@ export default function Canvas() {
       locked: false,
       objectId: groupId,
       type: 'GROUP',
+      children: childLayerIds,
+      expanded: true,
     })
     setLayers(updatedLayers)
 
@@ -435,9 +449,6 @@ export default function Canvas() {
     // グループの変換行列を取得
     const groupMatrix = group.calcTransformMatrix()
 
-    // 新しいレイヤーリスト（グループレイヤーを除外）
-    const newLayers = layers.filter((layer) => layer.id !== groupId)
-
     // 各アイテムをクローンして情報を収集（グループ削除前に）
     const clonePromises = items.map(
       (item) =>
@@ -466,9 +477,21 @@ export default function Canvas() {
       // グループをキャンバスから削除
       canvas.remove(group)
 
-      // 各クローンをキャンバスに追加し、レイヤーを復元
-      clonedItems.forEach(({ clone, options, originalId, type }) => {
-        // 新しいIDを生成
+      // 子レイヤーのparentIdをクリアし、グループレイヤーを削除
+      const updatedLayers = layers
+        .filter((layer) => layer.id !== groupId) // グループレイヤーを削除
+        .map((layer) => {
+          if (layer.parentId === groupId) {
+            // 子レイヤーをルートに戻す（parentIdを削除）
+            const { parentId: _, ...rest } = layer
+            void _
+            return rest
+          }
+          return layer
+        })
+
+      // 各クローンをキャンバスに追加
+      clonedItems.forEach(({ clone, options, originalId }) => {
         const itemId = originalId || crypto.randomUUID()
 
         clone.set({
@@ -486,31 +509,9 @@ export default function Canvas() {
 
         clone.setCoords()
         canvas.add(clone)
-
-        // オブジェクトタイプからレイヤータイプを推定
-        let layerType: 'RECTANGLE' | 'ELLIPSE' | 'LINE' | 'TEXT' | 'VECTOR' | 'GROUP' | 'ARROW' =
-          'VECTOR'
-        if (type === 'rect') layerType = 'RECTANGLE'
-        else if (type === 'circle' || type === 'ellipse') layerType = 'ELLIPSE'
-        else if (type === 'line') layerType = 'LINE'
-        else if (type === 'i-text' || type === 'text') layerType = 'TEXT'
-        else if (type === 'group') layerType = 'GROUP'
-
-        // カウンターをインクリメント
-        shapeCounterRef.current.object += 1
-        const counter = shapeCounterRef.current.object
-
-        newLayers.push({
-          id: itemId,
-          name: `object ${counter}`,
-          visible: true,
-          locked: false,
-          objectId: itemId,
-          type: layerType,
-        })
       })
 
-      setLayers(newLayers)
+      setLayers(updatedLayers)
       canvas.discardActiveObject()
       canvas.renderAll()
     })
