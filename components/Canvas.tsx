@@ -394,19 +394,8 @@ export default function Canvas() {
     shapeCounterRef.current.group += 1
     const counter = shapeCounterRef.current.group
 
-    // 子レイヤーのparentIdを設定し、グループレイヤーを追加
-    const childLayerIds = layers
-      .filter((layer) => childObjectIds.includes(layer.objectId))
-      .map((layer) => layer.id)
-
-    // 子レイヤーのparentIdを設定し、グループレイヤーを追加
-    const updatedLayers = layers.map((layer) => {
-      if (childObjectIds.includes(layer.objectId)) {
-        return { ...layer, parentId: groupId }
-      }
-      return layer
-    })
-    // 新しいグループレイヤーを追加
+    // 子レイヤーを削除し、グループレイヤーのみを追加
+    const updatedLayers = layers.filter((layer) => !childObjectIds.includes(layer.objectId))
     updatedLayers.push({
       id: groupId,
       name: `Group ${counter}`,
@@ -414,8 +403,6 @@ export default function Canvas() {
       locked: false,
       objectId: groupId,
       type: 'GROUP',
-      children: childLayerIds,
-      expanded: true,
     })
     setLayers(updatedLayers)
 
@@ -451,7 +438,10 @@ export default function Canvas() {
     // グループをキャンバスから削除
     canvas.remove(group)
 
-    // 各アイテムをキャンバスに個別に追加
+    // 新しいレイヤーリスト（グループレイヤーを除外）
+    const newLayers = layers.filter((layer) => layer.id !== groupId)
+
+    // 各アイテムをキャンバスに個別に追加し、レイヤーを復元
     items.forEach((item) => {
       // アイテムの変換行列をグループの変換行列と合成
       const itemMatrix = item.calcTransformMatrix()
@@ -472,48 +462,42 @@ export default function Canvas() {
         evented: true,
       })
 
-      // IDがない場合は新しいIDを割り当て
-      if (!item.data?.id) {
-        const id = crypto.randomUUID()
-        item.set({ data: { id } })
-
-        // カウンターをインクリメント
-        shapeCounterRef.current.object += 1
-        const counter = shapeCounterRef.current.object
-
-        // レイヤーを追加
-        addLayer({
-          id,
-          name: `object ${counter}`,
-          visible: true,
-          locked: false,
-          objectId: id,
-          type: 'VECTOR',
-        })
-      }
-
       item.setCoords()
       canvas.add(item)
+
+      // アイテムのレイヤーを追加（IDがある場合もない場合も）
+      const itemId = item.data?.id || crypto.randomUUID()
+      if (!item.data?.id) {
+        item.set({ data: { ...item.data, id: itemId } })
+      }
+
+      // オブジェクトタイプからレイヤータイプを推定
+      let layerType: 'RECTANGLE' | 'ELLIPSE' | 'LINE' | 'TEXT' | 'VECTOR' | 'GROUP' | 'ARROW' =
+        'VECTOR'
+      if (item.type === 'rect') layerType = 'RECTANGLE'
+      else if (item.type === 'circle' || item.type === 'ellipse') layerType = 'ELLIPSE'
+      else if (item.type === 'line') layerType = 'LINE'
+      else if (item.type === 'i-text' || item.type === 'text') layerType = 'TEXT'
+      else if (item.type === 'group') layerType = 'GROUP'
+
+      // カウンターをインクリメント
+      shapeCounterRef.current.object += 1
+      const counter = shapeCounterRef.current.object
+
+      newLayers.push({
+        id: itemId,
+        name: `object ${counter}`,
+        visible: true,
+        locked: false,
+        objectId: itemId,
+        type: layerType,
+      })
     })
 
-    // 子レイヤーのparentIdをクリアし、グループレイヤーを削除
-    if (groupId) {
-      const updatedLayers = layers
-        .filter((layer) => layer.id !== groupId) // グループレイヤーを削除
-        .map((layer) => {
-          if (layer.parentId === groupId) {
-            // 子レイヤーをルートに戻す
-            const { parentId, ...rest } = layer
-            return rest
-          }
-          return layer
-        })
-      setLayers(updatedLayers)
-    }
-
+    setLayers(newLayers)
     canvas.discardActiveObject()
     canvas.renderAll()
-  }, [addLayer, layers, setLayers])
+  }, [layers, setLayers])
 
   // 複数オブジェクトの取得ヘルパー
   const getSelectedObjects = useCallback(() => {
