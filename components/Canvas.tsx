@@ -79,6 +79,17 @@ export default function Canvas() {
     canvasBackground,
     shortcuts,
     setShowShortcutsModal,
+    moveSelectedObject,
+    undo,
+    redo,
+    saveHistory,
+    clearHistory,
+    gridEnabled,
+    gridSize,
+    gridColor,
+    gridOpacity,
+    gridSnapEnabled,
+    zoom,
   } = useCanvasStore()
   // useRefを使用して、イベントハンドラの再作成を防ぐ
   const isDrawingRef = useRef(false)
@@ -88,6 +99,8 @@ export default function Canvas() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const prevPageIdRef = useRef<string>(currentPageId)
   const [showAlignmentPanel, setShowAlignmentPanel] = useState(false)
+  // グリッドオーバーレイ用のビューポートオフセット
+  const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
   const shapeCounterRef = useRef({
     rectangle: 0,
     circle: 0,
@@ -121,6 +134,9 @@ export default function Canvas() {
             // removeLayerがcanvasからも削除する
             removeLayer(layer.id)
           }
+        } else {
+          // IDがない場合は直接削除（古いペンシルストローク等）
+          canvas.remove(obj)
         }
       })
     } else {
@@ -133,9 +149,13 @@ export default function Canvas() {
           // removeLayerがcanvasからも削除する
           removeLayer(layer.id)
         }
+      } else {
+        // IDがない場合は直接削除（古いペンシルストローク等）
+        canvas.remove(activeSelection)
       }
     }
 
+    canvas.renderAll()
     setSelectedObjectId(null)
   }, [removeLayer, setSelectedObjectId, layers])
 
@@ -358,32 +378,51 @@ export default function Canvas() {
     // 2つ以上のオブジェクトが選択されている場合のみグループ化
     if (objects.length < 2) return
 
+    // 子オブジェクトのIDを収集
+    const childObjectIds = objects.map((obj) => obj.data?.id).filter((id): id is string => !!id)
+
     selection.toGroup()
     const group = canvas.getActiveObject() as fabric.Group
 
-    // グループにIDを割り当て
-    const id = crypto.randomUUID()
+    // グループにIDを割り当て、subTargetCheckを有効化
+    const groupId = crypto.randomUUID()
     group.set({
-      data: { id },
+      data: { id: groupId },
+      subTargetCheck: true, // グループ内オブジェクトの個別選択を有効化
     })
 
     // カウンターをインクリメント
     shapeCounterRef.current.group += 1
     const counter = shapeCounterRef.current.group
 
-    // グループのレイヤーを追加
-    addLayer({
-      id,
-      name: `group ${counter}`,
-      visible: true,
-      locked: false,
-      objectId: id,
-      type: 'VECTOR',
+    // 子レイヤーのparentIdを設定し、グループレイヤーを追加
+    const childLayerIds = layers
+      .filter((layer) => childObjectIds.includes(layer.objectId))
+      .map((layer) => layer.id)
+
+    const updatedLayers = layers.map((layer) => {
+      if (childObjectIds.includes(layer.objectId)) {
+        return { ...layer, parentId: groupId }
+      }
+      return layer
     })
 
-    setSelectedObjectId(id)
+    // グループレイヤーを追加
+    updatedLayers.push({
+      id: groupId,
+      name: `Group ${counter}`,
+      visible: true,
+      locked: false,
+      objectId: groupId,
+      type: 'GROUP',
+      children: childLayerIds,
+      expanded: true,
+    })
+    setLayers(updatedLayers)
+
+    setSelectedObjectId(groupId)
     canvas.renderAll()
-  }, [addLayer, setSelectedObjectId])
+  }, [setSelectedObjectId, layers, setLayers])
 
   // グループ解除
   const ungroupObjects = useCallback(() => {
@@ -395,40 +434,88 @@ export default function Canvas() {
 
     const group = activeObject as fabric.Group
     const items = group.getObjects()
+    const groupId = activeObject.data?.id
 
-    // グループを解除して個別のオブジェクトに戻す
-    group.toActiveSelection()
-    canvas.discardActiveObject()
-
-    // 各アイテムにIDを割り当て直す
-    items.forEach((item) => {
-      if (!item.data?.id) {
-        const id = crypto.randomUUID()
-        item.set({ data: { id } })
-
-        // カウンターをインクリメント
-        shapeCounterRef.current.object += 1
-        const counter = shapeCounterRef.current.object
-
-        // レイヤーを追加
-        addLayer({
-          id,
-          name: `object ${counter}`,
-          visible: true,
-          locked: false,
-          objectId: id,
-          type: 'VECTOR',
-        })
+    // 矢印グループは解除しない（hitArea, line, triangleの3要素を持つ）
+    if (items.length === 3) {
+      const hasHitArea = items.some((item) => item.type === 'rect' && item.fill === 'transparent')
+      const hasLine = items.some((item) => item.type === 'line')
+      const hasTriangle = items.some((item) => item.type === 'triangle')
+      if (hasHitArea && hasLine && hasTriangle) {
+        return // 矢印グループは解除しない
       }
-    })
-
-    // グループのレイヤーを削除
-    if (activeObject.data?.id) {
-      removeLayer(activeObject.data.id)
     }
 
-    canvas.renderAll()
-  }, [addLayer, removeLayer])
+    // グループの変換行列を取得
+    const groupMatrix = group.calcTransformMatrix()
+
+    // 各アイテムをクローンして情報を収集（グループ削除前に）
+    const clonePromises = items.map(
+      (item) =>
+        new Promise<{
+          clone: fabric.Object
+          options: ReturnType<typeof fabric.util.qrDecompose>
+          originalId: string | undefined
+          type: string | undefined
+        }>((resolve) => {
+          const itemMatrix = item.calcTransformMatrix()
+          const finalMatrix = fabric.util.multiplyTransformMatrices(groupMatrix, itemMatrix)
+          const options = fabric.util.qrDecompose(finalMatrix)
+
+          item.clone((cloned: fabric.Object) => {
+            resolve({
+              clone: cloned,
+              options,
+              originalId: item.data?.id,
+              type: item.type,
+            })
+          })
+        })
+    )
+
+    Promise.all(clonePromises).then((clonedItems) => {
+      // グループをキャンバスから削除
+      canvas.remove(group)
+
+      // 子レイヤーのparentIdをクリアし、グループレイヤーを削除
+      const updatedLayers = layers
+        .filter((layer) => layer.id !== groupId) // グループレイヤーを削除
+        .map((layer) => {
+          if (layer.parentId === groupId) {
+            // 子レイヤーをルートに戻す（parentIdを削除）
+            const { parentId: _, ...rest } = layer
+            void _
+            return rest
+          }
+          return layer
+        })
+
+      // 各クローンをキャンバスに追加
+      clonedItems.forEach(({ clone, options, originalId }) => {
+        const itemId = originalId || crypto.randomUUID()
+
+        clone.set({
+          left: options.translateX,
+          top: options.translateY,
+          scaleX: options.scaleX,
+          scaleY: options.scaleY,
+          angle: options.angle,
+          skewX: options.skewX,
+          skewY: options.skewY,
+          selectable: true,
+          evented: true,
+          data: { id: itemId },
+        })
+
+        clone.setCoords()
+        canvas.add(clone)
+      })
+
+      setLayers(updatedLayers)
+      canvas.discardActiveObject()
+      canvas.renderAll()
+    })
+  }, [layers, setLayers])
 
   // 複数オブジェクトの取得ヘルパー
   const getSelectedObjects = useCallback(() => {
@@ -610,6 +697,9 @@ export default function Canvas() {
     bringForward,
     sendBackward,
     showShortcuts,
+    moveSelectedObject,
+    undo,
+    redo,
   })
 
   useEffect(() => {
@@ -772,7 +862,7 @@ export default function Canvas() {
             height: 0,
             fill: defaultFillColor,
             stroke: defaultStrokeColor,
-            strokeWidth: 2,
+            strokeWidth: 0, // デフォルトはボーダーなし
             selectable: false,
             evented: false,
           })
@@ -784,7 +874,7 @@ export default function Canvas() {
             radius: 0,
             fill: defaultFillColor,
             stroke: defaultStrokeColor,
-            strokeWidth: 2,
+            strokeWidth: 0, // デフォルトはボーダーなし
             selectable: false,
             evented: false,
           })
@@ -798,19 +888,48 @@ export default function Canvas() {
           })
           break
         case 'arrow': {
-          // 矢印の頭のみを作成
-          const arrowHeadPath = new fabric.Path('M 0 -8 L -8 8 L 0 4 L 8 8 Z', {
-            fill: defaultStrokeColor,
-            stroke: 'none',
+          // ライン＋矢印頭を作成（Figmaスタイル: ------> ）
+          const arrowLine = new fabric.Line([0, 0, 0, 0], {
+            stroke: defaultStrokeColor,
+            strokeWidth: 1,
             selectable: false,
             evented: false,
-            originX: 'center',
-            originY: 'center',
           })
 
-          shape = new fabric.Group([arrowHeadPath], {
+          // 矢印の頭（三角形）- Triangleを使用
+          const arrowHead = new fabric.Triangle({
+            width: 12,
+            height: 10,
+            fill: defaultStrokeColor,
+            left: 0,
+            top: 0,
+            angle: 90, // 右向き
+            originX: 'center',
+            originY: 'center',
+            selectable: false,
+            evented: false,
+          })
+
+          // ヒットエリア用の透明な矩形（クリック検出を改善）
+          const hitArea = new fabric.Rect({
+            left: 0,
+            top: -10,
+            width: 1,
+            height: 20,
+            fill: 'transparent',
+            stroke: 'transparent',
+            originX: 'center',
+            originY: 'center',
+            selectable: false,
+            evented: false,
+          })
+
+          shape = new fabric.Group([hitArea, arrowLine, arrowHead], {
             left: pointer.x,
             top: pointer.y,
+            originX: 'center',
+            originY: 'center',
+            lockUniScaling: true, // アスペクト比を保持
           })
           currentShapeRef.current = shape
           canvas.add(shape)
@@ -894,23 +1013,50 @@ export default function Canvas() {
         case 'arrow':
           if (currentShape instanceof fabric.Group) {
             const items = currentShape.getObjects()
-            const arrowHead = items[0] as fabric.Path
+            const hitArea = items[0] as fabric.Rect
+            const arrowLine = items[1] as fabric.Line
+            const arrowHead = items[2] as fabric.Triangle
 
-            // グループの中心から見た相対座標を計算
-            const groupLeft = currentShape.left || startPoint.x
-            const groupTop = currentShape.top || startPoint.y
-
-            const dx = pointer.x - groupLeft
-            const dy = pointer.y - groupTop
-
-            // 矢印の方向を計算
+            // 始点から終点までの距離と角度を計算
+            const dx = pointer.x - startPoint.x
+            const dy = pointer.y - startPoint.y
+            const length = Math.sqrt(dx * dx + dy * dy)
             const angle = (Math.atan2(dy, dx) * 180) / Math.PI
 
-            // 矢印の頭の位置と角度を更新
+            // グループの中心を始点と終点の中間点に移動
+            const midX = (startPoint.x + pointer.x) / 2
+            const midY = (startPoint.y + pointer.y) / 2
+
+            // ラインの終点を更新（グループ内のローカル座標系）
+            const halfLength = length / 2
+            arrowLine.set({
+              x1: -halfLength,
+              y1: 0,
+              x2: halfLength,
+              y2: 0,
+            })
+
+            // ヒットエリアを矢印の全長に合わせて更新
+            hitArea.set({
+              left: 0,
+              width: length,
+              height: 20,
+            })
+
+            // 矢印の頭の位置を更新（ラインの終点に配置）
             arrowHead.set({
-              left: dx,
-              top: dy,
+              left: halfLength,
+              top: 0,
+              angle: 90, // 右向きを維持
+            })
+
+            // グループ全体の位置と角度を更新
+            currentShape.set({
+              left: midX,
+              top: midY,
               angle: angle,
+              originX: 'center',
+              originY: 'center',
             })
             currentShape.setCoords()
           }
@@ -927,7 +1073,6 @@ export default function Canvas() {
 
     if (currentShape && selectedTool !== 'select' && selectedTool !== 'pencil') {
       const id = crypto.randomUUID()
-
 
       // 現在の色を基本色として保存
       let baseFill: string | undefined
@@ -959,7 +1104,7 @@ export default function Canvas() {
         hasBorders: true,
       })
 
-      // グループの場合、子要素も設定
+      // グループの場合、子要素も設定し、座標を更新
       if (currentShape.type === 'group') {
         const items = (currentShape as fabric.Group).getObjects()
         items.forEach((item) => {
@@ -968,6 +1113,8 @@ export default function Canvas() {
             evented: false,
           })
         })
+        // バウンディングボックスを再計算して選択可能にする
+        currentShape.setCoords()
       }
 
       // Increment counter for this tool type
@@ -1185,27 +1332,48 @@ export default function Canvas() {
     let isPanning = false
     let lastPosX = 0
     let lastPosY = 0
+
+    // イベントからクライアント座標を取得するヘルパー関数
+    const getEventClientCoords = (e: MouseEvent | TouchEvent): { x: number; y: number } | null => {
+      if ('touches' in e && e.touches.length > 0) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      } else if ('changedTouches' in e && e.changedTouches.length > 0) {
+        return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
+      } else if ('clientX' in e && typeof e.clientX === 'number') {
+        return { x: e.clientX, y: e.clientY }
+      }
+      return null
+    }
+
     const handlePanMouseDown = (opt: fabric.IEvent) => {
       // Only allow panning when select tool is active
       if (selectedTool !== 'select') return
-      const e = opt.e as MouseEvent
+      const e = opt.e as MouseEvent | TouchEvent
       // Cmd/Ctrl + Click はオブジェクト選択に専念するためパンを無効化
-      if (e.metaKey || e.ctrlKey) return
+      if ('metaKey' in e && (e.metaKey || e.ctrlKey)) return
       if (!opt.target) {
-        isPanning = true
-        lastPosX = e.clientX
-        lastPosY = e.clientY
+        const coords = getEventClientCoords(e)
+        if (coords) {
+          isPanning = true
+          lastPosX = coords.x
+          lastPosY = coords.y
+        }
       }
     }
     const handlePanMouseMove = (opt: fabric.IEvent) => {
       if (isPanning) {
-        const e = opt.e as MouseEvent
-        const vpt = canvas.viewportTransform!
-        vpt[4] += e.clientX - lastPosX
-        vpt[5] += e.clientY - lastPosY
-        lastPosX = e.clientX
-        lastPosY = e.clientY
-        canvas.requestRenderAll()
+        const e = opt.e as MouseEvent | TouchEvent
+        const coords = getEventClientCoords(e)
+        if (coords) {
+          const vpt = canvas.viewportTransform!
+          vpt[4] += coords.x - lastPosX
+          vpt[5] += coords.y - lastPosY
+          lastPosX = coords.x
+          lastPosY = coords.y
+          canvas.requestRenderAll()
+          // グリッドオーバーレイ用にビューポートオフセットを更新
+          setViewportOffset({ x: vpt[4], y: vpt[5] })
+        }
       }
     }
     const handlePanMouseUp = () => {
@@ -1220,6 +1388,9 @@ export default function Canvas() {
         const zoom = Math.max(0.1, Math.min(2, canvas.getZoom() + delta * 0.0015))
         canvas.zoomToPoint({ x: e.clientX, y: e.clientY }, zoom)
         useCanvasStore.getState().setZoom(Math.round(zoom * 100))
+        // ズーム後のビューポートオフセットを更新
+        const vpt = canvas.viewportTransform!
+        setViewportOffset({ x: vpt[4], y: vpt[5] })
       } else {
         const vpt = canvas.viewportTransform!
         if (e.shiftKey) {
@@ -1232,6 +1403,8 @@ export default function Canvas() {
           vpt[5] += -e.deltaY // Vertical pan
         }
         canvas.requestRenderAll()
+        // グリッドオーバーレイ用にビューポートオフセットを更新
+        setViewportOffset({ x: vpt[4], y: vpt[5] })
       }
     }
     canvas.on('mouse:down', handlePanMouseDown)
@@ -1245,6 +1418,37 @@ export default function Canvas() {
     canvas.on('object:modified', handleObjectModified)
     canvas.on('object:scaled', handleObjectModified)
     canvas.on('object:moved', handleObjectModified)
+
+    // ペンシルツールで描いたパスにIDを付与
+    const handlePathCreated = (e: fabric.IEvent & { path?: fabric.Path }) => {
+      if (e.path) {
+        const id = crypto.randomUUID()
+        e.path.set({
+          data: {
+            id,
+            baseStroke: e.path.stroke,
+            baseTheme: useCanvasStore.getState().theme,
+          },
+          selectable: true,
+          evented: true,
+        })
+
+        shapeCounterRef.current.pencil += 1
+        const counter = shapeCounterRef.current.pencil
+
+        addLayer({
+          id: crypto.randomUUID(),
+          name: `pencil ${counter}`,
+          visible: true,
+          locked: false,
+          objectId: id,
+          type: 'VECTOR',
+        })
+
+        canvas.renderAll()
+      }
+    }
+    canvas.on('path:created', handlePathCreated)
 
     return () => {
       canvas.off('mouse:down:before', handleAltDragStart)
@@ -1264,6 +1468,7 @@ export default function Canvas() {
       canvas.off('object:modified', handleObjectModified)
       canvas.off('object:scaled', handleObjectModified)
       canvas.off('object:moved', handleObjectModified)
+      canvas.off('path:created', handlePathCreated)
     }
   }, [
     handleMouseDown,
@@ -1276,6 +1481,61 @@ export default function Canvas() {
     selectedObjectId,
     addLayer,
   ])
+
+  // グリッドスナップ機能
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const handleObjectMoving = (e: fabric.IEvent) => {
+      if (!gridSnapEnabled) return
+
+      const obj = e.target
+      if (!obj) return
+
+      // オブジェクトの位置をグリッドにスナップ
+      const left = obj.left || 0
+      const top = obj.top || 0
+
+      obj.set({
+        left: Math.round(left / gridSize) * gridSize,
+        top: Math.round(top / gridSize) * gridSize,
+      })
+    }
+
+    canvas.on('object:moving', handleObjectMoving)
+
+    return () => {
+      canvas.off('object:moving', handleObjectMoving)
+    }
+  }, [gridSnapEnabled, gridSize])
+
+  // Shift+回転で15度スナップ機能
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const handleObjectRotating = (e: fabric.IEvent) => {
+      const event = e.e as MouseEvent | TouchEvent | KeyboardEvent
+      // Shiftキーが押されている場合は15度単位でスナップ
+      if (event && 'shiftKey' in event && event.shiftKey) {
+        const obj = e.target
+        if (!obj) return
+
+        const angle = obj.angle || 0
+        // 15度単位に丸める
+        obj.set({
+          angle: Math.round(angle / 15) * 15,
+        })
+      }
+    }
+
+    canvas.on('object:rotating', handleObjectRotating)
+
+    return () => {
+      canvas.off('object:rotating', handleObjectRotating)
+    }
+  }, [])
 
   // localStorage初期読み込み（初回のみ）
   const hasLoadedRef = useRef(false)
@@ -1382,16 +1642,25 @@ export default function Canvas() {
                 }
               })
               canvas.renderAll()
+              // 初期状態を履歴に保存（少し遅延させてobject:addedイベント後に実行）
+              setTimeout(() => {
+                saveHistory()
+              }, 50)
             })
           } catch (error) {
             console.error('Failed to load page canvas data:', error)
           }
+        } else {
+          // 空のキャンバスの場合も初期状態を保存
+          setTimeout(() => {
+            saveHistory()
+          }, 50)
         }
       }
     }, 100)
 
     return () => clearTimeout(timer)
-  }, [pages, currentPageId, theme, setLayers, selectedTool])
+  }, [pages, currentPageId, theme, setLayers, selectedTool, saveHistory])
 
   // localStorage自動保存（デバウンス） - ページごとに保存
   useEffect(() => {
@@ -1423,6 +1692,31 @@ export default function Canvas() {
     }
   }, [layers, currentPageId, updatePageData])
 
+  // Undo/Redo履歴の保存（デバウンス付き）
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    let historyTimeout: NodeJS.Timeout
+    const handleHistorySave = () => {
+      clearTimeout(historyTimeout)
+      historyTimeout = setTimeout(() => {
+        saveHistory()
+      }, 300)
+    }
+
+    canvas.on('object:modified', handleHistorySave)
+    canvas.on('object:added', handleHistorySave)
+    canvas.on('object:removed', handleHistorySave)
+
+    return () => {
+      clearTimeout(historyTimeout)
+      canvas.off('object:modified', handleHistorySave)
+      canvas.off('object:added', handleHistorySave)
+      canvas.off('object:removed', handleHistorySave)
+    }
+  }, [saveHistory])
+
   // ページ切り替え処理
   useEffect(() => {
     const canvas = fabricCanvasRef.current
@@ -1442,6 +1736,9 @@ export default function Canvas() {
       // 新しいページのデータを読み込み
       const currentPage = pages.find((p) => p.id === currentPageId)
       if (currentPage) {
+        // ページ切り替え時に履歴をクリア（ページごとの履歴管理）
+        clearHistory()
+
         // キャンバスをクリア
         canvas.clear()
 
@@ -1453,17 +1750,26 @@ export default function Canvas() {
           try {
             canvas.loadFromJSON(currentPage.canvasData, () => {
               canvas.renderAll()
+              // 新しいページの初期状態を履歴に保存
+              setTimeout(() => {
+                saveHistory()
+              }, 50)
             })
           } catch (error) {
             console.error('Failed to load page canvas data:', error)
           }
+        } else {
+          // 空のページの場合も初期状態を保存
+          setTimeout(() => {
+            saveHistory()
+          }, 50)
         }
       }
 
       // 前のページIDを更新
       prevPageIdRef.current = currentPageId
     }
-  }, [currentPageId, pages, updatePageData, setLayers])
+  }, [currentPageId, pages, updatePageData, setLayers, saveHistory, clearHistory])
 
   // 画像ペースト機能（内部クリップボードからのペーストも統合）
   useEffect(() => {
@@ -1797,6 +2103,40 @@ export default function Canvas() {
   return (
     <div className="flex-1 min-w-0 relative">
       <canvas ref={canvasRef} />
+      {/* グリッドオーバーレイ */}
+      {gridEnabled &&
+        (() => {
+          // ズームレベルに応じてグリッドサイズを調整
+          const scaledGridSize = gridSize * (zoom / 100)
+          // ビューポートオフセットをグリッドサイズでモジュロして、パターンの位置を調整
+          const offsetX = viewportOffset.x % scaledGridSize
+          const offsetY = viewportOffset.y % scaledGridSize
+          return (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{ zIndex: 1 }}
+            >
+              <defs>
+                <pattern
+                  id="grid-pattern"
+                  width={scaledGridSize}
+                  height={scaledGridSize}
+                  patternUnits="userSpaceOnUse"
+                  patternTransform={`translate(${offsetX}, ${offsetY})`}
+                >
+                  <path
+                    d={`M ${scaledGridSize} 0 L 0 0 0 ${scaledGridSize}`}
+                    fill="none"
+                    stroke={gridColor}
+                    strokeWidth="0.5"
+                    strokeOpacity={gridOpacity / 100}
+                  />
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+            </svg>
+          )
+        })()}
       {showAlignmentPanel && (
         <AlignmentPanel
           onAlignLeft={alignLeft}

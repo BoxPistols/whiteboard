@@ -24,12 +24,14 @@ export default function Home() {
     setLeftPanelWidth,
     setRightPanelWidth,
     loadSavedShortcuts,
+    loadSavedNudgeAmount,
   } = useCanvasStore()
 
-  // 保存されたショートカット設定を読み込み
+  // 保存されたショートカット設定とナッジ設定を読み込み
   useEffect(() => {
     loadSavedShortcuts()
-  }, [loadSavedShortcuts])
+    loadSavedNudgeAmount()
+  }, [loadSavedShortcuts, loadSavedNudgeAmount])
 
   const [isResizingLeft, setIsResizingLeft] = useState(false)
   const [isResizingRight, setIsResizingRight] = useState(false)

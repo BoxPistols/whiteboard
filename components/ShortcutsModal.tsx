@@ -6,13 +6,49 @@ import { formatShortcut, CATEGORY_LABELS } from '@/lib/shortcuts'
 import type { ShortcutConfig, ShortcutCategory, ShortcutModifiers } from '@/types'
 
 export default function ShortcutsModal() {
-  const { showShortcutsModal, setShowShortcutsModal, shortcuts, updateShortcut, resetShortcuts } =
-    useCanvasStore()
+  const {
+    showShortcutsModal,
+    setShowShortcutsModal,
+    shortcuts,
+    updateShortcut,
+    resetShortcuts,
+    nudgeAmount,
+    setNudgeAmount,
+    gridEnabled,
+    gridSize,
+    gridColor,
+    gridOpacity,
+    gridSnapEnabled,
+    toggleGrid,
+    setGridSize,
+    setGridColor,
+    setGridOpacity,
+    toggleGridSnap,
+  } = useCanvasStore()
 
-  const [activeTab, setActiveTab] = useState<'list' | 'customize'>('list')
+  const [activeTab, setActiveTab] = useState<'list' | 'customize' | 'settings'>('list')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [pendingKey, setPendingKey] = useState<string>('')
   const [pendingModifiers, setPendingModifiers] = useState<ShortcutModifiers>({})
+  // ナッジ入力用のローカルステート
+  const [localNudgeAmount, setLocalNudgeAmount] = useState<string>(String(nudgeAmount))
+  // グリッド入力用のローカルステート
+  const [localGridSize, setLocalGridSize] = useState<string>(String(gridSize))
+  const [localGridOpacity, setLocalGridOpacity] = useState<string>(String(gridOpacity))
+
+  // ストアのnudgeAmountが変更された場合にローカルステートを同期
+  useEffect(() => {
+    setLocalNudgeAmount(String(nudgeAmount))
+  }, [nudgeAmount])
+
+  // ストアのグリッド設定が変更された場合にローカルステートを同期
+  useEffect(() => {
+    setLocalGridSize(String(gridSize))
+  }, [gridSize])
+
+  useEffect(() => {
+    setLocalGridOpacity(String(gridOpacity))
+  }, [gridOpacity])
 
   // カテゴリ別にショートカットをグループ化
   const groupedShortcuts = shortcuts.reduce(
@@ -156,6 +192,16 @@ export default function ShortcutsModal() {
           >
             カスタマイズ
           </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'settings'
+                ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            設定
+          </button>
         </div>
 
         {/* Content */}
@@ -267,6 +313,301 @@ export default function ShortcutsModal() {
                   このショートカットは「{conflict.label}」と競合しています。
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
+                  ナッジ設定
+                </h3>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                  <div className="mb-4">
+                    <label
+                      htmlFor="nudgeAmount"
+                      className="block font-medium text-gray-900 dark:text-gray-100 mb-2"
+                    >
+                      Shift + 矢印キーの移動量
+                    </label>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                      Shiftキーを押しながら矢印キーを押したときに移動するピクセル数を設定します。
+                      <br />
+                      通常の矢印キーは1pxずつ移動します。
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="nudgeAmount"
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={localNudgeAmount}
+                        onChange={(e) => {
+                          setLocalNudgeAmount(e.target.value)
+                        }}
+                        onBlur={() => {
+                          const value = parseInt(localNudgeAmount, 10)
+                          if (!isNaN(value) && value > 0 && value <= 100) {
+                            setNudgeAmount(value)
+                          } else {
+                            // 無効な値の場合はストアの値にリセット
+                            setLocalNudgeAmount(String(nudgeAmount))
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur()
+                          }
+                        }}
+                        className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <span className="text-gray-600 dark:text-gray-400">px</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">使い方</h4>
+                    <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                      <li>
+                        •{' '}
+                        <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs">
+                          ↑ ↓ ← →
+                        </kbd>{' '}
+                        : 1pxずつ移動
+                      </li>
+                      <li>
+                        •{' '}
+                        <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs">
+                          Shift + ↑ ↓ ← →
+                        </kbd>{' '}
+                        : {nudgeAmount}pxずつ移動
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
+                  Undo / Redo
+                </h3>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    操作の履歴は最大20回まで保存されます。
+                  </p>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                    <li>
+                      •{' '}
+                      <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">
+                        ⌘ + Z
+                      </kbd>{' '}
+                      : 元に戻す (Undo)
+                    </li>
+                    <li>
+                      •{' '}
+                      <kbd className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-xs">
+                        ⌘ + Shift + Z
+                      </kbd>{' '}
+                      : やり直し (Redo)
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
+                  グリッドガイド
+                </h3>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-4">
+                  {/* グリッド表示切り替え */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="font-medium text-gray-900 dark:text-gray-100">
+                        グリッドを表示
+                      </label>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        キャンバス上にグリッドガイドを表示します
+                      </p>
+                    </div>
+                    <button
+                      onClick={toggleGrid}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                        gridEnabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                          gridEnabled ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* グリッドスナップ切り替え */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="font-medium text-gray-900 dark:text-gray-100">
+                        グリッドにスナップ
+                      </label>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        オブジェクトをグリッドに吸着させます
+                      </p>
+                    </div>
+                    <button
+                      onClick={toggleGridSnap}
+                      className={`relative w-12 h-6 rounded-full transition-colors ${
+                        gridSnapEnabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                          gridSnapEnabled ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* グリッドサイズ */}
+                  <div>
+                    <label
+                      htmlFor="gridSize"
+                      className="block font-medium text-gray-900 dark:text-gray-100 mb-2"
+                    >
+                      グリッドサイズ
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="gridSize"
+                        type="number"
+                        min="5"
+                        max="100"
+                        value={localGridSize}
+                        onChange={(e) => setLocalGridSize(e.target.value)}
+                        onBlur={() => {
+                          const value = parseInt(localGridSize, 10)
+                          if (!isNaN(value) && value >= 5 && value <= 100) {
+                            setGridSize(value)
+                          } else {
+                            setLocalGridSize(String(gridSize))
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur()
+                          }
+                        }}
+                        className="w-24 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <span className="text-gray-600 dark:text-gray-400">px</span>
+                    </div>
+                  </div>
+
+                  {/* グリッドの色 */}
+                  <div>
+                    <label
+                      htmlFor="gridColor"
+                      className="block font-medium text-gray-900 dark:text-gray-100 mb-2"
+                    >
+                      グリッドの色
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="gridColor"
+                        type="color"
+                        value={gridColor}
+                        onChange={(e) => setGridColor(e.target.value)}
+                        className="w-10 h-10 border border-gray-300 dark:border-gray-600 rounded cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={gridColor}
+                        onChange={(e) => {
+                          if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) {
+                            setGridColor(e.target.value)
+                          }
+                        }}
+                        className="w-28 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* グリッドの透過度 */}
+                  <div>
+                    <label
+                      htmlFor="gridOpacity"
+                      className="block font-medium text-gray-900 dark:text-gray-100 mb-2"
+                    >
+                      透過度: {gridOpacity}%
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="gridOpacity"
+                        type="range"
+                        min="5"
+                        max="100"
+                        value={localGridOpacity}
+                        onChange={(e) => {
+                          setLocalGridOpacity(e.target.value)
+                          setGridOpacity(parseInt(e.target.value, 10))
+                        }}
+                        className="flex-1 h-2 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <input
+                        type="number"
+                        min="5"
+                        max="100"
+                        value={localGridOpacity}
+                        onChange={(e) => setLocalGridOpacity(e.target.value)}
+                        onBlur={() => {
+                          const value = parseInt(localGridOpacity, 10)
+                          if (!isNaN(value) && value >= 5 && value <= 100) {
+                            setGridOpacity(value)
+                          } else {
+                            setLocalGridOpacity(String(gridOpacity))
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur()
+                          }
+                        }}
+                        className="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <span className="text-gray-600 dark:text-gray-400">%</span>
+                    </div>
+                  </div>
+
+                  {/* プレビュー */}
+                  <div>
+                    <label className="block font-medium text-gray-900 dark:text-gray-100 mb-2">
+                      プレビュー
+                    </label>
+                    <div
+                      className="w-full h-24 border border-gray-300 dark:border-gray-600 rounded relative overflow-hidden"
+                      style={{ backgroundColor: '#374151' }}
+                    >
+                      <svg className="absolute inset-0 w-full h-full">
+                        <defs>
+                          <pattern
+                            id="preview-grid-pattern"
+                            width={gridSize}
+                            height={gridSize}
+                            patternUnits="userSpaceOnUse"
+                          >
+                            <path
+                              d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
+                              fill="none"
+                              stroke={gridColor}
+                              strokeWidth="0.5"
+                              strokeOpacity={gridOpacity / 100}
+                            />
+                          </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#preview-grid-pattern)" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

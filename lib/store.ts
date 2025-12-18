@@ -16,6 +16,12 @@ interface ObjectProperties {
   opacity?: number
 }
 
+// Undo/Redo用の履歴スナップショット
+interface HistorySnapshot {
+  canvasJSON: string
+  layers: Layer[]
+}
+
 interface Page {
   id: string
   name: string
@@ -43,6 +49,18 @@ interface CanvasStore {
   // ショートカット関連
   shortcuts: ShortcutConfig[]
   showShortcutsModal: boolean
+  // ナッジ設定
+  nudgeAmount: number
+  // Undo/Redo履歴
+  history: HistorySnapshot[]
+  historyIndex: number
+  isUndoRedoAction: boolean
+  // グリッド設定
+  gridEnabled: boolean
+  gridSize: number
+  gridColor: string
+  gridOpacity: number
+  gridSnapEnabled: boolean
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -51,6 +69,8 @@ interface CanvasStore {
   toggleLayerLock: (id: string) => void
   updateLayerName: (id: string, name: string) => void
   reorderLayers: (startIndex: number, endIndex: number) => void
+  toggleLayerExpanded: (id: string) => void
+  updateLayerChildren: (parentId: string, childIds: string[]) => void
   setZoom: (zoom: number) => void
   zoomToFit: () => void
   zoomToSelection: () => void
@@ -80,6 +100,24 @@ interface CanvasStore {
   resetShortcuts: () => void
   loadSavedShortcuts: () => void
   setShowShortcutsModal: (show: boolean) => void
+  // ナッジ関連
+  setNudgeAmount: (amount: number) => void
+  loadSavedNudgeAmount: () => void
+  moveSelectedObject: (direction: 'up' | 'down' | 'left' | 'right', useNudge: boolean) => void
+  // Undo/Redo関連
+  saveHistory: () => void
+  clearHistory: () => void
+  undo: () => void
+  redo: () => void
+  canUndo: () => boolean
+  canRedo: () => boolean
+  // グリッド関連
+  toggleGrid: () => void
+  setGridSize: (size: number) => void
+  setGridColor: (color: string) => void
+  setGridOpacity: (opacity: number) => void
+  toggleGridSnap: () => void
+  loadSavedGridSettings: () => void
 }
 
 const defaultPageId = 'page-1'
@@ -105,6 +143,8 @@ const loadPagesFromStorage = (): Page[] => {
   return [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
 }
 
+const MAX_HISTORY_LENGTH = 20
+
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
   selectedObjectId: null,
@@ -123,6 +163,18 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   rightPanelWidth: 288, // 72 * 4 = w-72
   shortcuts: DEFAULT_SHORTCUTS,
   showShortcutsModal: false,
+  // ナッジ設定（デフォルト10px）
+  nudgeAmount: 10,
+  // Undo/Redo履歴
+  history: [],
+  historyIndex: -1,
+  isUndoRedoAction: false,
+  // グリッド設定（デフォルト値）
+  gridEnabled: false,
+  gridSize: 10,
+  gridColor: '#888888',
+  gridOpacity: 20,
+  gridSnapEnabled: false,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -156,7 +208,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       if (fabricCanvas) {
         const layer = state.layers.find((l) => l.id === id)
         if (layer) {
-          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+          // まずキャンバス直下で探す
+          let obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+
+          // 見つからない場合はグループ内を探す
+          if (!obj) {
+            for (const canvasObj of fabricCanvas.getObjects()) {
+              if (canvasObj.type === 'group') {
+                const group = canvasObj as fabric.Group
+                const found = group.getObjects().find((o) => o.data?.id === layer.objectId)
+                if (found) {
+                  obj = found
+                  break
+                }
+              }
+            }
+          }
+
           if (obj) {
             obj.visible = !layer.visible
             fabricCanvas.renderAll()
@@ -172,7 +240,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       const layer = state.layers.find((l) => l.id === id)
 
       if (fabricCanvas && layer) {
-        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+        // まずキャンバス直下で探す
+        let obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+
+        // 見つからない場合はグループ内を探す
+        if (!obj) {
+          for (const canvasObj of fabricCanvas.getObjects()) {
+            if (canvasObj.type === 'group') {
+              const group = canvasObj as fabric.Group
+              const found = group.getObjects().find((o) => o.data?.id === layer.objectId)
+              if (found) {
+                obj = found
+                break
+              }
+            }
+          }
+        }
+
         if (obj) {
           const newLockState = !layer.locked
           // ロック/ロック解除の設定
@@ -259,6 +343,57 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
 
       return { layers: result, pages: updatedPages }
+    }),
+  toggleLayerExpanded: (id) =>
+    set((state) => {
+      const updatedLayers = state.layers.map((layer) =>
+        layer.id === id ? { ...layer, expanded: !layer.expanded } : layer
+      )
+
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+      )
+
+      // localStorageに保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer expanded state:', error)
+        }
+      }
+
+      return { layers: updatedLayers, pages: updatedPages }
+    }),
+  updateLayerChildren: (parentId, childIds) =>
+    set((state) => {
+      const updatedLayers = state.layers.map((layer) => {
+        if (layer.id === parentId) {
+          return { ...layer, children: childIds }
+        }
+        // 子レイヤーのparentIdを設定
+        if (childIds.includes(layer.id)) {
+          return { ...layer, parentId }
+        }
+        return layer
+      })
+
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+      )
+
+      // localStorageに保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer children:', error)
+        }
+      }
+
+      return { layers: updatedLayers, pages: updatedPages }
     }),
   setZoom: (zoom) => {
     const { fabricCanvas } = get()
@@ -568,7 +703,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
     set({ pages: updatedPages, currentPageId: newCurrentPageId })
   },
-  setCurrentPage: (id) => set({ currentPageId: id }),
+  setCurrentPage: (id) => {
+    // ページ切り替え時は履歴をクリア
+    set({ currentPageId: id, history: [], historyIndex: -1 })
+  },
   updatePageNotes: (id, notes) => {
     const updatedPages = get().pages.map((page) => (page.id === id ? { ...page, notes } : page))
 
@@ -726,6 +864,276 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
     } catch (e) {
       console.error('Failed to load shortcuts:', e)
+    }
+  },
+  // ナッジ関連
+  setNudgeAmount: (amount) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-nudge-amount', String(amount))
+      } catch (e) {
+        console.error('Failed to save nudge amount:', e)
+      }
+    }
+    set({ nudgeAmount: amount })
+  },
+  loadSavedNudgeAmount: () => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const saved = localStorage.getItem('figma-clone-nudge-amount')
+      if (saved) {
+        const amount = parseInt(saved, 10)
+        if (!isNaN(amount) && amount > 0) {
+          set({ nudgeAmount: amount })
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load nudge amount:', e)
+    }
+  },
+  moveSelectedObject: (direction, useNudge) => {
+    const { fabricCanvas, nudgeAmount, selectedObjectProps } = get()
+    if (!fabricCanvas) return
+
+    const activeObject = fabricCanvas.getActiveObject()
+    if (!activeObject) return
+
+    // 移動量を決定（通常は1px、Shift押下時はnudgeAmount）
+    const moveAmount = useNudge ? nudgeAmount : 1
+
+    let deltaX = 0
+    let deltaY = 0
+
+    switch (direction) {
+      case 'up':
+        deltaY = -moveAmount
+        break
+      case 'down':
+        deltaY = moveAmount
+        break
+      case 'left':
+        deltaX = -moveAmount
+        break
+      case 'right':
+        deltaX = moveAmount
+        break
+    }
+
+    // 現在の位置を取得
+    const currentLeft = activeObject.left || 0
+    const currentTop = activeObject.top || 0
+
+    // 新しい位置を設定
+    activeObject.set({
+      left: currentLeft + deltaX,
+      top: currentTop + deltaY,
+    })
+
+    activeObject.setCoords()
+    fabricCanvas.requestRenderAll()
+    fabricCanvas.fire('object:modified', { target: activeObject })
+
+    // ストアのプロパティも更新
+    if (selectedObjectProps) {
+      set({
+        selectedObjectProps: {
+          ...selectedObjectProps,
+          left: currentLeft + deltaX,
+          top: currentTop + deltaY,
+        },
+      })
+    }
+  },
+  // Undo/Redo関連
+  saveHistory: () => {
+    const { fabricCanvas, layers, history, historyIndex, isUndoRedoAction } = get()
+    if (!fabricCanvas || isUndoRedoAction) return
+
+    const canvasJSON = JSON.stringify(fabricCanvas.toJSON(['data']))
+    const snapshot: HistorySnapshot = {
+      canvasJSON,
+      layers: [...layers],
+    }
+
+    // 現在位置より後の履歴を削除
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(snapshot)
+
+    // 最大履歴数を超えたら古いものを削除
+    if (newHistory.length > MAX_HISTORY_LENGTH) {
+      newHistory.shift()
+    }
+
+    set({
+      history: newHistory,
+      historyIndex: newHistory.length - 1,
+    })
+  },
+  undo: () => {
+    const { fabricCanvas, history, historyIndex } = get()
+    if (!fabricCanvas || historyIndex <= 0) return
+
+    const newIndex = historyIndex - 1
+    const snapshot = history[newIndex]
+
+    set({ isUndoRedoAction: true })
+
+    fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
+      fabricCanvas.renderAll()
+      set({
+        layers: [...snapshot.layers],
+        historyIndex: newIndex,
+        isUndoRedoAction: false,
+        selectedObjectId: null,
+        selectedObjectProps: null,
+      })
+    })
+  },
+  redo: () => {
+    const { fabricCanvas, history, historyIndex } = get()
+    if (!fabricCanvas || historyIndex >= history.length - 1) return
+
+    const newIndex = historyIndex + 1
+    const snapshot = history[newIndex]
+
+    set({ isUndoRedoAction: true })
+
+    fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
+      fabricCanvas.renderAll()
+      set({
+        layers: [...snapshot.layers],
+        historyIndex: newIndex,
+        isUndoRedoAction: false,
+        selectedObjectId: null,
+        selectedObjectProps: null,
+      })
+    })
+  },
+  clearHistory: () => {
+    set({ history: [], historyIndex: -1 })
+  },
+  canUndo: () => {
+    const { historyIndex } = get()
+    return historyIndex > 0
+  },
+  canRedo: () => {
+    const { history, historyIndex } = get()
+    return historyIndex < history.length - 1
+  },
+  // グリッド関連
+  toggleGrid: () => {
+    const newEnabled = !get().gridEnabled
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: newEnabled,
+          size: get().gridSize,
+          color: get().gridColor,
+          opacity: get().gridOpacity,
+          snapEnabled: get().gridSnapEnabled,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridEnabled: newEnabled })
+  },
+  setGridSize: (size) => {
+    const validSize = Math.max(5, Math.min(100, size))
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: get().gridEnabled,
+          size: validSize,
+          color: get().gridColor,
+          opacity: get().gridOpacity,
+          snapEnabled: get().gridSnapEnabled,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridSize: validSize })
+  },
+  setGridColor: (color) => {
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: get().gridEnabled,
+          size: get().gridSize,
+          color: color,
+          opacity: get().gridOpacity,
+          snapEnabled: get().gridSnapEnabled,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridColor: color })
+  },
+  setGridOpacity: (opacity) => {
+    const validOpacity = Math.max(5, Math.min(100, opacity))
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: get().gridEnabled,
+          size: get().gridSize,
+          color: get().gridColor,
+          opacity: validOpacity,
+          snapEnabled: get().gridSnapEnabled,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridOpacity: validOpacity })
+  },
+  toggleGridSnap: () => {
+    const newSnapEnabled = !get().gridSnapEnabled
+    if (typeof window !== 'undefined') {
+      try {
+        const settings = {
+          enabled: get().gridEnabled,
+          size: get().gridSize,
+          color: get().gridColor,
+          opacity: get().gridOpacity,
+          snapEnabled: newSnapEnabled,
+        }
+        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+      } catch (e) {
+        console.error('Failed to save grid settings:', e)
+      }
+    }
+    set({ gridSnapEnabled: newSnapEnabled })
+  },
+  loadSavedGridSettings: () => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const saved = localStorage.getItem('figma-clone-grid-settings')
+      if (saved) {
+        const settings = JSON.parse(saved) as {
+          enabled: boolean
+          size: number
+          color: string
+          opacity: number
+          snapEnabled?: boolean
+        }
+        set({
+          gridEnabled: settings.enabled ?? false,
+          gridSize: settings.size ?? 10,
+          gridColor: settings.color ?? '#888888',
+          gridOpacity: settings.opacity ?? 20,
+          gridSnapEnabled: settings.snapEnabled ?? false,
+        })
+      }
+    } catch (e) {
+      console.error('Failed to load grid settings:', e)
     }
   },
 }))

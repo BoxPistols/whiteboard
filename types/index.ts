@@ -2,7 +2,7 @@
 export type Tool = 'select' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'pencil'
 
 // Figma互換のノード型定義
-export type NodeType = 'RECTANGLE' | 'ELLIPSE' | 'LINE' | 'TEXT' | 'VECTOR'
+export type NodeType = 'RECTANGLE' | 'ELLIPSE' | 'LINE' | 'TEXT' | 'VECTOR' | 'GROUP' | 'ARROW'
 
 // レイヤー管理用の型定義
 export interface Layer {
@@ -12,6 +12,10 @@ export interface Layer {
   locked: boolean
   objectId: string
   type: NodeType
+  // ツリー構造用
+  parentId?: string | null
+  children?: string[] // 子レイヤーのID配列
+  expanded?: boolean // グループの展開状態
 }
 
 // ショートカット関連の型定義
