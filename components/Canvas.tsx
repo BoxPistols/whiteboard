@@ -435,68 +435,85 @@ export default function Canvas() {
     // グループの変換行列を取得
     const groupMatrix = group.calcTransformMatrix()
 
-    // グループをキャンバスから削除
-    canvas.remove(group)
-
     // 新しいレイヤーリスト（グループレイヤーを除外）
     const newLayers = layers.filter((layer) => layer.id !== groupId)
 
-    // 各アイテムをキャンバスに個別に追加し、レイヤーを復元
-    items.forEach((item) => {
-      // アイテムの変換行列をグループの変換行列と合成
-      const itemMatrix = item.calcTransformMatrix()
-      const finalMatrix = fabric.util.multiplyTransformMatrices(groupMatrix, itemMatrix)
+    // 各アイテムをクローンして情報を収集（グループ削除前に）
+    const clonePromises = items.map(
+      (item) =>
+        new Promise<{
+          clone: fabric.Object
+          options: ReturnType<typeof fabric.util.qrDecompose>
+          originalId: string | undefined
+          type: string | undefined
+        }>((resolve) => {
+          const itemMatrix = item.calcTransformMatrix()
+          const finalMatrix = fabric.util.multiplyTransformMatrices(groupMatrix, itemMatrix)
+          const options = fabric.util.qrDecompose(finalMatrix)
 
-      // 変換行列から位置、角度、スケールを抽出
-      const options = fabric.util.qrDecompose(finalMatrix)
+          item.clone((cloned: fabric.Object) => {
+            resolve({
+              clone: cloned,
+              options,
+              originalId: item.data?.id,
+              type: item.type,
+            })
+          })
+        })
+    )
 
-      item.set({
-        left: options.translateX,
-        top: options.translateY,
-        scaleX: options.scaleX,
-        scaleY: options.scaleY,
-        angle: options.angle,
-        skewX: options.skewX,
-        skewY: options.skewY,
-        selectable: true,
-        evented: true,
+    Promise.all(clonePromises).then((clonedItems) => {
+      // グループをキャンバスから削除
+      canvas.remove(group)
+
+      // 各クローンをキャンバスに追加し、レイヤーを復元
+      clonedItems.forEach(({ clone, options, originalId, type }) => {
+        // 新しいIDを生成
+        const itemId = originalId || crypto.randomUUID()
+
+        clone.set({
+          left: options.translateX,
+          top: options.translateY,
+          scaleX: options.scaleX,
+          scaleY: options.scaleY,
+          angle: options.angle,
+          skewX: options.skewX,
+          skewY: options.skewY,
+          selectable: true,
+          evented: true,
+          data: { id: itemId },
+        })
+
+        clone.setCoords()
+        canvas.add(clone)
+
+        // オブジェクトタイプからレイヤータイプを推定
+        let layerType: 'RECTANGLE' | 'ELLIPSE' | 'LINE' | 'TEXT' | 'VECTOR' | 'GROUP' | 'ARROW' =
+          'VECTOR'
+        if (type === 'rect') layerType = 'RECTANGLE'
+        else if (type === 'circle' || type === 'ellipse') layerType = 'ELLIPSE'
+        else if (type === 'line') layerType = 'LINE'
+        else if (type === 'i-text' || type === 'text') layerType = 'TEXT'
+        else if (type === 'group') layerType = 'GROUP'
+
+        // カウンターをインクリメント
+        shapeCounterRef.current.object += 1
+        const counter = shapeCounterRef.current.object
+
+        newLayers.push({
+          id: itemId,
+          name: `object ${counter}`,
+          visible: true,
+          locked: false,
+          objectId: itemId,
+          type: layerType,
+        })
       })
 
-      item.setCoords()
-      canvas.add(item)
-
-      // アイテムのレイヤーを追加（IDがある場合もない場合も）
-      const itemId = item.data?.id || crypto.randomUUID()
-      if (!item.data?.id) {
-        item.set({ data: { ...item.data, id: itemId } })
-      }
-
-      // オブジェクトタイプからレイヤータイプを推定
-      let layerType: 'RECTANGLE' | 'ELLIPSE' | 'LINE' | 'TEXT' | 'VECTOR' | 'GROUP' | 'ARROW' =
-        'VECTOR'
-      if (item.type === 'rect') layerType = 'RECTANGLE'
-      else if (item.type === 'circle' || item.type === 'ellipse') layerType = 'ELLIPSE'
-      else if (item.type === 'line') layerType = 'LINE'
-      else if (item.type === 'i-text' || item.type === 'text') layerType = 'TEXT'
-      else if (item.type === 'group') layerType = 'GROUP'
-
-      // カウンターをインクリメント
-      shapeCounterRef.current.object += 1
-      const counter = shapeCounterRef.current.object
-
-      newLayers.push({
-        id: itemId,
-        name: `object ${counter}`,
-        visible: true,
-        locked: false,
-        objectId: itemId,
-        type: layerType,
-      })
+      setLayers(newLayers)
+      canvas.discardActiveObject()
+      canvas.renderAll()
     })
-
-    setLayers(newLayers)
-    canvas.discardActiveObject()
-    canvas.renderAll()
   }, [layers, setLayers])
 
   // 複数オブジェクトの取得ヘルパー
