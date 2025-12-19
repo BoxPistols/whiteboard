@@ -179,24 +179,38 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
   addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
-  removeLayer: (id) =>
-    set((state) => {
-      const { fabricCanvas } = get()
-      const layer = state.layers.find((l) => l.id === id)
+  removeLayer: (id) => {
+    const { fabricCanvas } = get()
+    const layer = get().layers.find((l) => l.id === id)
 
-      // Canvasからもオブジェクトを削除
-      if (fabricCanvas && layer) {
-        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
-        if (obj) {
-          fabricCanvas.remove(obj)
-          fabricCanvas.renderAll()
-        }
+    // Canvasからもオブジェクトを削除
+    if (fabricCanvas && layer) {
+      const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+      if (obj) {
+        fabricCanvas.remove(obj)
+        fabricCanvas.renderAll()
       }
+    }
 
-      return {
-        layers: state.layers.filter((layer) => layer.id !== id),
+    // layersを更新
+    const newLayers = get().layers.filter((layer) => layer.id !== id)
+    set({ layers: newLayers })
+
+    // 削除後に明示的にlocalStorageへ保存
+    if (typeof window !== 'undefined' && fabricCanvas) {
+      try {
+        const currentPageId = get().currentPageId
+        const json = JSON.stringify(fabricCanvas.toJSON(['data']))
+        const updatedPages = get().pages.map((page) =>
+          page.id === currentPageId ? { ...page, canvasData: json, layers: newLayers } : page
+        )
+        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        set({ pages: updatedPages })
+      } catch (error) {
+        console.error('Failed to save after layer removal:', error)
       }
-    }),
+    }
+  },
   toggleLayerVisibility: (id) =>
     set((state) => {
       const { fabricCanvas } = get()
