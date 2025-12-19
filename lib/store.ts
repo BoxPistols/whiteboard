@@ -797,6 +797,18 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       fabricCanvas.renderAll()
     }
 
+    // 初期状態のページデータ
+    const initialPages = [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
+
+    // localStorageに保存（リロード後も空の状態を維持するため）
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('figma-clone-pages', JSON.stringify(initialPages))
+      } catch (error) {
+        console.error('Failed to save reset state to localStorage:', error)
+      }
+    }
+
     // ストアを初期状態にリセット
     set({
       selectedTool: 'select',
@@ -805,7 +817,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       zoom: 100,
       selectedObjectProps: null,
       clipboard: null,
-      pages: [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }],
+      pages: initialPages,
       currentPageId: defaultPageId,
     })
   },

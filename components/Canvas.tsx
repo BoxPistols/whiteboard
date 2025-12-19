@@ -1673,7 +1673,10 @@ export default function Canvas() {
       saveTimeout = setTimeout(() => {
         try {
           const json = JSON.stringify(canvas.toJSON(['data']))
-          updatePageData(currentPageId, json, layers)
+          // ストアから最新のlayersを取得（クロージャの古い値を避けるため）
+          const currentLayers = useCanvasStore.getState().layers
+          const currentPageId = useCanvasStore.getState().currentPageId
+          updatePageData(currentPageId, json, currentLayers)
         } catch (error) {
           console.error('Failed to save canvas to page:', error)
         }
@@ -1690,7 +1693,7 @@ export default function Canvas() {
       canvas.off('object:added', handleCanvasChange)
       canvas.off('object:removed', handleCanvasChange)
     }
-  }, [layers, currentPageId, updatePageData])
+  }, [updatePageData])
 
   // Undo/Redo履歴の保存（デバウンス付き）
   useEffect(() => {
