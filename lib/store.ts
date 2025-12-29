@@ -195,9 +195,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
       // ページデータにも反映（canvasDataも含めて保存）
       const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId
-          ? { ...page, layers: updatedLayers, canvasData }
-          : page
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers, canvasData } : page
       )
 
       // localStorageに即座に保存
@@ -239,9 +237,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
       // ページデータにも反映（canvasDataも含めて保存）
       const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId
-          ? { ...page, layers: updatedLayers, canvasData }
-          : page
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers, canvasData } : page
       )
 
       // localStorageに即座に保存
