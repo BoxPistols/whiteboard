@@ -1576,7 +1576,8 @@ export default function Canvas() {
         // ページのcanvasDataを読み込み
         if (currentPage.canvasData) {
           try {
-            canvas.loadFromJSON(currentPage.canvasData, () => {
+            const canvasJSON = JSON.parse(currentPage.canvasData)
+            canvas.loadFromJSON(canvasJSON, () => {
               // 読み込み後、すべてのオブジェクトを選択ツールでのみ選択可能にする
               canvas.getObjects().forEach((obj) => {
                 // 初回読み込み時点でのselectedToolを使用
@@ -1751,7 +1752,8 @@ export default function Canvas() {
         // 新しいページのcanvasDataを読み込み
         if (currentPage.canvasData) {
           try {
-            canvas.loadFromJSON(currentPage.canvasData, () => {
+            const canvasJSON = JSON.parse(currentPage.canvasData)
+            canvas.loadFromJSON(canvasJSON, () => {
               canvas.renderAll()
               // 新しいページの初期状態を履歴に保存
               setTimeout(() => {
