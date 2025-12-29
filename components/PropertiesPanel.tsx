@@ -2,9 +2,59 @@
 
 import { useCanvasStore } from '@/lib/store'
 import ColorPalette from './ColorPalette'
+import { parseColor, hexToRgba } from '@/lib/colorUtils'
 
 export default function PropertiesPanel() {
   const { selectedObjectId, selectedObjectProps, updateObjectProperty } = useCanvasStore()
+
+  // 色と透明度を取得するヘルパー
+  const getFillColor = () => {
+    if (!selectedObjectProps?.fill) return { hex: '#3b82f6', alpha: 1 }
+    return parseColor(selectedObjectProps.fill)
+  }
+
+  const getStrokeColor = () => {
+    if (!selectedObjectProps?.stroke) return { hex: '#3b82f6', alpha: 1 }
+    return parseColor(selectedObjectProps.stroke)
+  }
+
+  // 透明度変更時のハンドラー
+  const handleFillAlphaChange = (alpha: number) => {
+    const { hex } = getFillColor()
+    if (alpha === 1) {
+      updateObjectProperty('fill', hex)
+    } else {
+      updateObjectProperty('fill', hexToRgba(hex, alpha))
+    }
+  }
+
+  const handleStrokeAlphaChange = (alpha: number) => {
+    const { hex } = getStrokeColor()
+    if (alpha === 1) {
+      updateObjectProperty('stroke', hex)
+    } else {
+      updateObjectProperty('stroke', hexToRgba(hex, alpha))
+    }
+  }
+
+  // 色変更時（透明度を維持）
+  const handleFillColorChange = (newHex: string) => {
+    const { alpha } = getFillColor()
+    if (alpha === 1) {
+      updateObjectProperty('fill', newHex)
+    } else {
+      updateObjectProperty('fill', hexToRgba(newHex, alpha))
+    }
+  }
+
+  const handleStrokeColorChange = (newHex: string) => {
+    const { alpha } = getStrokeColor()
+    if (alpha === 1) {
+      updateObjectProperty('stroke', newHex)
+    } else {
+      updateObjectProperty('stroke', hexToRgba(newHex, alpha))
+    }
+  }
 
   if (!selectedObjectId || !selectedObjectProps) {
     return (
@@ -47,17 +97,27 @@ export default function PropertiesPanel() {
             <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
               塗りつぶし
             </summary>
-            <div className="p-2">
+            <div className="p-2 space-y-2">
               <input
                 type="color"
                 className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-                value={
-                  selectedObjectProps.fill && selectedObjectProps.fill.startsWith('#')
-                    ? selectedObjectProps.fill
-                    : '#3b82f6'
-                }
-                onChange={(e) => updateObjectProperty('fill', e.target.value)}
+                value={getFillColor().hex}
+                onChange={(e) => handleFillColorChange(e.target.value)}
               />
+              <div>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                  透明度: {Math.round(getFillColor().alpha * 100)}%
+                </label>
+                <input
+                  type="range"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  value={getFillColor().alpha}
+                  onChange={(e) => handleFillAlphaChange(parseFloat(e.target.value))}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                />
+              </div>
             </div>
           </details>
         )}
@@ -81,17 +141,27 @@ export default function PropertiesPanel() {
             <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
               線のカラー
             </summary>
-            <div className="p-2">
+            <div className="p-2 space-y-2">
               <input
                 type="color"
                 className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-                value={
-                  selectedObjectProps.stroke && selectedObjectProps.stroke.startsWith('#')
-                    ? selectedObjectProps.stroke
-                    : '#3b82f6'
-                }
-                onChange={(e) => updateObjectProperty('stroke', e.target.value)}
+                value={getStrokeColor().hex}
+                onChange={(e) => handleStrokeColorChange(e.target.value)}
               />
+              <div>
+                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                  透明度: {Math.round(getStrokeColor().alpha * 100)}%
+                </label>
+                <input
+                  type="range"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                  value={getStrokeColor().alpha}
+                  onChange={(e) => handleStrokeAlphaChange(parseFloat(e.target.value))}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                />
+              </div>
             </div>
           </details>
         )}
@@ -209,8 +279,8 @@ export default function PropertiesPanel() {
               <div className="p-2">
                 <ColorPalette
                   label="塗りつぶしカラー"
-                  currentColor={selectedObjectProps.fill}
-                  onColorSelect={(color) => updateObjectProperty('fill', color)}
+                  currentColor={getFillColor().hex}
+                  onColorSelect={handleFillColorChange}
                 />
               </div>
             </details>
@@ -240,8 +310,8 @@ export default function PropertiesPanel() {
               <div className="p-2">
                 <ColorPalette
                   label="線のカラー"
-                  currentColor={selectedObjectProps.stroke}
-                  onColorSelect={(color) => updateObjectProperty('stroke', color)}
+                  currentColor={getStrokeColor().hex}
+                  onColorSelect={handleStrokeColorChange}
                 />
               </div>
             </details>

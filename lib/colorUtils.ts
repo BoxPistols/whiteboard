@@ -16,6 +16,52 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } | nul
 }
 
 /**
+ * HEXとアルファ値からRGBA文字列を生成
+ */
+export function hexToRgba(hex: string, alpha: number): string {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return `rgba(0, 0, 0, ${alpha})`
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`
+}
+
+/**
+ * RGBA文字列からコンポーネントを抽出
+ */
+export function parseRgba(rgba: string): { r: number; g: number; b: number; a: number } | null {
+  const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
+  if (!match) return null
+  return {
+    r: parseInt(match[1], 10),
+    g: parseInt(match[2], 10),
+    b: parseInt(match[3], 10),
+    a: match[4] !== undefined ? parseFloat(match[4]) : 1,
+  }
+}
+
+/**
+ * 色文字列（HEX、RGBA、RGB）を解析してHEXとアルファ値を返す
+ */
+export function parseColor(color: string): { hex: string; alpha: number } {
+  if (!color || color === 'transparent') {
+    return { hex: '#000000', alpha: 0 }
+  }
+
+  // HEX形式
+  if (color.startsWith('#')) {
+    return { hex: color.toUpperCase(), alpha: 1 }
+  }
+
+  // RGBA/RGB形式
+  const rgba = parseRgba(color)
+  if (rgba) {
+    const hex = rgbToHex(rgba.r, rgba.g, rgba.b)
+    return { hex, alpha: rgba.a }
+  }
+
+  return { hex: '#000000', alpha: 1 }
+}
+
+/**
  * RGBをHSLに変換
  */
 export function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
