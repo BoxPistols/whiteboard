@@ -180,11 +180,24 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setClipboard: (obj) => set({ clipboard: obj }),
   addLayer: (layer) =>
     set((state) => {
+      const { fabricCanvas } = get()
       const updatedLayers = [...state.layers, layer]
 
-      // ページデータにも反映
+      // fabricCanvasからcanvasDataを取得
+      let canvasData = state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      if (fabricCanvas) {
+        try {
+          canvasData = JSON.stringify(fabricCanvas.toJSON(['data']))
+        } catch (error) {
+          console.error('Failed to serialize canvas:', error)
+        }
+      }
+
+      // ページデータにも反映（canvasDataも含めて保存）
       const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+        page.id === state.currentPageId
+          ? { ...page, layers: updatedLayers, canvasData }
+          : page
       )
 
       // localStorageに即座に保存
@@ -214,9 +227,21 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
       const updatedLayers = state.layers.filter((layer) => layer.id !== id)
 
-      // ページデータにも反映
+      // fabricCanvasからcanvasDataを取得
+      let canvasData = state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      if (fabricCanvas) {
+        try {
+          canvasData = JSON.stringify(fabricCanvas.toJSON(['data']))
+        } catch (error) {
+          console.error('Failed to serialize canvas:', error)
+        }
+      }
+
+      // ページデータにも反映（canvasDataも含めて保存）
       const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+        page.id === state.currentPageId
+          ? { ...page, layers: updatedLayers, canvasData }
+          : page
       )
 
       // localStorageに即座に保存
