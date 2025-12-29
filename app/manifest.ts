@@ -2,9 +2,9 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Whiteboard - Figma Clone',
-    short_name: 'Whiteboard',
-    description: 'A collaborative design tool built with Next.js',
+    name: 'The White Board',
+    short_name: 'White Board',
+    description: 'A collaborative whiteboard design tool built with Next.js',
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',

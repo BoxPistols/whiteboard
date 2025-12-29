@@ -250,7 +250,7 @@ export default function Toolbar() {
 
           {/* デスクトップ: タイトル */}
           <h1 className="hidden md:block text-sm md:text-base font-semibold mr-1 md:mr-3 text-gray-900 dark:text-gray-100">
-            Figma Clone
+            The White Board
           </h1>
 
           {/* デスクトップ: ツールバー */}

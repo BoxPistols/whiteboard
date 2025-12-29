@@ -145,6 +145,47 @@ const loadPagesFromStorage = (): Page[] => {
 
 const MAX_HISTORY_LENGTH = 20
 
+// 永続化ヘルパー関数：レイヤーとcanvasData（オプショナル）をlocalStorageに保存
+const persistLayersToStorage = (
+  state: {
+    pages: Page[]
+    currentPageId: string
+  },
+  updatedLayers: Layer[],
+  canvasData?: string | null,
+  actionName?: string
+): { layers: Layer[]; pages: Page[] } => {
+  const updatedPages = state.pages.map((page) =>
+    page.id === state.currentPageId
+      ? { ...page, layers: updatedLayers, ...(canvasData !== undefined && { canvasData }) }
+      : page
+  )
+
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+    } catch (error) {
+      console.error(`Failed to save ${actionName || 'layer change'}:`, error)
+    }
+  }
+
+  return { layers: updatedLayers, pages: updatedPages }
+}
+
+// fabricCanvasからcanvasDataを取得するヘルパー関数
+const getCanvasData = (
+  fabricCanvas: fabric.Canvas | null,
+  currentCanvasData: string | null
+): string | null => {
+  if (!fabricCanvas) return currentCanvasData
+  try {
+    return JSON.stringify(fabricCanvas.toJSON(['data']))
+  } catch (error) {
+    console.error('Failed to serialize canvas:', error)
+    return currentCanvasData
+  }
+}
+
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
   selectedObjectId: null,
@@ -178,7 +219,15 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
-  addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
+  addLayer: (layer) =>
+    set((state) => {
+      const { fabricCanvas } = get()
+      const updatedLayers = [...state.layers, layer]
+      const currentCanvasData =
+        state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
+      return persistLayersToStorage(state, updatedLayers, canvasData, 'layer addition')
+    }),
   removeLayer: (id) =>
     set((state) => {
       const { fabricCanvas } = get()
@@ -193,9 +242,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         }
       }
 
-      return {
-        layers: state.layers.filter((layer) => layer.id !== id),
-      }
+      const updatedLayers = state.layers.filter((layer) => layer.id !== id)
+      const currentCanvasData =
+        state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
+      return persistLayersToStorage(state, updatedLayers, canvasData, 'layer removal')
     }),
   toggleLayerVisibility: (id) =>
     set((state) => {
@@ -232,7 +283,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         }
       }
 
-      return { layers: updatedLayers }
+      return persistLayersToStorage(state, updatedLayers, undefined, 'layer visibility change')
     }),
   toggleLayerLock: (id) =>
     set((state) => {
@@ -278,36 +329,18 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         }
       }
 
-      return {
-        layers: state.layers.map((layer) =>
-          layer.id === id ? { ...layer, locked: !layer.locked } : layer
-        ),
-      }
+      const updatedLayers = state.layers.map((layer) =>
+        layer.id === id ? { ...layer, locked: !layer.locked } : layer
+      )
+
+      return persistLayersToStorage(state, updatedLayers, undefined, 'layer lock change')
     }),
   updateLayerName: (id, name) =>
     set((state) => {
       const updatedLayers = state.layers.map((layer) =>
         layer.id === id ? { ...layer, name } : layer
       )
-
-      // ページデータにも反映
-      const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
-      )
-
-      // localStorageに保存
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
-        } catch (error) {
-          console.error('Failed to save layer name change:', error)
-        }
-      }
-
-      return {
-        layers: updatedLayers,
-        pages: updatedPages,
-      }
+      return persistLayersToStorage(state, updatedLayers, undefined, 'layer name change')
     }),
   reorderLayers: (startIndex, endIndex) =>
     set((state) => {
@@ -318,53 +351,23 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       // Fabric.jsでのオブジェクトの描画順序も更新
       const { fabricCanvas } = get()
       if (fabricCanvas) {
-        // レイヤーの順番に基づいてオブジェクトを再配置
         result.forEach((layer, index) => {
           const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
           if (obj) {
-            fabricCanvas.moveTo(obj, result.length - 1 - index) // レイヤーパネルと逆順
+            fabricCanvas.moveTo(obj, result.length - 1 - index)
           }
         })
         fabricCanvas.renderAll()
       }
 
-      // ページデータにも反映
-      const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId ? { ...page, layers: result } : page
-      )
-
-      // localStorageに保存
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
-        } catch (error) {
-          console.error('Failed to save layer reorder:', error)
-        }
-      }
-
-      return { layers: result, pages: updatedPages }
+      return persistLayersToStorage(state, result, undefined, 'layer reorder')
     }),
   toggleLayerExpanded: (id) =>
     set((state) => {
       const updatedLayers = state.layers.map((layer) =>
         layer.id === id ? { ...layer, expanded: !layer.expanded } : layer
       )
-
-      // ページデータにも反映
-      const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
-      )
-
-      // localStorageに保存
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
-        } catch (error) {
-          console.error('Failed to save layer expanded state:', error)
-        }
-      }
-
-      return { layers: updatedLayers, pages: updatedPages }
+      return persistLayersToStorage(state, updatedLayers, undefined, 'layer expanded state')
     }),
   updateLayerChildren: (parentId, childIds) =>
     set((state) => {
@@ -372,28 +375,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         if (layer.id === parentId) {
           return { ...layer, children: childIds }
         }
-        // 子レイヤーのparentIdを設定
         if (childIds.includes(layer.id)) {
           return { ...layer, parentId }
         }
         return layer
       })
-
-      // ページデータにも反映
-      const updatedPages = state.pages.map((page) =>
-        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
-      )
-
-      // localStorageに保存
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
-        } catch (error) {
-          console.error('Failed to save layer children:', error)
-        }
-      }
-
-      return { layers: updatedLayers, pages: updatedPages }
+      return persistLayersToStorage(state, updatedLayers, undefined, 'layer children')
     }),
   setZoom: (zoom) => {
     const { fabricCanvas } = get()
