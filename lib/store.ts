@@ -178,7 +178,26 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
-  addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
+  addLayer: (layer) =>
+    set((state) => {
+      const updatedLayers = [...state.layers, layer]
+
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+      )
+
+      // localStorageに即座に保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer addition:', error)
+        }
+      }
+
+      return { layers: updatedLayers, pages: updatedPages }
+    }),
   removeLayer: (id) =>
     set((state) => {
       const { fabricCanvas } = get()
@@ -193,8 +212,25 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         }
       }
 
+      const updatedLayers = state.layers.filter((layer) => layer.id !== id)
+
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+      )
+
+      // localStorageに即座に保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer removal:', error)
+        }
+      }
+
       return {
-        layers: state.layers.filter((layer) => layer.id !== id),
+        layers: updatedLayers,
+        pages: updatedPages,
       }
     }),
   toggleLayerVisibility: (id) =>
@@ -232,7 +268,21 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         }
       }
 
-      return { layers: updatedLayers }
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+      )
+
+      // localStorageに保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer visibility change:', error)
+        }
+      }
+
+      return { layers: updatedLayers, pages: updatedPages }
     }),
   toggleLayerLock: (id) =>
     set((state) => {
@@ -278,10 +328,27 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         }
       }
 
+      const updatedLayers = state.layers.map((layer) =>
+        layer.id === id ? { ...layer, locked: !layer.locked } : layer
+      )
+
+      // ページデータにも反映
+      const updatedPages = state.pages.map((page) =>
+        page.id === state.currentPageId ? { ...page, layers: updatedLayers } : page
+      )
+
+      // localStorageに保存
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        } catch (error) {
+          console.error('Failed to save layer lock change:', error)
+        }
+      }
+
       return {
-        layers: state.layers.map((layer) =>
-          layer.id === id ? { ...layer, locked: !layer.locked } : layer
-        ),
+        layers: updatedLayers,
+        pages: updatedPages,
       }
     }),
   updateLayerName: (id, name) =>
