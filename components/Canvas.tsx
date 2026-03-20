@@ -70,6 +70,19 @@ const createArrowPathData = (length: number, headLength = 15, headWidth = 12): s
   ].join(' ')
 }
 
+// 矢印Pathオブジェクトを共通オプション付きで生成するファクトリ
+const createArrowObject = (
+  pathData: string,
+  options: Partial<fabric.IPathOptions>
+): fabric.Path => {
+  return new fabric.Path(pathData, {
+    strokeLineJoin: 'round',
+    originX: 'center',
+    originY: 'center',
+    ...options,
+  })
+}
+
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
@@ -901,15 +914,12 @@ export default function Canvas() {
         case 'arrow': {
           // 単一Pathで矢印を描画（線 + 矢じりを統合）
           const initialPath = createArrowPathData(2)
-          shape = new fabric.Path(initialPath, {
+          shape = createArrowObject(initialPath, {
             left: pointer.x,
             top: pointer.y,
             stroke: defaultStrokeColor,
             strokeWidth: 2,
             fill: defaultStrokeColor,
-            strokeLineJoin: 'round',
-            originX: 'center',
-            originY: 'center',
             selectable: false,
             evented: false,
           })
@@ -1021,16 +1031,13 @@ export default function Canvas() {
             canvas.remove(currentShape)
 
             const pathData = createArrowPathData(length)
-            const arrow = new fabric.Path(pathData, {
+            const arrow = createArrowObject(pathData, {
               left: midX,
               top: midY,
               angle: arrowAngle,
               stroke: prevStroke,
               strokeWidth: prevStrokeWidth,
               fill: prevFill,
-              strokeLineJoin: 'round',
-              originX: 'center',
-              originY: 'center',
               selectable: false,
               evented: false,
             })
@@ -1461,14 +1468,13 @@ export default function Canvas() {
       if (!canvas || newLength < 5) return
 
       const pathData = createArrowPathData(newLength)
-      const newArrow = new fabric.Path(pathData, {
+      const newArrow = createArrowObject(pathData, {
         left: obj.left,
         top: obj.top,
         angle: obj.angle,
         stroke: obj.stroke,
         strokeWidth: obj.strokeWidth,
         fill: obj.fill,
-        strokeLineJoin: 'round',
         originX: obj.originX,
         originY: obj.originY,
         data: obj.data,
@@ -1641,19 +1647,16 @@ export default function Canvas() {
       }, 500)
     }
 
+    // object:modifiedはドラッグ/回転完了後にも発火するため、moved/rotatedは不要
     canvas.on('object:modified', handleCanvasChange)
     canvas.on('object:added', handleCanvasChange)
     canvas.on('object:removed', handleCanvasChange)
-    canvas.on('object:moved', handleCanvasChange)
-    canvas.on('object:rotated', handleCanvasChange)
 
     return () => {
       clearTimeout(saveTimeout)
       canvas.off('object:modified', handleCanvasChange)
       canvas.off('object:added', handleCanvasChange)
       canvas.off('object:removed', handleCanvasChange)
-      canvas.off('object:moved', handleCanvasChange)
-      canvas.off('object:rotated', handleCanvasChange)
     }
   }, [updatePageData])
 

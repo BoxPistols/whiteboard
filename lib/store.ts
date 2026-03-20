@@ -220,6 +220,48 @@ function getDescendantIds(layerId: string, layers: Layer[]): string[] {
   return children.flatMap((child) => [child.id, ...getDescendantIds(child.id, layers)])
 }
 
+// グリッド設定をlocalStorageに保存するヘルパー
+const persistGridSettings = (state: {
+  gridEnabled: boolean
+  gridSize: number
+  gridColor: string
+  gridOpacity: number
+  gridSnapEnabled: boolean
+}) => {
+  if (typeof window === 'undefined') return
+  try {
+    const settings = {
+      enabled: state.gridEnabled,
+      size: state.gridSize,
+      color: state.gridColor,
+      opacity: state.gridOpacity,
+      snapEnabled: state.gridSnapEnabled,
+    }
+    localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
+  } catch (error) {
+    console.error('Failed to save grid settings:', error)
+  }
+}
+
+// fabricCanvasからobjectIdでオブジェクトを検索（直下→グループ内）
+const findFabricObject = (
+  fabricCanvas: fabric.Canvas,
+  objectId: string
+): fabric.Object | null => {
+  // キャンバス直下で探す
+  const obj = fabricCanvas.getObjects().find((o) => o.data?.id === objectId)
+  if (obj) return obj
+  // グループ内を探す
+  for (const canvasObj of fabricCanvas.getObjects()) {
+    if (canvasObj.type === 'group') {
+      const group = canvasObj as fabric.Group
+      const found = group.getObjects().find((o) => o.data?.id === objectId)
+      if (found) return found
+    }
+  }
+  return null
+}
+
 // fabricCanvasからcanvasDataを取得するヘルパー関数
 const getCanvasData = (
   fabricCanvas: fabric.Canvas | null,
@@ -334,23 +376,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           const targetLayer = state.layers.find((l) => l.id === updateId)
           if (!targetLayer || targetLayer.type === 'FRAME') continue
 
-          // キャンバス直下で探す
-          let obj = fabricCanvas.getObjects().find((o) => o.data?.id === targetLayer.objectId)
-
-          // 見つからない場合はグループ内を探す
-          if (!obj) {
-            for (const canvasObj of fabricCanvas.getObjects()) {
-              if (canvasObj.type === 'group') {
-                const group = canvasObj as fabric.Group
-                const found = group.getObjects().find((o) => o.data?.id === targetLayer.objectId)
-                if (found) {
-                  obj = found
-                  break
-                }
-              }
-            }
-          }
-
+          const obj = findFabricObject(fabricCanvas, targetLayer.objectId)
           if (obj) {
             obj.visible = newVisible
           }
@@ -376,23 +402,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           const targetLayer = state.layers.find((l) => l.id === updateId)
           if (!targetLayer || targetLayer.type === 'FRAME') continue
 
-          // キャンバス直下で探す
-          let obj = fabricCanvas.getObjects().find((o) => o.data?.id === targetLayer.objectId)
-
-          // 見つからない場合はグループ内を探す
-          if (!obj) {
-            for (const canvasObj of fabricCanvas.getObjects()) {
-              if (canvasObj.type === 'group') {
-                const group = canvasObj as fabric.Group
-                const found = group.getObjects().find((o) => o.data?.id === targetLayer.objectId)
-                if (found) {
-                  obj = found
-                  break
-                }
-              }
-            }
-          }
-
+          const obj = findFabricObject(fabricCanvas, targetLayer.objectId)
           if (obj) {
             obj.set({
               lockMovementX: newLockState,
@@ -851,16 +861,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     activeObject.dirty = true
     fabricCanvas.requestRenderAll()
 
-    // canvas JSONを即座にlocalStorageに保存（デバウンスに頼らない）
-    try {
-      const json = JSON.stringify(fabricCanvas.toJSON(['data']))
-      const { currentPageId, layers } = get()
-      get().updatePageData(currentPageId, json, layers)
-    } catch (error) {
-      console.error('Failed to save after property update:', error)
-    }
-
-    // autosaveリスナーにもイベントを通知
+    // autosaveリスナーにイベントを通知（デバウンス付きで保存される）
     fabricCanvas.fire('object:modified', { target: activeObject })
 
     // ストアのプロパティも即座に更新
@@ -1249,92 +1250,27 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   // グリッド関連
   toggleGrid: () => {
     const newEnabled = !get().gridEnabled
-    if (typeof window !== 'undefined') {
-      try {
-        const settings = {
-          enabled: newEnabled,
-          size: get().gridSize,
-          color: get().gridColor,
-          opacity: get().gridOpacity,
-          snapEnabled: get().gridSnapEnabled,
-        }
-        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
-      } catch (e) {
-        console.error('Failed to save grid settings:', e)
-      }
-    }
     set({ gridEnabled: newEnabled })
+    persistGridSettings(get())
   },
   setGridSize: (size) => {
     const validSize = Math.max(5, Math.min(100, size))
-    if (typeof window !== 'undefined') {
-      try {
-        const settings = {
-          enabled: get().gridEnabled,
-          size: validSize,
-          color: get().gridColor,
-          opacity: get().gridOpacity,
-          snapEnabled: get().gridSnapEnabled,
-        }
-        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
-      } catch (e) {
-        console.error('Failed to save grid settings:', e)
-      }
-    }
     set({ gridSize: validSize })
+    persistGridSettings(get())
   },
   setGridColor: (color) => {
-    if (typeof window !== 'undefined') {
-      try {
-        const settings = {
-          enabled: get().gridEnabled,
-          size: get().gridSize,
-          color: color,
-          opacity: get().gridOpacity,
-          snapEnabled: get().gridSnapEnabled,
-        }
-        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
-      } catch (e) {
-        console.error('Failed to save grid settings:', e)
-      }
-    }
     set({ gridColor: color })
+    persistGridSettings(get())
   },
   setGridOpacity: (opacity) => {
     const validOpacity = Math.max(5, Math.min(100, opacity))
-    if (typeof window !== 'undefined') {
-      try {
-        const settings = {
-          enabled: get().gridEnabled,
-          size: get().gridSize,
-          color: get().gridColor,
-          opacity: validOpacity,
-          snapEnabled: get().gridSnapEnabled,
-        }
-        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
-      } catch (e) {
-        console.error('Failed to save grid settings:', e)
-      }
-    }
     set({ gridOpacity: validOpacity })
+    persistGridSettings(get())
   },
   toggleGridSnap: () => {
     const newSnapEnabled = !get().gridSnapEnabled
-    if (typeof window !== 'undefined') {
-      try {
-        const settings = {
-          enabled: get().gridEnabled,
-          size: get().gridSize,
-          color: get().gridColor,
-          opacity: get().gridOpacity,
-          snapEnabled: newSnapEnabled,
-        }
-        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
-      } catch (e) {
-        console.error('Failed to save grid settings:', e)
-      }
-    }
     set({ gridSnapEnabled: newSnapEnabled })
+    persistGridSettings(get())
   },
   loadSavedGridSettings: () => {
     if (typeof window === 'undefined') return

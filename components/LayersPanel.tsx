@@ -380,17 +380,13 @@ export default function LayersPanel() {
     } else if (position === 'above') {
       // targetの親の中で、targetの直前に挿入
       const parentId = targetLayer.parentId || null
-      const siblings = parentId
-        ? layers.filter((l) => l.parentId === parentId)
-        : layers.filter((l) => !l.parentId)
+      const siblings = getSiblingLayersByParentId(parentId)
       const targetIdx = siblings.findIndex((l) => l.id === targetId)
       moveLayer(draggedLayerId, parentId, targetIdx)
     } else {
       // below: targetの親の中で、targetの直後に挿入
       const parentId = targetLayer.parentId || null
-      const siblings = parentId
-        ? layers.filter((l) => l.parentId === parentId)
-        : layers.filter((l) => !l.parentId)
+      const siblings = getSiblingLayersByParentId(parentId)
       const targetIdx = siblings.findIndex((l) => l.id === targetId)
       moveLayer(draggedLayerId, parentId, targetIdx + 1)
     }
@@ -437,9 +433,7 @@ export default function LayersPanel() {
   const moveLayerUp = (layer: (typeof layers)[0], e: React.MouseEvent) => {
     e.stopPropagation()
     const parentId = layer.parentId || null
-    const siblings = parentId
-      ? layers.filter((l) => l.parentId === parentId)
-      : layers.filter((l) => !l.parentId)
+    const siblings = getSiblingLayersByParentId(parentId)
     const currentIdx = siblings.findIndex((l) => l.id === layer.id)
     if (currentIdx <= 0) return
     moveLayer(layer.id, parentId, currentIdx - 1)
@@ -449,9 +443,7 @@ export default function LayersPanel() {
   const moveLayerDown = (layer: (typeof layers)[0], e: React.MouseEvent) => {
     e.stopPropagation()
     const parentId = layer.parentId || null
-    const siblings = parentId
-      ? layers.filter((l) => l.parentId === parentId)
-      : layers.filter((l) => !l.parentId)
+    const siblings = getSiblingLayersByParentId(parentId)
     const currentIdx = siblings.findIndex((l) => l.id === layer.id)
     if (currentIdx >= siblings.length - 1) return
     moveLayer(layer.id, parentId, currentIdx + 1)
@@ -492,12 +484,16 @@ export default function LayersPanel() {
     return layers.filter((layer) => layer.parentId === parentId)
   }
 
-  // 同じ親を持つ兄弟レイヤーを取得
-  const getSiblingLayers = (layer: Layer): Layer[] => {
-    const parentId = layer.parentId || null
+  // parentIdから同階層のレイヤーを取得
+  const getSiblingLayersByParentId = (parentId: string | null): Layer[] => {
     return parentId
       ? layers.filter((l) => l.parentId === parentId)
       : layers.filter((l) => !l.parentId)
+  }
+
+  // 同じ親を持つ兄弟レイヤーを取得
+  const getSiblingLayers = (layer: Layer): Layer[] => {
+    return getSiblingLayersByParentId(layer.parentId || null)
   }
 
   // フォルダまたはグループ（子を持てるレイヤー）かどうかを判定
