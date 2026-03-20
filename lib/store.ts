@@ -850,7 +850,17 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     activeObject.setCoords()
     activeObject.dirty = true
     fabricCanvas.requestRenderAll()
-    // Trigger save via autosave listener
+
+    // canvas JSONを即座にlocalStorageに保存（デバウンスに頼らない）
+    try {
+      const json = JSON.stringify(fabricCanvas.toJSON(['data']))
+      const { currentPageId, layers } = get()
+      get().updatePageData(currentPageId, json, layers)
+    } catch (error) {
+      console.error('Failed to save after property update:', error)
+    }
+
+    // autosaveリスナーにもイベントを通知
     fabricCanvas.fire('object:modified', { target: activeObject })
 
     // ストアのプロパティも即座に更新

@@ -1644,12 +1644,16 @@ export default function Canvas() {
     canvas.on('object:modified', handleCanvasChange)
     canvas.on('object:added', handleCanvasChange)
     canvas.on('object:removed', handleCanvasChange)
+    canvas.on('object:moved', handleCanvasChange)
+    canvas.on('object:rotated', handleCanvasChange)
 
     return () => {
       clearTimeout(saveTimeout)
       canvas.off('object:modified', handleCanvasChange)
       canvas.off('object:added', handleCanvasChange)
       canvas.off('object:removed', handleCanvasChange)
+      canvas.off('object:moved', handleCanvasChange)
+      canvas.off('object:rotated', handleCanvasChange)
     }
   }, [updatePageData])
 

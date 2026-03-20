@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, DragEvent } from 'react'
+import { useState, useRef, useEffect, DragEvent } from 'react'
 import { useCanvasStore } from '@/lib/store'
 import type { Layer } from '@/types'
 import {
@@ -308,7 +308,11 @@ export default function LayersPanel() {
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [isMounted, setIsMounted] = useState(false)
   const dragOverRef = useRef<{ layerId: string; rect: DOMRect } | null>(null)
+
+  // Hydrationエラー回避（SSRとクライアントでpages.lengthが異なる）
+  useEffect(() => setIsMounted(true), [])
 
   const handleDragStart = (e: DragEvent<HTMLDivElement>, layerId: string) => {
     setDraggedLayerId(layerId)
@@ -534,7 +538,7 @@ export default function LayersPanel() {
               >
                 {page.name}
               </button>
-              {pages.length > 1 && (
+              {isMounted && pages.length > 1 && (
                 <button
                   onClick={(e) => handleRemovePage(page.id, e)}
                   className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
