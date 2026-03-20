@@ -525,31 +525,32 @@ export default function LayersPanel() {
           </button>
         </div>
         <div className="space-y-0.5 max-h-32 overflow-y-auto">
-          {pages.map((page) => (
-            <div key={page.id} className="relative group">
-              <button
-                onClick={() => setCurrentPage(page.id)}
-                className={`w-full text-left px-2 py-1 text-xs rounded transition-colors ${
-                  currentPageId === page.id
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700'
-                }`}
-                aria-label={`${page.name}に切り替え`}
-              >
-                {page.name}
-              </button>
-              {isMounted && pages.length > 1 && (
+          {isMounted &&
+            pages.map((page) => (
+              <div key={page.id} className="relative group">
                 <button
-                  onClick={(e) => handleRemovePage(page.id, e)}
-                  className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                  title="ページを削除"
-                  aria-label={`${page.name}を削除`}
+                  onClick={() => setCurrentPage(page.id)}
+                  className={`w-full text-left px-2 py-1 text-xs rounded transition-colors ${
+                    currentPageId === page.id
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                  aria-label={`${page.name}に切り替え`}
                 >
-                  ×
+                  {page.name}
                 </button>
-              )}
-            </div>
-          ))}
+                {pages.length > 1 && (
+                  <button
+                    onClick={(e) => handleRemovePage(page.id, e)}
+                    className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    title="ページを削除"
+                    aria-label={`${page.name}を削除`}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
         </div>
       </div>
 
