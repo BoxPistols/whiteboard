@@ -1,66 +1,59 @@
-# Figma Clone
+# The White Board
 
-Figmaライクな描画ツールです。Next.js、TypeScript、Fabric.jsを使用して構築されています。
+Figmaの複雑さを排除し、本質的な描画・ホワイトボード機能に集中した高速・軽量ツール。
+Claude Code Agentとの連携に最適化されたAIフレンドリーなアーキテクチャ。
 
-## 機能
+## 主要機能
 
-- ✏️ 描画ツール（矩形、円、線、鉛筆）
-- 🎨 オブジェクトの色とサイズの調整
-- 📐 プロパティパネルでのオブジェクト編集
-- 📚 レイヤー管理（表示/非表示、ロック、削除）
-- 🖱️ オブジェクトの選択と操作
+- 描画ツール（矩形、円、線、鉛筆、矢印）
+- オブジェクトの色・サイズ・プロパティ編集
+- レイヤー管理（表示/非表示、ロック、並び替え、グループ化）
+- 複数ページ対応とページノート
+- Undo/Redo履歴管理
+- グリッド表示とスナップ
+- ダークモード対応
+- キーボードショートカットのカスタマイズ
+- JSON/SVG/PNGエクスポート・インポート
+- localStorageによる自動保存
 
-## 使い方
-
-1. 依存関係のインストール:
-
-```bash
-npm install
-```
-
-2. 開発サーバーの起動:
+## セットアップ
 
 ```bash
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-3. ブラウザで `http://localhost:3000` を開く
+ブラウザで `http://localhost:3290` を開く。
+
+## 利用可能なコマンド
+
+```bash
+pnpm dev            # 開発サーバー起動（ポート3290）
+pnpm build          # プロダクションビルド
+pnpm lint           # ESLintチェック
+pnpm lint:fix       # ESLint自動修正
+pnpm format         # Prettierフォーマット
+pnpm format:check   # フォーマットチェック
+pnpm type-check     # TypeScript型チェック
+pnpm fix            # フォーマット + lint修正
+pnpm test           # テスト実行
+pnpm test:ui        # テストUI
+pnpm test:coverage  # カバレッジ計測
+pnpm storybook      # Storybook起動
+```
 
 ## 技術スタック
 
 - **Next.js 15** - Reactフレームワーク
 - **TypeScript** - 型安全性
-- **Fabric.js** - キャンバス描画ライブラリ
-- **Zustand** - 状態管理
-- **Tailwind CSS** - スタイリング
-- **Figma Plugin API互換** - Figma APIと互換性のある型定義
-
-## 開発環境
-
-### 利用可能なコマンド
-
-```bash
-npm run dev         # 開発サーバー起動
-npm run build       # プロダクションビルド
-npm run lint        # ESLintチェック
-npm run format      # Prettierフォーマット
-npm run type-check  # TypeScript型チェック
-```
-
-### Claude Code Skills
-
-このプロジェクトにはClaude Code用のスラッシュコマンドが用意されています：
-
-- `/lint` - ESLintチェックを実行
-- `/format` - Prettierでコードをフォーマット
-- `/test-build` - プロダクションビルドのテスト
+- **fabric.js** - キャンバス描画ライブラリ
+- **Zustand** - 軽量状態管理
+- **Tailwind CSS** - ユーティリティファーストCSS
 
 ## コード品質
 
-- ✅ TypeScript strict mode
-- ✅ ESLint + Prettier設定済み
-- ✅ ResizeObserverによるレスポンシブキャンバス
-- ✅ useCallbackによるパフォーマンス最適化
-- ✅ aria-label属性によるアクセシビリティ対応
-- ✅ instanceof型ガードによる型安全性
-- ✅ crypto.randomUUIDによる一意なID生成
+- TypeScript strict mode
+- ESLint + Prettier設定済み
+- Vitest + Testing Libraryによるテスト
+- Husky + lint-stagedによるコミット前チェック
+- Storybookによるコンポーネントカタログ

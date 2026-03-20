@@ -398,7 +398,7 @@ export default function LayersPanel() {
         )
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+            localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
           } catch (error) {
             console.error('Failed to save page data:', error)
           }

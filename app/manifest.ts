@@ -4,7 +4,8 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'The White Board',
     short_name: 'White Board',
-    description: 'A collaborative whiteboard design tool built with Next.js',
+    description:
+      'Figmaの利点を抽出した高速・軽量AIフレンドリーなホワイトボードツール。Claude Code Agentとの連携に最適化。',
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',

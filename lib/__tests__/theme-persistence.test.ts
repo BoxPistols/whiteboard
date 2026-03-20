@@ -43,7 +43,7 @@ describe('Theme Persistence', () => {
 
     expect(useCanvasStore.getState().theme).toBe('dark')
     expect(document.documentElement.classList.add).toHaveBeenCalledWith('dark')
-    expect(localStorage.setItem).toHaveBeenCalledWith('figma-clone-theme', 'dark')
+    expect(localStorage.setItem).toHaveBeenCalledWith('twb-theme', 'dark')
   })
 
   it('should toggle theme from dark to light', () => {
@@ -54,11 +54,11 @@ describe('Theme Persistence', () => {
 
     expect(useCanvasStore.getState().theme).toBe('light')
     expect(document.documentElement.classList.remove).toHaveBeenCalledWith('dark')
-    expect(localStorage.setItem).toHaveBeenCalledWith('figma-clone-theme', 'light')
+    expect(localStorage.setItem).toHaveBeenCalledWith('twb-theme', 'light')
   })
 
   it('should load saved dark theme from localStorage', () => {
-    localStorageMock['figma-clone-theme'] = 'dark'
+    localStorageMock['twb-theme'] = 'dark'
     const { loadSavedTheme } = useCanvasStore.getState()
 
     loadSavedTheme()
@@ -68,7 +68,7 @@ describe('Theme Persistence', () => {
   })
 
   it('should load saved light theme from localStorage', () => {
-    localStorageMock['figma-clone-theme'] = 'light'
+    localStorageMock['twb-theme'] = 'light'
     const { loadSavedTheme } = useCanvasStore.getState()
 
     loadSavedTheme()
@@ -104,9 +104,9 @@ describe('Theme Persistence', () => {
     const { toggleTheme } = useCanvasStore.getState()
 
     toggleTheme() // light -> dark
-    expect(localStorageMock['figma-clone-theme']).toBe('dark')
+    expect(localStorageMock['twb-theme']).toBe('dark')
 
     toggleTheme() // dark -> light
-    expect(localStorageMock['figma-clone-theme']).toBe('light')
+    expect(localStorageMock['twb-theme']).toBe('light')
   })
 })

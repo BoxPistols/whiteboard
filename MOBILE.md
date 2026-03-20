@@ -1,6 +1,6 @@
 # モバイル操作ガイド 📱
 
-Figma Clone はモバイルフレンドリーに設計されており、iPhone や Android のブラウザで PC と同等の機能を利用できます。
+The White Board はモバイルフレンドリーに設計されており、iPhone や Android のブラウザで PC と同等の機能を利用できます。
 
 ## 🎯 対応ブラウザ
 

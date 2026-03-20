@@ -121,6 +121,30 @@ interface CanvasStore {
   loadSavedGridSettings: () => void
 }
 
+// 旧プレフィックスから新プレフィックスへのlocalStorageキー移行（モジュールレベルで一度だけ実行）
+const migrateLocalStorageKeys = () => {
+  if (typeof window === 'undefined') return
+  try {
+    const OLD_PREFIX = 'figma-clone-'
+    const NEW_PREFIX = 'twb-'
+    // 移行済みフラグ
+    if (localStorage.getItem('twb-migrated')) return
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith(OLD_PREFIX)) {
+        const newKey = NEW_PREFIX + key.slice(OLD_PREFIX.length)
+        if (!localStorage.getItem(newKey)) {
+          localStorage.setItem(newKey, localStorage.getItem(key)!)
+        }
+      }
+    }
+    localStorage.setItem('twb-migrated', '1')
+  } catch {
+    // テスト環境等でlocalStorageが未初期化の場合は無視
+  }
+}
+migrateLocalStorageKeys()
+
 const defaultPageId = 'page-1'
 
 // localStorageからページデータを読み込む
@@ -130,7 +154,7 @@ const loadPagesFromStorage = (): Page[] => {
   }
 
   try {
-    const saved = localStorage.getItem('figma-clone-pages')
+    const saved = localStorage.getItem('twb-pages')
     if (saved) {
       const pages = JSON.parse(saved) as Page[]
       return pages.length > 0
@@ -164,7 +188,7 @@ const persistLayersToStorage = (
 
   if (typeof window !== 'undefined') {
     try {
-      localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+      localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
     } catch (error) {
       console.error(`Failed to save ${actionName || 'layer change'}:`, error)
     }
@@ -683,7 +707,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // localStorageに保存
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
       } catch (error) {
         console.error('Failed to save pages to localStorage:', error)
       }
@@ -702,7 +726,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // localStorageに保存
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
       } catch (error) {
         console.error('Failed to save pages to localStorage:', error)
       }
@@ -720,7 +744,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // localStorageに保存
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
       } catch (error) {
         console.error('Failed to save page notes to localStorage:', error)
       }
@@ -736,7 +760,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // localStorageに保存
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('figma-clone-pages', JSON.stringify(updatedPages))
+        localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
       } catch (error) {
         console.error('Failed to save pages to localStorage:', error)
       }
@@ -758,7 +782,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       if (newTheme === 'dark') {
         document.documentElement.classList.add('dark')
       }
-      localStorage.setItem('figma-clone-theme', newTheme)
+      localStorage.setItem('twb-theme', newTheme)
     }
 
     set({ theme: newTheme })
@@ -769,7 +793,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // Avoid double application: remove both then add needed
     document.documentElement.classList.remove('dark')
 
-    const savedTheme = localStorage.getItem('figma-clone-theme') as 'light' | 'dark' | null
+    const savedTheme = localStorage.getItem('twb-theme') as 'light' | 'dark' | null
     // デフォルトはダークモード
     const theme: 'light' | 'dark' = savedTheme || 'dark'
 
@@ -782,7 +806,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setCanvasBackground: (color) => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('figma-clone-canvas-bg', color)
+        localStorage.setItem('twb-canvas-bg', color)
       } catch (e) {
         console.error('Failed to save canvas background:', e)
       }
@@ -791,7 +815,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   loadSavedCanvasBackground: () => {
     if (typeof window === 'undefined') return
-    const saved = localStorage.getItem('figma-clone-canvas-bg')
+    const saved = localStorage.getItem('twb-canvas-bg')
     // デフォルトはダーク背景
     set({ canvasBackground: saved || '#1f2937' })
   },
@@ -810,7 +834,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // localStorageに保存（リロード後も空の状態を維持するため）
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('figma-clone-pages', JSON.stringify(initialPages))
+        localStorage.setItem('twb-pages', JSON.stringify(initialPages))
       } catch (error) {
         console.error('Failed to save reset state to localStorage:', error)
       }
@@ -841,7 +865,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         const customShortcuts = shortcuts
           .filter((s) => s.customKey)
           .map((s) => ({ id: s.id, customKey: s.customKey, modifiers: s.modifiers }))
-        localStorage.setItem('figma-clone-shortcuts', JSON.stringify(customShortcuts))
+        localStorage.setItem('twb-shortcuts', JSON.stringify(customShortcuts))
       } catch (e) {
         console.error('Failed to save shortcuts:', e)
       }
@@ -853,7 +877,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // localStorageからカスタムショートカットを削除
     if (typeof window !== 'undefined') {
       try {
-        localStorage.removeItem('figma-clone-shortcuts')
+        localStorage.removeItem('twb-shortcuts')
       } catch (e) {
         console.error('Failed to remove shortcuts:', e)
       }
@@ -866,7 +890,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (typeof window === 'undefined') return
 
     try {
-      const saved = localStorage.getItem('figma-clone-shortcuts')
+      const saved = localStorage.getItem('twb-shortcuts')
       if (saved) {
         const customShortcuts = JSON.parse(saved) as {
           id: string
@@ -889,7 +913,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setNudgeAmount: (amount) => {
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('figma-clone-nudge-amount', String(amount))
+        localStorage.setItem('twb-nudge-amount', String(amount))
       } catch (e) {
         console.error('Failed to save nudge amount:', e)
       }
@@ -900,7 +924,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (typeof window === 'undefined') return
 
     try {
-      const saved = localStorage.getItem('figma-clone-nudge-amount')
+      const saved = localStorage.getItem('twb-nudge-amount')
       if (saved) {
         const amount = parseInt(saved, 10)
         if (!isNaN(amount) && amount > 0) {
@@ -1052,7 +1076,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           opacity: get().gridOpacity,
           snapEnabled: get().gridSnapEnabled,
         }
-        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
       } catch (e) {
         console.error('Failed to save grid settings:', e)
       }
@@ -1070,7 +1094,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           opacity: get().gridOpacity,
           snapEnabled: get().gridSnapEnabled,
         }
-        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
       } catch (e) {
         console.error('Failed to save grid settings:', e)
       }
@@ -1087,7 +1111,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           opacity: get().gridOpacity,
           snapEnabled: get().gridSnapEnabled,
         }
-        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
       } catch (e) {
         console.error('Failed to save grid settings:', e)
       }
@@ -1105,7 +1129,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           opacity: validOpacity,
           snapEnabled: get().gridSnapEnabled,
         }
-        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
       } catch (e) {
         console.error('Failed to save grid settings:', e)
       }
@@ -1123,7 +1147,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           opacity: get().gridOpacity,
           snapEnabled: newSnapEnabled,
         }
-        localStorage.setItem('figma-clone-grid-settings', JSON.stringify(settings))
+        localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
       } catch (e) {
         console.error('Failed to save grid settings:', e)
       }
@@ -1134,7 +1158,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (typeof window === 'undefined') return
 
     try {
-      const saved = localStorage.getItem('figma-clone-grid-settings')
+      const saved = localStorage.getItem('twb-grid-settings')
       if (saved) {
         const settings = JSON.parse(saved) as {
           enabled: boolean

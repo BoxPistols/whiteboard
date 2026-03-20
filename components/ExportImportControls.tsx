@@ -22,7 +22,7 @@ export default function ExportImportControls() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `figma-clone-${Date.now()}.json`
+    link.download = `whiteboard-${Date.now()}.json`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -36,7 +36,7 @@ export default function ExportImportControls() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `figma-clone-${Date.now()}.svg`
+    link.download = `whiteboard-${Date.now()}.svg`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -50,7 +50,7 @@ export default function ExportImportControls() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `figma-clone-${Date.now()}.png`
+      link.download = `whiteboard-${Date.now()}.png`
       link.click()
       URL.revokeObjectURL(url)
     })
@@ -79,7 +79,7 @@ export default function ExportImportControls() {
         // レイヤーデータを読み込み（ストアの更新はCanvas.tsxで行う）
         if (data.layers) {
           // レイヤーはlocalStorageに保存し、Canvas.tsxで読み込み
-          localStorage.setItem('figma-clone-layers', JSON.stringify(data.layers))
+          localStorage.setItem('twb-layers', JSON.stringify(data.layers))
         }
 
         // ページをリロードして変更を反映
