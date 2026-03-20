@@ -52,6 +52,24 @@ const colorToHex = (color: string | fabric.Pattern | fabric.Gradient | undefined
   return color
 }
 
+// 矢印のSVGパス文字列を生成する（ローカル座標系、水平方向）
+const createArrowPathData = (length: number, headLength = 15, headWidth = 12): string => {
+  const halfLen = length / 2
+  // 矢印が短い場合、ヘッドサイズを調整
+  const hl = Math.min(headLength, length * 0.4)
+  const hw = Math.min(headWidth, length * 0.3) / 2
+  // 線の軸: 左端から矢じり手前まで（開いたサブパス → strokeのみ）
+  // 矢じり: 三角形（閉じたサブパス → fill + stroke）
+  return [
+    `M ${-halfLen} 0`,
+    `L ${halfLen - hl} 0`,
+    `M ${halfLen - hl} ${-hw}`,
+    `L ${halfLen} 0`,
+    `L ${halfLen - hl} ${hw}`,
+    'Z',
+  ].join(' ')
+}
+
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
@@ -436,15 +454,8 @@ export default function Canvas() {
     const items = group.getObjects()
     const groupId = activeObject.data?.id
 
-    // 矢印グループは解除しない（hitArea, line, triangleの3要素を持つ）
-    if (items.length === 3) {
-      const hasHitArea = items.some((item) => item.type === 'rect' && item.fill === 'transparent')
-      const hasLine = items.some((item) => item.type === 'line')
-      const hasTriangle = items.some((item) => item.type === 'triangle')
-      if (hasHitArea && hasLine && hasTriangle) {
-        return // 矢印グループは解除しない
-      }
-    }
+    // 矢印はGroupではなくなったため、data.typeで判定（後方互換）
+    if (group.data?.type === 'arrow') return
 
     // グループの変換行列を取得
     const groupMatrix = group.calcTransformMatrix()
@@ -888,52 +899,22 @@ export default function Canvas() {
           })
           break
         case 'arrow': {
-          // ライン＋矢印頭を作成（Figmaスタイル: ------> ）
-          const arrowLine = new fabric.Line([0, 0, 0, 0], {
-            stroke: defaultStrokeColor,
-            strokeWidth: 1,
-            selectable: false,
-            evented: false,
-          })
-
-          // 矢印の頭（三角形）- Triangleを使用
-          const arrowHead = new fabric.Triangle({
-            width: 12,
-            height: 10,
-            fill: defaultStrokeColor,
-            left: 0,
-            top: 0,
-            angle: 90, // 右向き
-            originX: 'center',
-            originY: 'center',
-            selectable: false,
-            evented: false,
-          })
-
-          // ヒットエリア用の透明な矩形（クリック検出を改善）
-          const hitArea = new fabric.Rect({
-            left: 0,
-            top: -10,
-            width: 1,
-            height: 20,
-            fill: 'transparent',
-            stroke: 'transparent',
-            originX: 'center',
-            originY: 'center',
-            selectable: false,
-            evented: false,
-          })
-
-          shape = new fabric.Group([hitArea, arrowLine, arrowHead], {
+          // 単一Pathで矢印を描画（線 + 矢じりを統合）
+          const initialPath = createArrowPathData(2)
+          shape = new fabric.Path(initialPath, {
             left: pointer.x,
             top: pointer.y,
+            stroke: defaultStrokeColor,
+            strokeWidth: 2,
+            fill: defaultStrokeColor,
+            strokeLineJoin: 'round',
             originX: 'center',
             originY: 'center',
-            lockUniScaling: true, // アスペクト比を保持
+            selectable: false,
+            evented: false,
           })
           currentShapeRef.current = shape
           canvas.add(shape)
-
           break
         }
       }
@@ -1011,54 +992,50 @@ export default function Canvas() {
           }
           break
         case 'arrow':
-          if (currentShape instanceof fabric.Group) {
-            const items = currentShape.getObjects()
-            const hitArea = items[0] as fabric.Rect
-            const arrowLine = items[1] as fabric.Line
-            const arrowHead = items[2] as fabric.Triangle
-
-            // 始点から終点までの距離と角度を計算
+          if (currentShape) {
             const dx = pointer.x - startPoint.x
             const dy = pointer.y - startPoint.y
             const length = Math.sqrt(dx * dx + dy * dy)
-            const angle = (Math.atan2(dy, dx) * 180) / Math.PI
+            if (length < 5) break
 
-            // グループの中心を始点と終点の中間点に移動
-            const midX = (startPoint.x + pointer.x) / 2
-            const midY = (startPoint.y + pointer.y) / 2
+            let arrowAngle = (Math.atan2(dy, dx) * 180) / Math.PI
+            let endX = pointer.x
+            let endY = pointer.y
 
-            // ラインの終点を更新（グループ内のローカル座標系）
-            const halfLength = length / 2
-            arrowLine.set({
-              x1: -halfLength,
-              y1: 0,
-              x2: halfLength,
-              y2: 0,
-            })
+            // Shift+ドラッグ時は45°単位でスナップ（Figmaスタイル）
+            const mouseEvt = e.e as MouseEvent
+            if (mouseEvt?.shiftKey) {
+              arrowAngle = Math.round(arrowAngle / 45) * 45
+              const rad = (arrowAngle * Math.PI) / 180
+              endX = startPoint.x + length * Math.cos(rad)
+              endY = startPoint.y + length * Math.sin(rad)
+            }
 
-            // ヒットエリアを矢印の全長に合わせて更新
-            hitArea.set({
-              left: 0,
-              width: length,
-              height: 20,
-            })
+            const midX = (startPoint.x + endX) / 2
+            const midY = (startPoint.y + endY) / 2
 
-            // 矢印の頭の位置を更新（ラインの終点に配置）
-            arrowHead.set({
-              left: halfLength,
-              top: 0,
-              angle: 90, // 右向きを維持
-            })
+            // 現在の矢印を削除して新しいパスで再生成
+            const prevStroke = currentShape.stroke
+            const prevFill = (currentShape as fabric.Path).fill
+            const prevStrokeWidth = currentShape.strokeWidth
+            canvas.remove(currentShape)
 
-            // グループ全体の位置と角度を更新
-            currentShape.set({
+            const pathData = createArrowPathData(length)
+            const arrow = new fabric.Path(pathData, {
               left: midX,
               top: midY,
-              angle: angle,
+              angle: arrowAngle,
+              stroke: prevStroke,
+              strokeWidth: prevStrokeWidth,
+              fill: prevFill,
+              strokeLineJoin: 'round',
               originX: 'center',
               originY: 'center',
+              selectable: false,
+              evented: false,
             })
-            currentShape.setCoords()
+            canvas.add(arrow)
+            currentShapeRef.current = arrow
           }
           break
       }
@@ -1075,25 +1052,15 @@ export default function Canvas() {
       const id = crypto.randomUUID()
 
       // 現在の色を基本色として保存
-      let baseFill: string | undefined
-      let baseStroke: string | undefined
-
-      if (currentShape.type === 'group') {
-        // グループの場合は最初の要素から色を取得
-        const items = (currentShape as fabric.Group).getObjects()
-        if (items.length > 0) {
-          baseFill = typeof items[0].fill === 'string' ? items[0].fill : undefined
-          baseStroke = typeof items[0].stroke === 'string' ? items[0].stroke : undefined
-        }
-      } else {
-        baseFill = typeof currentShape.fill === 'string' ? currentShape.fill : undefined
-        baseStroke = typeof currentShape.stroke === 'string' ? currentShape.stroke : undefined
-      }
+      const baseFill = typeof currentShape.fill === 'string' ? currentShape.fill : undefined
+      const baseStroke =
+        typeof currentShape.stroke === 'string' ? currentShape.stroke : undefined
 
       // 描画完了後にオブジェクトを選択可能にする
       currentShape.set({
         data: {
           id,
+          ...(selectedTool === 'arrow' && { type: 'arrow' }),
           baseFill,
           baseStroke,
           baseTheme: theme,
@@ -1103,19 +1070,7 @@ export default function Canvas() {
         hasControls: true,
         hasBorders: true,
       })
-
-      // グループの場合、子要素も設定し、座標を更新
-      if (currentShape.type === 'group') {
-        const items = (currentShape as fabric.Group).getObjects()
-        items.forEach((item) => {
-          item.set({
-            selectable: false,
-            evented: false,
-          })
-        })
-        // バウンディングボックスを再計算して選択可能にする
-        currentShape.setCoords()
-      }
+      currentShape.setCoords()
 
       // Increment counter for this tool type
       shapeCounterRef.current[selectedTool] += 1
@@ -1209,22 +1164,9 @@ export default function Canvas() {
         const objects = (activeObject as fabric.ActiveSelection).getObjects()
         const firstObj = objects[0]
         if (firstObj) {
-          let fillColor = ''
-          let strokeColor = ''
-          let strokeWidth = 0
-
-          if (firstObj.type === 'group') {
-            const items = (firstObj as fabric.Group).getObjects()
-            if (items.length > 0) {
-              fillColor = colorToHex(items[0].fill)
-              strokeColor = colorToHex(items[0].stroke)
-              strokeWidth = items[0].strokeWidth || 2
-            }
-          } else {
-            fillColor = colorToHex(firstObj.fill)
-            strokeColor = colorToHex(firstObj.stroke)
-            strokeWidth = firstObj.strokeWidth || 0
-          }
+          const fillColor = colorToHex(firstObj.fill)
+          const strokeColor = colorToHex(firstObj.stroke)
+          const strokeWidth = firstObj.strokeWidth || 0
 
           // 複数選択用のIDを設定（プロパティパネルで変更を可能にするため）
           setSelectedObjectId('__multi_selection__')
@@ -1244,23 +1186,9 @@ export default function Canvas() {
       if (selected && selected.data?.id) {
         setSelectedObjectId(selected.data.id)
 
-        // Groupオブジェクト（矢印など）の場合、子要素から色を取得
-        let fillColor = ''
-        let strokeColor = ''
-        let strokeWidth = 0
-
-        if (selected.type === 'group') {
-          const items = (selected as fabric.Group).getObjects()
-          if (items.length > 0) {
-            fillColor = colorToHex(items[0].fill)
-            strokeColor = colorToHex(items[0].stroke)
-            strokeWidth = items[0].strokeWidth || 2
-          }
-        } else {
-          fillColor = colorToHex(selected.fill)
-          strokeColor = colorToHex(selected.stroke)
-          strokeWidth = selected.strokeWidth || 0
-        }
+        const fillColor = colorToHex(selected.fill)
+        const strokeColor = colorToHex(selected.stroke)
+        const strokeWidth = selected.strokeWidth || 0
 
         // プロパティを更新（色をhex形式に変換）
         setSelectedObjectProps({
@@ -1274,6 +1202,7 @@ export default function Canvas() {
           scaleX: selected.scaleX,
           scaleY: selected.scaleY,
           opacity: selected.opacity !== undefined ? selected.opacity : 1,
+          isArrow: selected.data?.type === 'arrow',
         })
       } else {
         setSelectedObjectId(null)
@@ -1291,23 +1220,9 @@ export default function Canvas() {
     const handleObjectModified = (e: fabric.IEvent) => {
       const obj = e.target
       if (obj && obj.data?.id) {
-        // Groupオブジェクトの場合、子要素から色を取得
-        let fillColor = ''
-        let strokeColor = ''
-        let strokeWidth = 0
-
-        if (obj.type === 'group') {
-          const items = (obj as fabric.Group).getObjects()
-          if (items.length > 0) {
-            fillColor = colorToHex(items[0].fill)
-            strokeColor = colorToHex(items[0].stroke)
-            strokeWidth = items[0].strokeWidth || 2
-          }
-        } else {
-          fillColor = colorToHex(obj.fill)
-          strokeColor = colorToHex(obj.stroke)
-          strokeWidth = obj.strokeWidth || 0
-        }
+        const fillColor = colorToHex(obj.fill)
+        const strokeColor = colorToHex(obj.stroke)
+        const strokeWidth = obj.strokeWidth || 0
 
         setSelectedObjectProps({
           fill: fillColor,
@@ -1530,10 +1445,53 @@ export default function Canvas() {
       }
     }
 
+    // 矢印のスケーリング時にヘッドの比率を維持する
+    const handleArrowScaled = (e: fabric.IEvent) => {
+      const obj = e.target
+      if (!obj || obj.data?.type !== 'arrow' || obj.type !== 'path') return
+
+      const scaleX = obj.scaleX || 1
+      const scaleY = obj.scaleY || 1
+      if (scaleX === 1 && scaleY === 1) return
+
+      // スケールから実効長を計算し、パスを再生成
+      const origWidth = obj.width || 0
+      const newLength = origWidth * Math.abs(scaleX)
+
+      const canvas = fabricCanvasRef.current
+      if (!canvas || newLength < 5) return
+
+      const pathData = createArrowPathData(newLength)
+      const newArrow = new fabric.Path(pathData, {
+        left: obj.left,
+        top: obj.top,
+        angle: obj.angle,
+        stroke: obj.stroke,
+        strokeWidth: obj.strokeWidth,
+        fill: obj.fill,
+        strokeLineJoin: 'round',
+        originX: obj.originX,
+        originY: obj.originY,
+        data: obj.data,
+        opacity: obj.opacity,
+        selectable: true,
+        evented: true,
+        hasControls: true,
+        hasBorders: true,
+      })
+
+      canvas.remove(obj)
+      canvas.add(newArrow)
+      canvas.setActiveObject(newArrow)
+      canvas.renderAll()
+    }
+
     canvas.on('object:rotating', handleObjectRotating)
+    canvas.on('object:modified', handleArrowScaled)
 
     return () => {
       canvas.off('object:rotating', handleObjectRotating)
+      canvas.off('object:modified', handleArrowScaled)
     }
   }, [])
 

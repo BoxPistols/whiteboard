@@ -14,6 +14,7 @@ interface ObjectProperties {
   scaleX?: number
   scaleY?: number
   opacity?: number
+  isArrow?: boolean
 }
 
 // Undo/Redo用の履歴スナップショット
@@ -560,8 +561,27 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
     // 単一オブジェクトのプロパティを更新するヘルパー関数
     const updateSingleObject = (obj: fabric.Object) => {
-      // Groupオブジェクト（矢印など）の場合、子要素のプロパティを更新
-      if (obj.type === 'group' && (key === 'fill' || key === 'stroke' || key === 'strokeWidth')) {
+      // 矢印（Path）の場合、fillとstrokeを連動させる
+      if (obj.data?.type === 'arrow' && (key === 'fill' || key === 'stroke')) {
+        const colorValue = value as string
+        obj.set('fill', colorValue)
+        obj.set('stroke', colorValue)
+        obj.dirty = true
+
+        const currentData = obj.data || { id: crypto.randomUUID() }
+        obj.set({
+          data: {
+            ...currentData,
+            baseFill: colorValue,
+            baseStroke: colorValue,
+            baseTheme: theme,
+          },
+        })
+      } else if (
+        obj.type === 'group' &&
+        (key === 'fill' || key === 'stroke' || key === 'strokeWidth')
+      ) {
+        // Groupオブジェクトの場合、子要素のプロパティを更新
         const group = obj as fabric.Group
         const items = group.getObjects()
         items.forEach((item) => {

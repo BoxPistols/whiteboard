@@ -60,50 +60,51 @@ export default function PropertiesPanel() {
 
       {/* スクロール可能なプロパティエリア */}
       <div className="flex-1 overflow-y-auto space-y-2">
-        {(selectedObjectProps.fill || selectedObjectProps.fill === '') && (
-          <details
-            className="rounded border border-gray-200 dark:border-gray-700"
-            onToggle={(e) => {
-              if (typeof window !== 'undefined') {
-                localStorage.setItem(
-                  'accordion-fill-open',
-                  (e.currentTarget as HTMLDetailsElement).open ? '1' : '0'
-                )
+        {!selectedObjectProps.isArrow &&
+          (selectedObjectProps.fill || selectedObjectProps.fill === '') && (
+            <details
+              className="rounded border border-gray-200 dark:border-gray-700"
+              onToggle={(e) => {
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(
+                    'accordion-fill-open',
+                    (e.currentTarget as HTMLDetailsElement).open ? '1' : '0'
+                  )
+                }
+              }}
+              open={
+                typeof window !== 'undefined'
+                  ? localStorage.getItem('accordion-fill-open') === '1'
+                  : true
               }
-            }}
-            open={
-              typeof window !== 'undefined'
-                ? localStorage.getItem('accordion-fill-open') === '1'
-                : true
-            }
-          >
-            <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-              塗りつぶし
-            </summary>
-            <div className="p-2 space-y-2">
-              <input
-                type="color"
-                className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-                value={fillColor.hex}
-                onChange={(e) => handleColorChange('fill', e.target.value)}
-              />
-              <div>
-                <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                  透明度: {Math.round(fillColor.alpha * 100)}%
-                </label>
+            >
+              <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                塗りつぶし
+              </summary>
+              <div className="p-2 space-y-2">
                 <input
-                  type="range"
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
-                  value={fillColor.alpha}
-                  onChange={(e) => handleAlphaChange('fill', parseFloat(e.target.value))}
-                  min={0}
-                  max={1}
-                  step={0.01}
+                  type="color"
+                  className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
+                  value={fillColor.hex}
+                  onChange={(e) => handleColorChange('fill', e.target.value)}
                 />
+                <div>
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    透明度: {Math.round(fillColor.alpha * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 dark:bg-gray-700"
+                    value={fillColor.alpha}
+                    onChange={(e) => handleAlphaChange('fill', parseFloat(e.target.value))}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                  />
+                </div>
               </div>
-            </div>
-          </details>
-        )}
+            </details>
+          )}
         {(selectedObjectProps.stroke || selectedObjectProps.stroke === '') && (
           <details
             className="rounded border border-gray-200 dark:border-gray-700"
@@ -239,35 +240,36 @@ export default function PropertiesPanel() {
       <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
         <div className="space-y-2">
           {/* 塗りつぶしカラーパレット */}
-          {(selectedObjectProps.fill || selectedObjectProps.fill === '') && (
-            <details
-              className="rounded border border-gray-200 dark:border-gray-700"
-              onToggle={(e) => {
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem(
-                    'accordion-fill-palette-open',
-                    (e.currentTarget as HTMLDetailsElement).open ? '1' : '0'
-                  )
+          {!selectedObjectProps.isArrow &&
+            (selectedObjectProps.fill || selectedObjectProps.fill === '') && (
+              <details
+                className="rounded border border-gray-200 dark:border-gray-700"
+                onToggle={(e) => {
+                  if (typeof window !== 'undefined') {
+                    localStorage.setItem(
+                      'accordion-fill-palette-open',
+                      (e.currentTarget as HTMLDetailsElement).open ? '1' : '0'
+                    )
+                  }
+                }}
+                open={
+                  typeof window !== 'undefined'
+                    ? localStorage.getItem('accordion-fill-palette-open') === '1'
+                    : true
                 }
-              }}
-              open={
-                typeof window !== 'undefined'
-                  ? localStorage.getItem('accordion-fill-palette-open') === '1'
-                  : true
-              }
-            >
-              <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-                塗りつぶしカラー
-              </summary>
-              <div className="p-2">
-                <ColorPalette
-                  label="塗りつぶしカラー"
-                  currentColor={fillColor.hex}
-                  onColorSelect={(color) => handleColorChange('fill', color)}
-                />
-              </div>
-            </details>
-          )}
+              >
+                <summary className="px-2 py-1 text-xs font-medium cursor-pointer select-none bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                  塗りつぶしカラー
+                </summary>
+                <div className="p-2">
+                  <ColorPalette
+                    label="塗りつぶしカラー"
+                    currentColor={fillColor.hex}
+                    onColorSelect={(color) => handleColorChange('fill', color)}
+                  />
+                </div>
+              </details>
+            )}
 
           {/* 線の色カラーパレット */}
           {(selectedObjectProps.stroke || selectedObjectProps.stroke === '') && (
