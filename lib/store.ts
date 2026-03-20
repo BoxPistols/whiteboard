@@ -73,6 +73,7 @@ interface CanvasStore {
   moveLayer: (layerId: string, targetParentId: string | null, targetIndex: number) => void
   toggleLayerExpanded: (id: string) => void
   updateLayerChildren: (parentId: string, childIds: string[]) => void
+  createFolder: (name?: string) => void
   setZoom: (zoom: number) => void
   zoomToFit: () => void
   zoomToSelection: () => void
@@ -383,9 +384,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
             for (const canvasObj of fabricCanvas.getObjects()) {
               if (canvasObj.type === 'group') {
                 const group = canvasObj as fabric.Group
-                const found = group
-                  .getObjects()
-                  .find((o) => o.data?.id === targetLayer.objectId)
+                const found = group.getObjects().find((o) => o.data?.id === targetLayer.objectId)
                 if (found) {
                   obj = found
                   break
@@ -514,9 +513,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         if (!l) return
         reordered.push(l)
         // 子の順序
-        const childrenOrder = targetParentId === currentLayerId
-          ? siblings
-          : updatedLayers.filter((x) => x.parentId === currentLayerId)
+        const childrenOrder =
+          targetParentId === currentLayerId
+            ? siblings
+            : updatedLayers.filter((x) => x.parentId === currentLayerId)
         childrenOrder.forEach((child) => reorderTraverse(child.id))
       }
       orderedRoots.forEach((root) => reorderTraverse(root.id))
@@ -560,6 +560,24 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         return layer
       })
       return persistLayersToStorage(state, updatedLayers, undefined, 'layer children')
+    }),
+  createFolder: (name) =>
+    set((state) => {
+      const folderId = crypto.randomUUID()
+      const folderCount =
+        state.layers.filter((l) => l.type === 'GROUP' && l.name.startsWith('フォルダ')).length + 1
+      const folderLayer: Layer = {
+        id: folderId,
+        name: name || `フォルダ ${folderCount}`,
+        visible: true,
+        locked: false,
+        objectId: folderId,
+        type: 'GROUP',
+        children: [],
+        expanded: true,
+      }
+      const updatedLayers = [folderLayer, ...state.layers]
+      return persistLayersToStorage(state, updatedLayers, undefined, 'folder creation')
     }),
   setZoom: (zoom) => {
     const { fabricCanvas } = get()

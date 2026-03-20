@@ -293,6 +293,7 @@ export default function LayersPanel() {
     updateLayerName,
     moveLayer,
     toggleLayerExpanded,
+    createFolder,
     setSelectedObjectId,
     selectedObjectId,
     fabricCanvas,
@@ -314,11 +315,7 @@ export default function LayersPanel() {
     e.dataTransfer.effectAllowed = 'move'
   }
 
-  const handleDragOver = (
-    e: DragEvent<HTMLDivElement>,
-    layerId: string,
-    isGroup: boolean
-  ) => {
+  const handleDragOver = (e: DragEvent<HTMLDivElement>, layerId: string, isGroup: boolean) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
 
@@ -554,9 +551,18 @@ export default function LayersPanel() {
 
       {/* レイヤーリスト */}
       <div className="flex-1 overflow-y-auto p-2">
-        <h2 className="text-sm font-semibold mb-2 px-1 text-gray-900 dark:text-gray-100">
-          レイヤー
-        </h2>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">レイヤー</h2>
+          <button
+            onClick={() => createFolder()}
+            className="px-1.5 py-0.5 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded flex items-center gap-0.5"
+            title="新しいフォルダを作成"
+            aria-label="新しいフォルダを作成"
+          >
+            <FolderIcon size={10} />
+            <span>+</span>
+          </button>
+        </div>
         {layers.length > 0 ? (
           <div className="space-y-0.5">
             {rootLayers.map((layer) => (
