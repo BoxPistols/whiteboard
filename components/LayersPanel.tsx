@@ -135,14 +135,16 @@ function LayerTreeItem({
             <div className="w-4 flex-shrink-0" />
           )}
 
-          {/* グループアイコン */}
+          {/* フォルダ/グループアイコン（FRAME=黄色フォルダ、GROUP=青色グループ） */}
           {(isGroup || hasChildren) && (
             <FolderIcon
               size={12}
               className={`flex-shrink-0 ${
                 selectedObjectId === layer.objectId
                   ? 'text-white'
-                  : 'text-yellow-500 dark:text-yellow-400'
+                  : layer.type === 'FRAME'
+                    ? 'text-yellow-500 dark:text-yellow-400'
+                    : 'text-blue-500 dark:text-blue-400'
               }`}
             />
           )}
@@ -397,6 +399,12 @@ export default function LayersPanel() {
   }
 
   const selectLayer = (layer: (typeof layers)[0]) => {
+    // FRAMEはCanvas上にオブジェクトがないので、レイヤー選択のみ
+    if (layer.type === 'FRAME') {
+      setSelectedObjectId(layer.objectId)
+      return
+    }
+
     if (!fabricCanvas) return
 
     // まずトップレベルで検索
@@ -492,9 +500,13 @@ export default function LayersPanel() {
       : layers.filter((l) => !l.parentId)
   }
 
-  // グループかどうかを判定
+  // フォルダまたはグループ（子を持てるレイヤー）かどうかを判定
   const isGroupLayer = (layer: Layer): boolean => {
-    return layer.type === 'GROUP' || Boolean(layer.children && layer.children.length > 0)
+    return (
+      layer.type === 'GROUP' ||
+      layer.type === 'FRAME' ||
+      Boolean(layer.children && layer.children.length > 0)
+    )
   }
 
   const handleAddPage = () => {

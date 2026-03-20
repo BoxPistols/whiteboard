@@ -2,7 +2,15 @@
 export type Tool = 'select' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'pencil'
 
 // Figma互換のノード型定義
-export type NodeType = 'RECTANGLE' | 'ELLIPSE' | 'LINE' | 'TEXT' | 'VECTOR' | 'GROUP' | 'ARROW'
+export type NodeType =
+  | 'RECTANGLE'
+  | 'ELLIPSE'
+  | 'LINE'
+  | 'TEXT'
+  | 'VECTOR'
+  | 'GROUP'
+  | 'FRAME'
+  | 'ARROW'
 
 // レイヤー管理用の型定義
 export interface Layer {

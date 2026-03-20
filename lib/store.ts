@@ -283,11 +283,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       // 削除対象のIDリスト（自分自身＋子孫すべて）
       const idsToRemove = [id, ...getDescendantIds(id, state.layers)]
 
-      // Canvasからもオブジェクトを削除（子孫含む）
+      // Canvasからもオブジェクトを削除（子孫含む、FRAMEはCanvas上にオブジェクトがないのでスキップ）
       if (fabricCanvas) {
         for (const removeId of idsToRemove) {
           const layer = state.layers.find((l) => l.id === removeId)
-          if (!layer) continue
+          if (!layer || layer.type === 'FRAME') continue
           const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
           if (obj) {
             fabricCanvas.remove(obj)
@@ -328,11 +328,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         idsToUpdate.includes(l.id) ? { ...l, visible: newVisible } : l
       )
 
-      // Fabric.jsオブジェクトの表示/非表示を切り替え
+      // Fabric.jsオブジェクトの表示/非表示を切り替え（FRAMEはCanvas上にないのでスキップ）
       if (fabricCanvas) {
         for (const updateId of idsToUpdate) {
           const targetLayer = state.layers.find((l) => l.id === updateId)
-          if (!targetLayer) continue
+          if (!targetLayer || targetLayer.type === 'FRAME') continue
 
           // キャンバス直下で探す
           let obj = fabricCanvas.getObjects().find((o) => o.data?.id === targetLayer.objectId)
@@ -374,7 +374,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       if (fabricCanvas) {
         for (const updateId of idsToUpdate) {
           const targetLayer = state.layers.find((l) => l.id === updateId)
-          if (!targetLayer) continue
+          if (!targetLayer || targetLayer.type === 'FRAME') continue
 
           // キャンバス直下で探す
           let obj = fabricCanvas.getObjects().find((o) => o.data?.id === targetLayer.objectId)
@@ -565,14 +565,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set((state) => {
       const folderId = crypto.randomUUID()
       const folderCount =
-        state.layers.filter((l) => l.type === 'GROUP' && l.name.startsWith('フォルダ')).length + 1
+        state.layers.filter((l) => l.type === 'FRAME' && l.name.startsWith('フォルダ')).length + 1
       const folderLayer: Layer = {
         id: folderId,
         name: name || `フォルダ ${folderCount}`,
         visible: true,
         locked: false,
         objectId: folderId,
-        type: 'GROUP',
+        type: 'FRAME',
         children: [],
         expanded: true,
       }
