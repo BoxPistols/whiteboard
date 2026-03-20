@@ -123,9 +123,7 @@ export const WithLayers: Story = {
     withCanvasStore({
       layers: sampleLayers,
       selectedObjectId: null,
-      pages: [
-        { id: 'page-1', name: 'Page 1', canvasData: null, layers: sampleLayers },
-      ],
+      pages: [{ id: 'page-1', name: 'Page 1', canvasData: null, layers: sampleLayers }],
       currentPageId: 'page-1',
       fabricCanvas: null,
     }),
@@ -143,9 +141,7 @@ export const WithSelectedLayer: Story = {
     withCanvasStore({
       layers: sampleLayers,
       selectedObjectId: 'obj-2',
-      pages: [
-        { id: 'page-1', name: 'Page 1', canvasData: null, layers: sampleLayers },
-      ],
+      pages: [{ id: 'page-1', name: 'Page 1', canvasData: null, layers: sampleLayers }],
       currentPageId: 'page-1',
       fabricCanvas: null,
     }),
@@ -163,9 +159,7 @@ export const WithGroupedLayers: Story = {
     withCanvasStore({
       layers: groupedLayers,
       selectedObjectId: null,
-      pages: [
-        { id: 'page-1', name: 'Page 1', canvasData: null, layers: groupedLayers },
-      ],
+      pages: [{ id: 'page-1', name: 'Page 1', canvasData: null, layers: groupedLayers }],
       currentPageId: 'page-1',
       fabricCanvas: null,
     }),

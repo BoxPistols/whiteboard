@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, DragEvent } from 'react'
+import { useState, useRef, DragEvent } from 'react'
 import { useCanvasStore } from '@/lib/store'
 import type { Layer } from '@/types'
 import {
@@ -16,19 +16,24 @@ import {
   FolderIcon,
 } from '@/components/icons'
 
+// ドロップターゲットの型
+interface DropTarget {
+  layerId: string
+  position: 'above' | 'below' | 'inside' // inside=グループ内にネスト
+}
+
 // レイヤーツリーアイテムのプロパティ
 interface LayerTreeItemProps {
   layer: Layer
-  index: number
   depth: number
   isGroup: boolean
   getChildLayers: (parentId: string) => Layer[]
+  getSiblingLayers: (layer: Layer) => Layer[]
   selectedObjectId: string | null
   editingLayerId: string | null
   editingName: string
-  draggedIndex: number | null
-  dragOverIndex: number | null
-  layersLength: number
+  draggedLayerId: string | null
+  dropTarget: DropTarget | null
   onSelect: (layer: Layer) => void
   onToggleVisibility: (id: string) => void
   onToggleLock: (id: string) => void
@@ -40,26 +45,25 @@ interface LayerTreeItemProps {
   onEditNameChange: (value: string) => void
   onFinishEditing: () => void
   onKeyDown: (e: React.KeyboardEvent) => void
-  onDragStart: (e: DragEvent<HTMLDivElement>, index: number) => void
-  onDragOver: (e: DragEvent<HTMLDivElement>, index: number) => void
+  onDragStart: (e: DragEvent<HTMLDivElement>, layerId: string) => void
+  onDragOver: (e: DragEvent<HTMLDivElement>, layerId: string, isGroup: boolean) => void
   onDragEnd: () => void
-  onDrop: (e: DragEvent<HTMLDivElement>, index: number) => void
+  onDrop: (e: DragEvent<HTMLDivElement>) => void
   isGroupLayer: (layer: Layer) => boolean
 }
 
 // 再帰的にレイヤーをレンダリングするコンポーネント
 function LayerTreeItem({
   layer,
-  index,
   depth,
   isGroup,
   getChildLayers,
+  getSiblingLayers,
   selectedObjectId,
   editingLayerId,
   editingName,
-  draggedIndex,
-  dragOverIndex,
-  layersLength,
+  draggedLayerId,
+  dropTarget,
   onSelect,
   onToggleVisibility,
   onToggleLock,
@@ -80,22 +84,35 @@ function LayerTreeItem({
   const children = getChildLayers(layer.id)
   const hasChildren = children.length > 0
   const isExpanded = layer.expanded ?? true // デフォルトは展開
+  const siblings = getSiblingLayers(layer)
+  const siblingIndex = siblings.findIndex((l) => l.id === layer.id)
+  const isFirst = siblingIndex === 0
+  const isLast = siblingIndex === siblings.length - 1
+
+  // ドロップインジケーターのスタイルを計算
+  const isDropAbove = dropTarget?.layerId === layer.id && dropTarget?.position === 'above'
+  const isDropBelow = dropTarget?.layerId === layer.id && dropTarget?.position === 'below'
+  const isDropInside = dropTarget?.layerId === layer.id && dropTarget?.position === 'inside'
 
   return (
     <div>
       <div
         draggable
-        onDragStart={(e) => onDragStart(e, index)}
-        onDragOver={(e) => onDragOver(e, index)}
+        onDragStart={(e) => onDragStart(e, layer.id)}
+        onDragOver={(e) => onDragOver(e, layer.id, isGroup || hasChildren)}
         onDragEnd={onDragEnd}
-        onDrop={(e) => onDrop(e, index)}
+        onDrop={onDrop}
         onClick={() => onSelect(layer)}
         style={{ paddingLeft: `${depth * 12 + 6}px` }}
         className={`flex items-center justify-between py-1 pr-1.5 rounded cursor-move transition-all ${
           selectedObjectId === layer.objectId
             ? 'bg-blue-500 dark:bg-blue-600 text-white'
             : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100'
-        } ${draggedIndex === index ? 'opacity-50' : ''} ${dragOverIndex === index ? 'border-t-2 border-blue-500' : ''}`}
+        } ${draggedLayerId === layer.id ? 'opacity-50' : ''} ${
+          isDropAbove ? 'border-t-2 border-blue-500' : ''
+        } ${isDropBelow ? 'border-b-2 border-blue-500' : ''} ${
+          isDropInside ? 'bg-blue-100 dark:bg-blue-900/40' : ''
+        }`}
       >
         <div className="flex items-center gap-1 flex-1 min-w-0">
           {/* 展開/折りたたみボタン（グループの場合のみ） */}
@@ -174,7 +191,7 @@ function LayerTreeItem({
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <button
             onClick={(e) => onMoveUp(layer, e)}
-            disabled={index === 0}
+            disabled={isFirst}
             className={`disabled:opacity-30 disabled:cursor-not-allowed ${
               selectedObjectId === layer.objectId
                 ? 'text-white/80 hover:text-white'
@@ -187,7 +204,7 @@ function LayerTreeItem({
           </button>
           <button
             onClick={(e) => onMoveDown(layer, e)}
-            disabled={index === layersLength - 1}
+            disabled={isLast}
             className={`disabled:opacity-30 disabled:cursor-not-allowed ${
               selectedObjectId === layer.objectId
                 ? 'text-white/80 hover:text-white'
@@ -230,20 +247,19 @@ function LayerTreeItem({
       {/* 子レイヤーを再帰的にレンダリング */}
       {hasChildren && isExpanded && (
         <div className="ml-2 border-l border-gray-300 dark:border-gray-600">
-          {children.map((childLayer, childIndex) => (
+          {children.map((childLayer) => (
             <LayerTreeItem
               key={childLayer.id}
               layer={childLayer}
-              index={childIndex}
               depth={depth + 1}
               isGroup={isGroupLayer(childLayer)}
               getChildLayers={getChildLayers}
+              getSiblingLayers={getSiblingLayers}
               selectedObjectId={selectedObjectId}
               editingLayerId={editingLayerId}
               editingName={editingName}
-              draggedIndex={draggedIndex}
-              dragOverIndex={dragOverIndex}
-              layersLength={children.length}
+              draggedLayerId={draggedLayerId}
+              dropTarget={dropTarget}
               onSelect={onSelect}
               onToggleVisibility={onToggleVisibility}
               onToggleLock={onToggleLock}
@@ -275,7 +291,7 @@ export default function LayersPanel() {
     toggleLayerVisibility,
     toggleLayerLock,
     updateLayerName,
-    reorderLayers,
+    moveLayer,
     toggleLayerExpanded,
     setSelectedObjectId,
     selectedObjectId,
@@ -286,36 +302,97 @@ export default function LayersPanel() {
     removePage,
     setCurrentPage,
     updatePageNotes,
-    setLayers,
   } = useCanvasStore()
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const dragOverRef = useRef<{ layerId: string; rect: DOMRect } | null>(null)
 
-  const handleDragStart = (e: DragEvent<HTMLDivElement>, index: number) => {
-    setDraggedIndex(index)
+  const handleDragStart = (e: DragEvent<HTMLDivElement>, layerId: string) => {
+    setDraggedLayerId(layerId)
     e.dataTransfer.effectAllowed = 'move'
   }
 
-  const handleDragOver = (e: DragEvent<HTMLDivElement>, index: number) => {
+  const handleDragOver = (
+    e: DragEvent<HTMLDivElement>,
+    layerId: string,
+    isGroup: boolean
+  ) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    setDragOverIndex(index)
+
+    if (layerId === draggedLayerId) return
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const height = rect.height
+
+    let position: DropTarget['position']
+
+    if (y < height * 0.25) {
+      // 上25%: above
+      position = 'above'
+    } else if (y > height * 0.75) {
+      // 下25%: below
+      position = 'below'
+    } else if (isGroup) {
+      // 中央50%でグループの場合: inside
+      position = 'inside'
+    } else {
+      // 中央50%で非グループの場合: belowにフォールバック
+      position = 'below'
+    }
+
+    // 前回と同じターゲットなら更新しない
+    if (dropTarget?.layerId === layerId && dropTarget?.position === position) return
+
+    setDropTarget({ layerId, position })
+    dragOverRef.current = { layerId, rect }
   }
 
   const handleDragEnd = () => {
-    setDraggedIndex(null)
-    setDragOverIndex(null)
+    setDraggedLayerId(null)
+    setDropTarget(null)
+    dragOverRef.current = null
   }
 
-  const handleDrop = (e: DragEvent<HTMLDivElement>, dropIndex: number) => {
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
-    if (draggedIndex !== null && draggedIndex !== dropIndex) {
-      reorderLayers(draggedIndex, dropIndex)
+    if (!draggedLayerId || !dropTarget) {
+      handleDragEnd()
+      return
     }
-    setDraggedIndex(null)
-    setDragOverIndex(null)
+
+    const { position, layerId: targetId } = dropTarget
+    const targetLayer = layers.find((l) => l.id === targetId)
+    if (!targetLayer) {
+      handleDragEnd()
+      return
+    }
+
+    if (position === 'inside') {
+      // グループ内の最後に追加
+      moveLayer(draggedLayerId, targetId, -1)
+    } else if (position === 'above') {
+      // targetの親の中で、targetの直前に挿入
+      const parentId = targetLayer.parentId || null
+      const siblings = parentId
+        ? layers.filter((l) => l.parentId === parentId)
+        : layers.filter((l) => !l.parentId)
+      const targetIdx = siblings.findIndex((l) => l.id === targetId)
+      moveLayer(draggedLayerId, parentId, targetIdx)
+    } else {
+      // below: targetの親の中で、targetの直後に挿入
+      const parentId = targetLayer.parentId || null
+      const siblings = parentId
+        ? layers.filter((l) => l.parentId === parentId)
+        : layers.filter((l) => !l.parentId)
+      const targetIdx = siblings.findIndex((l) => l.id === targetId)
+      moveLayer(draggedLayerId, parentId, targetIdx + 1)
+    }
+
+    handleDragEnd()
   }
 
   const selectLayer = (layer: (typeof layers)[0]) => {
@@ -331,8 +408,6 @@ export default function LayersPanel() {
           const group = canvasObj as fabric.Group
           const found = group.getObjects().find((o) => o.data?.id === layer.objectId)
           if (found) {
-            // グループ内のオブジェクトを選択する場合、グループを展開してサブオブジェクトを選択
-            // Fabric.jsではActiveSelectionを使って個別選択を実現
             fabricCanvas.setActiveObject(found)
             fabricCanvas.renderAll()
             setSelectedObjectId(layer.objectId)
@@ -349,62 +424,28 @@ export default function LayersPanel() {
     }
   }
 
+  // 同じ親内で1つ上に移動
   const moveLayerUp = (layer: (typeof layers)[0], e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!fabricCanvas) return
-    const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
-    if (obj) {
-      fabricCanvas.bringForward(obj)
-      fabricCanvas.renderAll()
-      // Fabric.jsからレイヤー順序を同期
-      syncLayersFromCanvas()
-    }
+    const parentId = layer.parentId || null
+    const siblings = parentId
+      ? layers.filter((l) => l.parentId === parentId)
+      : layers.filter((l) => !l.parentId)
+    const currentIdx = siblings.findIndex((l) => l.id === layer.id)
+    if (currentIdx <= 0) return
+    moveLayer(layer.id, parentId, currentIdx - 1)
   }
 
+  // 同じ親内で1つ下に移動
   const moveLayerDown = (layer: (typeof layers)[0], e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!fabricCanvas) return
-    const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
-    if (obj) {
-      fabricCanvas.sendBackwards(obj)
-      fabricCanvas.renderAll()
-      // Fabric.jsからレイヤー順序を同期
-      syncLayersFromCanvas()
-    }
-  }
-
-  const syncLayersFromCanvas = () => {
-    if (!fabricCanvas) return
-    const objects = fabricCanvas.getObjects()
-    const seenIds = new Set<string>()
-    const syncedLayers = objects
-      .map((o) => layers.find((l) => l.objectId === o.data?.id))
-      .filter((layer): layer is (typeof layers)[number] => {
-        if (!layer) return false
-        // 重複を排除
-        if (seenIds.has(layer.id)) return false
-        seenIds.add(layer.id)
-        return true
-      })
-      .reverse()
-
-    if (syncedLayers.length > 0) {
-      setLayers(syncedLayers)
-      // ページデータも更新
-      const currentPage = pages.find((p) => p.id === currentPageId)
-      if (currentPage) {
-        const updatedPages = pages.map((p) =>
-          p.id === currentPageId ? { ...p, layers: syncedLayers } : p
-        )
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
-          } catch (error) {
-            console.error('Failed to save page data:', error)
-          }
-        }
-      }
-    }
+    const parentId = layer.parentId || null
+    const siblings = parentId
+      ? layers.filter((l) => l.parentId === parentId)
+      : layers.filter((l) => !l.parentId)
+    const currentIdx = siblings.findIndex((l) => l.id === layer.id)
+    if (currentIdx >= siblings.length - 1) return
+    moveLayer(layer.id, parentId, currentIdx + 1)
   }
 
   const startEditing = (layer: (typeof layers)[0], e: React.MouseEvent) => {
@@ -440,6 +481,14 @@ export default function LayersPanel() {
   // 子レイヤーを取得するヘルパー関数
   const getChildLayers = (parentId: string): Layer[] => {
     return layers.filter((layer) => layer.parentId === parentId)
+  }
+
+  // 同じ親を持つ兄弟レイヤーを取得
+  const getSiblingLayers = (layer: Layer): Layer[] => {
+    const parentId = layer.parentId || null
+    return parentId
+      ? layers.filter((l) => l.parentId === parentId)
+      : layers.filter((l) => !l.parentId)
   }
 
   // グループかどうかを判定
@@ -510,20 +559,19 @@ export default function LayersPanel() {
         </h2>
         {layers.length > 0 ? (
           <div className="space-y-0.5">
-            {rootLayers.map((layer, index) => (
+            {rootLayers.map((layer) => (
               <LayerTreeItem
                 key={layer.id}
                 layer={layer}
-                index={index}
                 depth={0}
                 isGroup={isGroupLayer(layer)}
                 getChildLayers={getChildLayers}
+                getSiblingLayers={getSiblingLayers}
                 selectedObjectId={selectedObjectId}
                 editingLayerId={editingLayerId}
                 editingName={editingName}
-                draggedIndex={draggedIndex}
-                dragOverIndex={dragOverIndex}
-                layersLength={rootLayers.length}
+                draggedLayerId={draggedLayerId}
+                dropTarget={dropTarget}
                 onSelect={selectLayer}
                 onToggleVisibility={toggleLayerVisibility}
                 onToggleLock={toggleLayerLock}

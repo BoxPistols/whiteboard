@@ -70,6 +70,7 @@ interface CanvasStore {
   toggleLayerLock: (id: string) => void
   updateLayerName: (id: string, name: string) => void
   reorderLayers: (startIndex: number, endIndex: number) => void
+  moveLayer: (layerId: string, targetParentId: string | null, targetIndex: number) => void
   toggleLayerExpanded: (id: string) => void
   updateLayerChildren: (parentId: string, childIds: string[]) => void
   setZoom: (zoom: number) => void
@@ -197,6 +198,27 @@ const persistLayersToStorage = (
   return { layers: updatedLayers, pages: updatedPages }
 }
 
+// ツリーを深さ優先で平坦化（レイヤーパネル表示順=z-order）
+function flattenLayerTree(layers: Layer[]): Layer[] {
+  const rootLayers = layers.filter((l) => !l.parentId)
+  const result: Layer[] = []
+  function traverse(layerId: string) {
+    const layer = layers.find((l) => l.id === layerId)
+    if (!layer) return
+    result.push(layer)
+    const children = layers.filter((l) => l.parentId === layerId)
+    children.forEach((child) => traverse(child.id))
+  }
+  rootLayers.forEach((l) => traverse(l.id))
+  return result
+}
+
+// 子孫レイヤーIDを再帰的に取得
+function getDescendantIds(layerId: string, layers: Layer[]): string[] {
+  const children = layers.filter((l) => l.parentId === layerId)
+  return children.flatMap((child) => [child.id, ...getDescendantIds(child.id, layers)])
+}
+
 // fabricCanvasからcanvasDataを取得するヘルパー関数
 const getCanvasData = (
   fabricCanvas: fabric.Canvas | null,
@@ -256,18 +278,35 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   removeLayer: (id) =>
     set((state) => {
       const { fabricCanvas } = get()
-      const layer = state.layers.find((l) => l.id === id)
 
-      // Canvasからもオブジェクトを削除
-      if (fabricCanvas && layer) {
-        const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
-        if (obj) {
-          fabricCanvas.remove(obj)
-          fabricCanvas.renderAll()
+      // 削除対象のIDリスト（自分自身＋子孫すべて）
+      const idsToRemove = [id, ...getDescendantIds(id, state.layers)]
+
+      // Canvasからもオブジェクトを削除（子孫含む）
+      if (fabricCanvas) {
+        for (const removeId of idsToRemove) {
+          const layer = state.layers.find((l) => l.id === removeId)
+          if (!layer) continue
+          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+          if (obj) {
+            fabricCanvas.remove(obj)
+          }
         }
+        fabricCanvas.renderAll()
       }
 
-      const updatedLayers = state.layers.filter((layer) => layer.id !== id)
+      // 親のchildrenからも除去
+      const removedLayer = state.layers.find((l) => l.id === id)
+      let updatedLayers = state.layers.filter((l) => !idsToRemove.includes(l.id))
+      if (removedLayer?.parentId) {
+        updatedLayers = updatedLayers.map((l) => {
+          if (l.id === removedLayer.parentId && l.children) {
+            return { ...l, children: l.children.filter((cid) => cid !== id) }
+          }
+          return l
+        })
+      }
+
       const currentCanvasData =
         state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
       const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
@@ -276,23 +315,33 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   toggleLayerVisibility: (id) =>
     set((state) => {
       const { fabricCanvas } = get()
-      const updatedLayers = state.layers.map((layer) =>
-        layer.id === id ? { ...layer, visible: !layer.visible } : layer
+      const layer = state.layers.find((l) => l.id === id)
+      if (!layer) return {}
+
+      const newVisible = !layer.visible
+      // グループの場合は子孫もカスケード
+      const descendantIds = getDescendantIds(id, state.layers)
+      const idsToUpdate = [id, ...descendantIds]
+
+      const updatedLayers = state.layers.map((l) =>
+        idsToUpdate.includes(l.id) ? { ...l, visible: newVisible } : l
       )
 
       // Fabric.jsオブジェクトの表示/非表示を切り替え
       if (fabricCanvas) {
-        const layer = state.layers.find((l) => l.id === id)
-        if (layer) {
-          // まずキャンバス直下で探す
-          let obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+        for (const updateId of idsToUpdate) {
+          const targetLayer = state.layers.find((l) => l.id === updateId)
+          if (!targetLayer) continue
+
+          // キャンバス直下で探す
+          let obj = fabricCanvas.getObjects().find((o) => o.data?.id === targetLayer.objectId)
 
           // 見つからない場合はグループ内を探す
           if (!obj) {
             for (const canvasObj of fabricCanvas.getObjects()) {
               if (canvasObj.type === 'group') {
                 const group = canvasObj as fabric.Group
-                const found = group.getObjects().find((o) => o.data?.id === layer.objectId)
+                const found = group.getObjects().find((o) => o.data?.id === targetLayer.objectId)
                 if (found) {
                   obj = found
                   break
@@ -302,10 +351,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           }
 
           if (obj) {
-            obj.visible = !layer.visible
-            fabricCanvas.renderAll()
+            obj.visible = newVisible
           }
         }
+        fabricCanvas.renderAll()
       }
 
       return persistLayersToStorage(state, updatedLayers, undefined, 'layer visibility change')
@@ -314,48 +363,58 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set((state) => {
       const { fabricCanvas } = get()
       const layer = state.layers.find((l) => l.id === id)
+      if (!layer) return {}
 
-      if (fabricCanvas && layer) {
-        // まずキャンバス直下で探す
-        let obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+      const newLockState = !layer.locked
+      // グループの場合は子孫もカスケード
+      const descendantIds = getDescendantIds(id, state.layers)
+      const idsToUpdate = [id, ...descendantIds]
 
-        // 見つからない場合はグループ内を探す
-        if (!obj) {
-          for (const canvasObj of fabricCanvas.getObjects()) {
-            if (canvasObj.type === 'group') {
-              const group = canvasObj as fabric.Group
-              const found = group.getObjects().find((o) => o.data?.id === layer.objectId)
-              if (found) {
-                obj = found
-                break
+      if (fabricCanvas) {
+        for (const updateId of idsToUpdate) {
+          const targetLayer = state.layers.find((l) => l.id === updateId)
+          if (!targetLayer) continue
+
+          // キャンバス直下で探す
+          let obj = fabricCanvas.getObjects().find((o) => o.data?.id === targetLayer.objectId)
+
+          // 見つからない場合はグループ内を探す
+          if (!obj) {
+            for (const canvasObj of fabricCanvas.getObjects()) {
+              if (canvasObj.type === 'group') {
+                const group = canvasObj as fabric.Group
+                const found = group
+                  .getObjects()
+                  .find((o) => o.data?.id === targetLayer.objectId)
+                if (found) {
+                  obj = found
+                  break
+                }
               }
             }
           }
-        }
 
-        if (obj) {
-          const newLockState = !layer.locked
-          // ロック/ロック解除の設定
-          obj.set({
-            lockMovementX: newLockState,
-            lockMovementY: newLockState,
-            lockRotation: newLockState,
-            lockScalingX: newLockState,
-            lockScalingY: newLockState,
-            hasControls: !newLockState,
-            selectable: !newLockState,
-            evented: !newLockState,
-          })
-          // ロックした場合は選択を解除
-          if (newLockState && fabricCanvas.getActiveObject() === obj) {
-            fabricCanvas.discardActiveObject()
+          if (obj) {
+            obj.set({
+              lockMovementX: newLockState,
+              lockMovementY: newLockState,
+              lockRotation: newLockState,
+              lockScalingX: newLockState,
+              lockScalingY: newLockState,
+              hasControls: !newLockState,
+              selectable: !newLockState,
+              evented: !newLockState,
+            })
+            if (newLockState && fabricCanvas.getActiveObject() === obj) {
+              fabricCanvas.discardActiveObject()
+            }
           }
-          fabricCanvas.renderAll()
         }
+        fabricCanvas.renderAll()
       }
 
-      const updatedLayers = state.layers.map((layer) =>
-        layer.id === id ? { ...layer, locked: !layer.locked } : layer
+      const updatedLayers = state.layers.map((l) =>
+        idsToUpdate.includes(l.id) ? { ...l, locked: newLockState } : l
       )
 
       return persistLayersToStorage(state, updatedLayers, undefined, 'layer lock change')
@@ -386,6 +445,101 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
 
       return persistLayersToStorage(state, result, undefined, 'layer reorder')
+    }),
+  moveLayer: (layerId, targetParentId, targetIndex) =>
+    set((state) => {
+      const { fabricCanvas } = get()
+      const layer = state.layers.find((l) => l.id === layerId)
+      if (!layer) return {}
+
+      // 自分自身や自分の子孫の中には移動できない
+      if (targetParentId) {
+        const descendantIds = getDescendantIds(layerId, state.layers)
+        if (targetParentId === layerId || descendantIds.includes(targetParentId)) {
+          return {}
+        }
+      }
+
+      let updatedLayers = [...state.layers]
+
+      // 1. 旧親のchildrenからlayerIdを除去
+      if (layer.parentId) {
+        updatedLayers = updatedLayers.map((l) => {
+          if (l.id === layer.parentId && l.children) {
+            return { ...l, children: l.children.filter((cid) => cid !== layerId) }
+          }
+          return l
+        })
+      }
+
+      // 2. 移動元レイヤーのparentIdを更新
+      updatedLayers = updatedLayers.map((l) => {
+        if (l.id === layerId) {
+          return { ...l, parentId: targetParentId || undefined }
+        }
+        return l
+      })
+
+      // 3. 新親のchildrenにlayerIdを挿入
+      if (targetParentId) {
+        updatedLayers = updatedLayers.map((l) => {
+          if (l.id === targetParentId) {
+            const currentChildren = (l.children || []).filter((cid) => cid !== layerId)
+            const insertIdx = targetIndex < 0 ? currentChildren.length : targetIndex
+            const newChildren = [...currentChildren]
+            newChildren.splice(insertIdx, 0, layerId)
+            return { ...l, children: newChildren, expanded: true }
+          }
+          return l
+        })
+      }
+
+      // 4. 全体の配列順序もツリーの表示順に合わせて並べ替え
+      // 兄弟間の順序をtargetIndexに基づいて更新
+      const siblings = targetParentId
+        ? updatedLayers.filter((l) => l.parentId === targetParentId && l.id !== layerId)
+        : updatedLayers.filter((l) => !l.parentId && l.id !== layerId)
+
+      const insertIdx = targetIndex < 0 ? siblings.length : Math.min(targetIndex, siblings.length)
+      siblings.splice(insertIdx, 0, updatedLayers.find((l) => l.id === layerId)!)
+
+      // 配列全体をツリー順に再構成
+      const reordered: Layer[] = []
+      const rootLayers = updatedLayers.filter((l) => !l.parentId)
+      // ルートの順序をsiblingsで更新（targetParentIdがnullの場合）
+      const orderedRoots = targetParentId === null ? siblings : rootLayers
+
+      function reorderTraverse(currentLayerId: string) {
+        const l = updatedLayers.find((x) => x.id === currentLayerId)
+        if (!l) return
+        reordered.push(l)
+        // 子の順序
+        const childrenOrder = targetParentId === currentLayerId
+          ? siblings
+          : updatedLayers.filter((x) => x.parentId === currentLayerId)
+        childrenOrder.forEach((child) => reorderTraverse(child.id))
+      }
+      orderedRoots.forEach((root) => reorderTraverse(root.id))
+
+      // reorderedに含まれなかったレイヤーも追加（安全対策）
+      const reorderedIds = new Set(reordered.map((l) => l.id))
+      const remaining = updatedLayers.filter((l) => !reorderedIds.has(l.id))
+      const finalLayers = [...reordered, ...remaining]
+
+      // 5. fabric.jsのz-orderをツリーの深さ優先走査順に同期
+      if (fabricCanvas) {
+        const flattened = flattenLayerTree(finalLayers)
+        // 配列の最後がz-orderの最前面（上のレイヤー）
+        flattened.forEach((l, index) => {
+          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === l.objectId)
+          if (obj) {
+            fabricCanvas.moveTo(obj, flattened.length - 1 - index)
+          }
+        })
+        fabricCanvas.renderAll()
+      }
+
+      return persistLayersToStorage(state, finalLayers, undefined, 'layer move')
     }),
   toggleLayerExpanded: (id) =>
     set((state) => {

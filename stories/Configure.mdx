@@ -10,37 +10,42 @@ import { Meta } from '@storybook/addon-docs/blocks'
 
 ## 技術スタック
 
-| カテゴリ | 技術 |
-|---------|------|
-| フレームワーク | Next.js 15 |
+| カテゴリ       | 技術         |
+| -------------- | ------------ |
+| フレームワーク | Next.js 15   |
 | キャンバス描画 | fabric.js v5 |
-| 状態管理 | Zustand |
-| スタイリング | Tailwind CSS |
-| 言語 | TypeScript |
+| 状態管理       | Zustand      |
+| スタイリング   | Tailwind CSS |
+| 言語           | TypeScript   |
 
 ---
 
 ## コンポーネント構成
 
 ### ツールバー・操作系
+
 - **Toolbar** - 描画ツール（選択、矩形、円、線、矢印、テキスト、ペンシル）の切り替えUI
 - **ExportImportControls** - JSON / SVG / PNG エクスポートとJSONインポート
 
 ### パネル系
+
 - **LayersPanel** - レイヤー管理（表示/非表示、ロック、並び替え、グループ）とページナビゲーション
 - **PropertiesPanel** - 選択オブジェクトのプロパティ編集（色、サイズ、位置、透明度）
 - **AlignmentPanel** - オブジェクトの整列操作
 - **PagePanel** - ページの追加・切り替え・削除
 
 ### カラー系
+
 - **ColorPalette** - 塗り・線の色選択パレット
 
 ### コンテキスト・モーダル系
+
 - **ContextMenu** - 右クリックメニュー（コピー、ペースト、削除、配置変更）
 - **ShortcutsModal** - キーボードショートカット一覧・カスタマイズ・設定（ナッジ、グリッド）
 - **MobileHelpModal** - モバイルデバイス向け操作ガイド
 
 ### アイコン
+
 - **Icons** - アプリ内で使用するSVGアイコンコンポーネント群
 
 ---

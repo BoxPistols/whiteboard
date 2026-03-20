@@ -1053,8 +1053,7 @@ export default function Canvas() {
 
       // 現在の色を基本色として保存
       const baseFill = typeof currentShape.fill === 'string' ? currentShape.fill : undefined
-      const baseStroke =
-        typeof currentShape.stroke === 'string' ? currentShape.stroke : undefined
+      const baseStroke = typeof currentShape.stroke === 'string' ? currentShape.stroke : undefined
 
       // 描画完了後にオブジェクトを選択可能にする
       currentShape.set({
