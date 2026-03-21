@@ -244,10 +244,7 @@ const persistGridSettings = (state: {
 }
 
 // fabricCanvasからobjectIdでオブジェクトを検索（直下→グループ内）
-const findFabricObject = (
-  fabricCanvas: fabric.Canvas,
-  objectId: string
-): fabric.Object | null => {
+const findFabricObject = (fabricCanvas: fabric.Canvas, objectId: string): fabric.Object | null => {
   // キャンバス直下で探す
   const obj = fabricCanvas.getObjects().find((o) => o.data?.id === objectId)
   if (obj) return obj
@@ -861,8 +858,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     activeObject.dirty = true
     fabricCanvas.requestRenderAll()
 
-    // autosaveリスナーにイベントを通知（デバウンス付きで保存される）
-    fabricCanvas.fire('object:modified', { target: activeObject })
+    // canvas JSONを即座にlocalStorageに保存
+    try {
+      const json = JSON.stringify(fabricCanvas.toJSON(['data']))
+      const { currentPageId, layers: currentLayers } = get()
+      get().updatePageData(currentPageId, json, currentLayers)
+    } catch (error) {
+      console.error('Failed to save after property update:', error)
+    }
 
     // ストアのプロパティも即座に更新
     if (selectedObjectProps) {

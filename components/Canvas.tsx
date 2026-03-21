@@ -1724,12 +1724,14 @@ export default function Canvas() {
     canvas.on('object:modified', handleCanvasChange)
     canvas.on('object:added', handleCanvasChange)
     canvas.on('object:removed', handleCanvasChange)
+    canvas.on('text:editing:exited', handleCanvasChange)
 
     return () => {
       clearTimeout(saveTimeout)
       canvas.off('object:modified', handleCanvasChange)
       canvas.off('object:added', handleCanvasChange)
       canvas.off('object:removed', handleCanvasChange)
+      canvas.off('text:editing:exited', handleCanvasChange)
     }
   }, [updatePageData])
 
