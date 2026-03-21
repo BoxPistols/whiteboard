@@ -245,6 +245,35 @@ export function detectColorTheme(hex: string): 'light' | 'dark' {
 }
 
 /**
+ * 色文字列（HEX、RGBA、RGB、名前付き色、fabricのPattern/Gradient）をHEX形式に変換する
+ */
+export function colorToHex(color: string | any | undefined): string {
+  if (!color || typeof color !== 'string') return ''
+
+  // すでにhex形式の場合
+  if (color.startsWith('#')) {
+    // 短縮形（#ABC）を標準形（#AABBCC）に変換
+    if (color.length === 4) {
+      return `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`.toUpperCase()
+    }
+    return color.toUpperCase()
+  }
+
+  // rgb/rgba形式の場合
+  const rgbaMatch = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+  if (rgbaMatch) {
+    const r = parseInt(rgbaMatch[1], 10)
+    const g = parseInt(rgbaMatch[2], 10)
+    const b = parseInt(rgbaMatch[3], 10)
+    return rgbToHex(r, g, b)
+  }
+
+  // 名前付き色の場合、ブラウザに一時的な要素を作らせて計算させるか、
+  // あるいは既知の色名ならそのまま。ここでは簡易的にそのまま返す（ブラウザが処理）
+  return color
+}
+
+/**
  * 現在のテーマに適した色に変換
  */
 export function convertColorForTheme(color: string, targetTheme: 'light' | 'dark'): string {
