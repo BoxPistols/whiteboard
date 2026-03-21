@@ -1333,47 +1333,6 @@ export default function Canvas() {
     canvas.on('mouse:up', handlePanMouseUp)
     canvas.on('mouse:wheel', handleMouseWheel)
 
-    // ダブルクリックでグループ内に入る（Figmaスタイル）
-    const handleDblClick = (opt: fabric.IEvent) => {
-      const target = opt.target
-      if (!target || target.type !== 'group') return
-      // グループ解除して個別オブジェクトを選択可能にする
-      ungroupObjects()
-    }
-
-    // Cmd+Click でグループ内のサブオブジェクトを直接選択
-    const handleMouseDownSubSelect = (opt: fabric.IEvent) => {
-      const evt = opt.e as MouseEvent
-      if (!evt.metaKey && !evt.ctrlKey) return
-      const target = opt.target
-      if (!target || target.type !== 'group') return
-
-      // subTargetCheckが有効なグループでサブターゲットを取得
-      const subTargets = (opt as fabric.IEvent & { subTargets?: fabric.Object[] }).subTargets
-      if (!subTargets || subTargets.length === 0) return
-
-      const subTarget = subTargets[0]
-      const subTargetId = subTarget.data?.id
-
-      // グループを解除してサブオブジェクトを個別に選択可能にする
-      ungroupObjects()
-
-      // 解除後にサブターゲットを選択
-      if (subTargetId) {
-        setTimeout(() => {
-          const obj = canvas.getObjects().find((o) => o.data?.id === subTargetId)
-          if (obj) {
-            canvas.setActiveObject(obj)
-            canvas.renderAll()
-            setSelectedObjectId(subTargetId)
-          }
-        }, 50)
-      }
-    }
-
-    canvas.on('mouse:dblclick', handleDblClick)
-    canvas.on('mouse:down', handleMouseDownSubSelect)
-
     canvas.on('selection:created', handleSelection)
     canvas.on('selection:updated', handleSelection)
     canvas.on('selection:cleared', handleDeselection)
@@ -1424,8 +1383,6 @@ export default function Canvas() {
       canvas.off('mouse:up', handlePanMouseUp)
       canvas.off('mouse:wheel', handleMouseWheel)
 
-      canvas.off('mouse:dblclick', handleDblClick)
-      canvas.off('mouse:down', handleMouseDownSubSelect)
       canvas.off('selection:created', handleSelection)
       canvas.off('selection:updated', handleSelection)
       canvas.off('selection:cleared', handleDeselection)
@@ -1444,7 +1401,6 @@ export default function Canvas() {
     layers,
     selectedObjectId,
     addLayer,
-    ungroupObjects,
   ])
 
   // グリッドスナップ機能
@@ -1535,12 +1491,85 @@ export default function Canvas() {
       canvas.renderAll()
     }
 
+    // ダブルクリックでグループ内に入る（Figmaスタイル）
+    const handleDblClick = (opt: fabric.IEvent) => {
+      const target = opt.target
+      if (!target || target.type !== 'group') return
+      if ((target as fabric.Group).data?.type === 'arrow') return
+
+      const group = target as fabric.Group
+      const groupId = group.data?.id
+      if (!groupId) return
+
+      // グループ内のアイテム情報を収集
+      const items = group.getObjects()
+      const groupMatrix = group.calcTransformMatrix()
+
+      const clonePromises = items.map(
+        (item) =>
+          new Promise<{
+            clone: fabric.Object
+            options: ReturnType<typeof fabric.util.qrDecompose>
+            originalId: string | undefined
+          }>((resolve) => {
+            const itemMatrix = item.calcTransformMatrix()
+            const finalMatrix = fabric.util.multiplyTransformMatrices(groupMatrix, itemMatrix)
+            const options = fabric.util.qrDecompose(finalMatrix)
+            item.clone((cloned: fabric.Object) => {
+              resolve({ clone: cloned, options, originalId: item.data?.id })
+            })
+          })
+      )
+
+      Promise.all(clonePromises).then((clonedItems) => {
+        canvas.remove(group)
+
+        // ストアから最新のlayersを取得（クロージャの古い値を避ける）
+        const currentLayers = useCanvasStore.getState().layers
+        const currentSetLayers = useCanvasStore.getState().setLayers
+
+        // 子レイヤーのparentIdをクリアし、グループレイヤーを削除
+        const updatedLayers = currentLayers
+          .filter((layer) => layer.id !== groupId && layer.objectId !== groupId)
+          .map((layer) => {
+            if (layer.parentId === groupId) {
+              const { parentId: _, ...rest } = layer
+              void _
+              return rest
+            }
+            return layer
+          })
+
+        clonedItems.forEach(({ clone, options, originalId }) => {
+          const itemId = originalId || crypto.randomUUID()
+          clone.set({
+            left: options.translateX,
+            top: options.translateY,
+            scaleX: options.scaleX,
+            scaleY: options.scaleY,
+            angle: options.angle,
+            selectable: true,
+            evented: true,
+            data: { ...(clone.data || {}), id: itemId },
+          })
+          clone.setCoords()
+          canvas.add(clone)
+        })
+
+        currentSetLayers(updatedLayers)
+        canvas.discardActiveObject()
+        canvas.renderAll()
+      })
+    }
+
     canvas.on('object:rotating', handleObjectRotating)
     canvas.on('object:modified', handleArrowScaled)
+    canvas.on('mouse:dblclick', handleDblClick)
 
     return () => {
       canvas.off('object:rotating', handleObjectRotating)
       canvas.off('object:modified', handleArrowScaled)
+      canvas.off('mouse:dblclick', handleDblClick)
     }
   }, [])
 
