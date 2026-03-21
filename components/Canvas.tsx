@@ -1700,9 +1700,10 @@ export default function Canvas() {
   }, [pages, currentPageId, theme, setLayers, selectedTool, saveHistory])
 
   // localStorage自動保存（デバウンス） - ページごとに保存
+  // 注意: hasLoadedRefのチェックを削除。500msデバウンスにより初期ロード完了後に保存される
   useEffect(() => {
     const canvas = fabricCanvasRef.current
-    if (!canvas || !hasLoadedRef.current) return
+    if (!canvas) return
 
     let saveTimeout: NodeJS.Timeout
     const handleCanvasChange = () => {
