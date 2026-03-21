@@ -1,7 +1,12 @@
 import { useCallback, useRef, useEffect } from 'react'
 import { fabric } from 'fabric'
 import { useCanvasStore } from '@/lib/store'
-import { getCanvasPointer, createArrowPathData, createArrowObject, toolToNodeType } from '@/lib/canvasUtils'
+import {
+  getCanvasPointer,
+  createArrowPathData,
+  createArrowObject,
+  toolToNodeType,
+} from '@/lib/canvasUtils'
 
 interface UseCanvasEventsProps {
   fabricCanvas: fabric.Canvas | null
@@ -80,7 +85,8 @@ export const useCanvasEvents = ({
       startPointRef.current = { x: pointer.x, y: pointer.y }
 
       const defaultStrokeColor = theme === 'dark' ? '#6B7280' : '#D1D5DB'
-      const defaultFillColor = theme === 'dark' ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.5)'
+      const defaultFillColor =
+        theme === 'dark' ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.5)'
 
       let shape: fabric.Object | null = null
 
@@ -138,12 +144,26 @@ export const useCanvasEvents = ({
         currentShapeRef.current = shape
       }
     },
-    [fabricCanvas, selectedTool, setSelectedTool, theme, addLayer, setSelectedObjectId, shapeCounterRef]
+    [
+      fabricCanvas,
+      selectedTool,
+      setSelectedTool,
+      theme,
+      addLayer,
+      setSelectedObjectId,
+      shapeCounterRef,
+    ]
   )
 
   const handleMouseMove = useCallback(
     (e: fabric.IEvent<Event>) => {
-      if (!isDrawingRef.current || !startPointRef.current || !currentShapeRef.current || !fabricCanvas) return
+      if (
+        !isDrawingRef.current ||
+        !startPointRef.current ||
+        !currentShapeRef.current ||
+        !fabricCanvas
+      )
+        return
 
       const pointer = getCanvasPointer(e.e as MouseEvent | TouchEvent, fabricCanvas)
       const startPoint = startPointRef.current
@@ -164,7 +184,9 @@ export const useCanvasEvents = ({
           break
         case 'circle':
           if (currentShape instanceof fabric.Circle) {
-            const radius = Math.sqrt(Math.pow(pointer.x - startPoint.x, 2) + Math.pow(pointer.y - startPoint.y, 2))
+            const radius = Math.sqrt(
+              Math.pow(pointer.x - startPoint.x, 2) + Math.pow(pointer.y - startPoint.y, 2)
+            )
             currentShape.set({ radius: radius / 2 })
           }
           break
@@ -179,15 +201,15 @@ export const useCanvasEvents = ({
             const dy = pointer.y - startPoint.y
             const length = Math.max(5, Math.sqrt(dx * dx + dy * dy))
             let angle = (Math.atan2(dy, dx) * 180) / Math.PI
-            
+
             if ((e.e as MouseEvent).shiftKey) {
               angle = Math.round(angle / 45) * 45
             }
-            
+
             const rad = (angle * Math.PI) / 180
             const endX = startPoint.x + length * Math.cos(rad)
             const endY = startPoint.y + length * Math.sin(rad)
-            
+
             fabricCanvas.remove(currentShape)
             const pathData = createArrowPathData(length)
             const newArrow = createArrowObject(pathData, {
@@ -214,7 +236,7 @@ export const useCanvasEvents = ({
     if (currentShapeRef.current && selectedTool !== 'select' && selectedTool !== 'pencil') {
       const id = crypto.randomUUID()
       const shape = currentShapeRef.current
-      
+
       shape.set({
         data: {
           id,
@@ -250,7 +272,16 @@ export const useCanvasEvents = ({
     isDrawingRef.current = false
     startPointRef.current = null
     currentShapeRef.current = null
-  }, [fabricCanvas, selectedTool, addLayer, setSelectedTool, setSelectedObjectId, theme, shapeCounterRef, saveHistory])
+  }, [
+    fabricCanvas,
+    selectedTool,
+    addLayer,
+    setSelectedTool,
+    setSelectedObjectId,
+    theme,
+    shapeCounterRef,
+    saveHistory,
+  ])
 
   // --------------------------------------------------------------------------
   // イベント登録
@@ -266,10 +297,11 @@ export const useCanvasEvents = ({
         setSelectedObjectId('__multi_selection__')
         // プロパティ表示用（簡易版）
         const first = (activeObject as fabric.ActiveSelection).getObjects()[0]
-        if (first) setSelectedObjectProps({ fill: first.fill, stroke: first.stroke, opacity: first.opacity })
+        if (first)
+          setSelectedObjectProps({ fill: first.fill, stroke: first.stroke, opacity: first.opacity })
         return
       }
-      
+
       setShowAlignmentPanel(false)
       const selected = e.selected?.[0]
       if (selected && selected.data?.id) {
@@ -330,10 +362,16 @@ export const useCanvasEvents = ({
 
     const handleMouseDownInt = (opt: fabric.IEvent) => {
       if (selectedTool !== 'select') return
-      if (!opt.target) {
-        const e = opt.e as MouseEvent | TouchEvent
-        const coords = 'touches' in e ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY }
+      const evt = opt.e as MouseEvent | TouchEvent
+      const isMiddleButton = 'button' in evt && evt.button === 1
+      const isSpaceKey = 'buttons' in evt && evt.buttons === 1 && (evt as MouseEvent).altKey
+
+      // パンは中ボタンまたはAlt+ドラッグでのみ有効（通常のクリックはfabric.jsの選択に任せる）
+      if (!opt.target && (isMiddleButton || isSpaceKey)) {
+        const mouseEvt = evt as MouseEvent
+        const coords = { x: mouseEvt.clientX, y: mouseEvt.clientY }
         isPanning = true
+        fabricCanvas.selection = false
         lastPosX = coords.x
         lastPosY = coords.y
       }
@@ -342,7 +380,10 @@ export const useCanvasEvents = ({
     const handleMouseMoveInt = (opt: fabric.IEvent) => {
       if (isPanning) {
         const e = opt.e as MouseEvent | TouchEvent
-        const coords = 'touches' in e ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY }
+        const coords =
+          'touches' in e
+            ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+            : { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY }
         const vpt = fabricCanvas.viewportTransform!
         vpt[4] += coords.x - lastPosX
         vpt[5] += coords.y - lastPosY
@@ -357,7 +398,7 @@ export const useCanvasEvents = ({
       const e = opt.e as WheelEvent
       e.preventDefault()
       if (e.ctrlKey || e.metaKey) {
-        const zoom = Math.max(0.1, Math.min(2, fabricCanvas.getZoom() + (-e.deltaY * 0.0015)))
+        const zoom = Math.max(0.1, Math.min(2, fabricCanvas.getZoom() + -e.deltaY * 0.0015))
         fabricCanvas.zoomToPoint({ x: e.clientX, y: e.clientY }, zoom)
         setZoom(Math.round(zoom * 100))
       } else {
@@ -366,7 +407,10 @@ export const useCanvasEvents = ({
         vpt[5] += -e.deltaY
         fabricCanvas.requestRenderAll()
       }
-      setViewportOffset({ x: fabricCanvas.viewportTransform![4], y: fabricCanvas.viewportTransform![5] })
+      setViewportOffset({
+        x: fabricCanvas.viewportTransform![4],
+        y: fabricCanvas.viewportTransform![5],
+      })
     }
 
     fabricCanvas.on('mouse:down', handleMouseDown)
@@ -374,11 +418,20 @@ export const useCanvasEvents = ({
     fabricCanvas.on('mouse:up', handleMouseUp)
     fabricCanvas.on('mouse:down', handleMouseDownInt)
     fabricCanvas.on('mouse:move', handleMouseMoveInt)
-    fabricCanvas.on('mouse:up', () => { isPanning = false })
+    fabricCanvas.on('mouse:up', () => {
+      if (isPanning) {
+        isPanning = false
+        fabricCanvas.selection = true
+      }
+    })
     fabricCanvas.on('mouse:wheel', handleMouseWheel)
     fabricCanvas.on('selection:created', handleSelection)
     fabricCanvas.on('selection:updated', handleSelection)
-    fabricCanvas.on('selection:cleared', () => { setSelectedObjectId(null); setSelectedObjectProps(null); setShowAlignmentPanel(false) })
+    fabricCanvas.on('selection:cleared', () => {
+      setSelectedObjectId(null)
+      setSelectedObjectProps(null)
+      setShowAlignmentPanel(false)
+    })
     fabricCanvas.on('object:modified', handleObjectModified)
     fabricCanvas.on('path:created', handlePathCreated)
 
@@ -394,5 +447,20 @@ export const useCanvasEvents = ({
       fabricCanvas.off('object:modified', handleObjectModified)
       fabricCanvas.off('path:created', handlePathCreated)
     }
-  }, [fabricCanvas, selectedTool, theme, addLayer, setSelectedObjectId, setSelectedObjectProps, setShowAlignmentPanel, setViewportOffset, setZoom, saveHistory, handleMouseDown, handleMouseMove, handleMouseUp, shapeCounterRef])
+  }, [
+    fabricCanvas,
+    selectedTool,
+    theme,
+    addLayer,
+    setSelectedObjectId,
+    setSelectedObjectProps,
+    setShowAlignmentPanel,
+    setViewportOffset,
+    setZoom,
+    saveHistory,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+    shapeCounterRef,
+  ])
 }
