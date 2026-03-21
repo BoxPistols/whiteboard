@@ -360,7 +360,9 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
   const alignCenter = useCallback(() => {
     const objects = getSelectedObjects()
     if (objects.length < 2) return
-    const centers = objects.map((obj) => (obj.left || 0) + ((obj.width || 0) * (obj.scaleX || 1)) / 2)
+    const centers = objects.map(
+      (obj) => (obj.left || 0) + ((obj.width || 0) * (obj.scaleX || 1)) / 2
+    )
     const avgCenter = centers.reduce((a, b) => a + b, 0) / centers.length
     objects.forEach((obj) => {
       const objWidth = (obj.width || 0) * (obj.scaleX || 1)
@@ -396,7 +398,9 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
   const alignMiddle = useCallback(() => {
     const objects = getSelectedObjects()
     if (objects.length < 2) return
-    const middles = objects.map((obj) => (obj.top || 0) + ((obj.height || 0) * (obj.scaleY || 1)) / 2)
+    const middles = objects.map(
+      (obj) => (obj.top || 0) + ((obj.height || 0) * (obj.scaleY || 1)) / 2
+    )
     const avgMiddle = middles.reduce((a, b) => a + b, 0) / middles.length
     objects.forEach((obj) => {
       const objHeight = (obj.height || 0) * (obj.scaleY || 1)

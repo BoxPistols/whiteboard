@@ -266,7 +266,9 @@ export default function Canvas() {
           onGroup={groupObjects}
           onUngroup={ungroupObjects}
           hasSelection={!!selectedObjectId}
-          isLocked={selectedObjectId ? layers.find((l) => l.id === selectedObjectId)?.locked : false}
+          isLocked={
+            selectedObjectId ? layers.find((l) => l.id === selectedObjectId)?.locked : false
+          }
           hasClipboard={!!clipboard}
           canGroup={fabricCanvasRef.current?.getActiveObject()?.type === 'activeSelection'}
           canUngroup={fabricCanvasRef.current?.getActiveObject()?.type === 'group'}
