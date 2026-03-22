@@ -17,6 +17,7 @@ export default function Canvas() {
     selectedTool,
     setSelectedTool,
     setSelectedObjectId,
+    addLayer,
     layers,
     selectedObjectId,
     setFabricCanvas,
@@ -109,6 +110,90 @@ export default function Canvas() {
     undo,
     redo,
   })
+
+  // クリップボード画像ペースト
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const canvas = fabricCanvasRef.current
+      if (!canvas) return
+
+      // テキスト入力中は無効化
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return
+      }
+
+      const items = e.clipboardData?.items
+      if (!items) {
+        pasteObject()
+        return
+      }
+
+      // 画像があるかチェック
+      let hasImage = false
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.type.indexOf('image') !== -1) {
+          hasImage = true
+          const blob = item.getAsFile()
+          if (!blob) continue
+
+          e.preventDefault()
+          const reader = new FileReader()
+          reader.onload = (event) => {
+            const imgUrl = event.target?.result as string
+            fabric.Image.fromURL(imgUrl, (img) => {
+              const id = crypto.randomUUID()
+
+              // 画像を中央に配置し、最大サイズを制限
+              const maxWidth = canvas.width! * 0.5
+              const maxHeight = canvas.height! * 0.5
+              const scale = Math.min(maxWidth / img.width!, maxHeight / img.height!, 1)
+
+              img.set({
+                left: (canvas.width! - img.width! * scale) / 2,
+                top: (canvas.height! - img.height! * scale) / 2,
+                scaleX: scale,
+                scaleY: scale,
+                data: { id },
+                selectable: true,
+                evented: true,
+              })
+
+              canvas.add(img)
+              canvas.setActiveObject(img)
+              canvas.renderAll()
+
+              shapeCounterRef.current.paste += 1
+              addLayer({
+                id,
+                name: `image ${shapeCounterRef.current.paste}`,
+                visible: true,
+                locked: false,
+                objectId: id,
+                type: 'VECTOR',
+              })
+              setSelectedObjectId(id)
+              saveHistory()
+            })
+          }
+          reader.readAsDataURL(blob)
+          break
+        }
+      }
+
+      // 画像がなく、内部クリップボードにオブジェクトがある場合
+      if (!hasImage) {
+        e.preventDefault()
+        pasteObject()
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+    return () => {
+      document.removeEventListener('paste', handlePaste)
+    }
+  }, [addLayer, setSelectedObjectId, pasteObject, saveHistory, shapeCounterRef])
 
   // Fabric.js 初期化
   useEffect(() => {
