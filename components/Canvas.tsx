@@ -228,28 +228,40 @@ export default function Canvas() {
     }
   }, [])
 
-  // ページデータの読み込み
+  // ページデータの読み込み（初回 + ページ切り替え時）
   useEffect(() => {
     const canvas = fabricCanvasRef.current
-    if (!canvas || hasLoadedRef.current) return
+    if (!canvas) return
+
+    const isPageSwitch = hasLoadedRef.current && prevPageIdRef.current !== currentPageId
+    const isInitialLoad = !hasLoadedRef.current
+
+    if (!isInitialLoad && !isPageSwitch) return
 
     const timer = setTimeout(() => {
       hasLoadedRef.current = true
+      prevPageIdRef.current = currentPageId
+
       const currentPage = pages.find((p) => p.id === currentPageId)
       if (currentPage) {
-        if (currentPage.layers.length > 0) setLayers(currentPage.layers)
+        setLayers(currentPage.layers || [])
         if (currentPage.canvasData) {
           canvas.loadFromJSON(JSON.parse(currentPage.canvasData), () => {
             canvas.renderAll()
             setTimeout(() => saveHistory(), 50)
           })
+        } else {
+          // 空ページの場合はCanvasをクリア
+          canvas.clear()
+          canvas.renderAll()
+          saveHistory()
         }
       }
     }, 100)
     return () => clearTimeout(timer)
   }, [pages, currentPageId, setLayers, saveHistory])
 
-  // 自動保存
+  // 自動保存（pagesInitialized になるまで保存を抑制）
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas) return
@@ -258,8 +270,9 @@ export default function Canvas() {
     const handleCanvasChange = () => {
       clearTimeout(saveTimeout)
       saveTimeout = setTimeout(() => {
-        const json = JSON.stringify(canvas.toJSON(['data']))
         const state = useCanvasStore.getState()
+        if (!state.pagesInitialized) return
+        const json = JSON.stringify(canvas.toJSON(['data']))
         updatePageData(state.currentPageId, json, state.layers)
       }, 500)
     }

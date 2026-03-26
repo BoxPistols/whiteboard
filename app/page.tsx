@@ -6,6 +6,7 @@ import Toolbar from '@/components/Toolbar'
 import LayersPanel from '@/components/LayersPanel'
 import PropertiesPanel from '@/components/PropertiesPanel'
 import ShortcutsModal from '@/components/ShortcutsModal'
+import SaveIndicator from '@/components/SaveIndicator'
 import { useCanvasStore } from '@/lib/store'
 
 const Canvas = dynamic(() => import('@/components/Canvas'), {
@@ -25,13 +26,15 @@ export default function Home() {
     setRightPanelWidth,
     loadSavedShortcuts,
     loadSavedNudgeAmount,
+    initializePages,
   } = useCanvasStore()
 
-  // 保存されたショートカット設定とナッジ設定を読み込み
+  // 保存されたショートカット設定、ナッジ設定を読み込み＆IndexedDBからページデータ復元
   useEffect(() => {
     loadSavedShortcuts()
     loadSavedNudgeAmount()
-  }, [loadSavedShortcuts, loadSavedNudgeAmount])
+    initializePages()
+  }, [loadSavedShortcuts, loadSavedNudgeAmount, initializePages])
 
   const [isResizingLeft, setIsResizingLeft] = useState(false)
   const [isResizingRight, setIsResizingRight] = useState(false)
@@ -130,6 +133,8 @@ export default function Home() {
 
       {/* ショートカット一覧モーダル */}
       <ShortcutsModal />
+      {/* 保存エラー通知 */}
+      <SaveIndicator />
     </main>
   )
 }
