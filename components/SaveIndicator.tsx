@@ -35,7 +35,8 @@ export default function SaveIndicator() {
         <div className="flex-1 text-sm">
           <p className="font-semibold">保存に失敗しました</p>
           <p className="mt-1 opacity-90">
-            {saveError || 'データを保存できませんでした。作業内容をエクスポートしてバックアップしてください。'}
+            {saveError ||
+              'データを保存できませんでした。作業内容をエクスポートしてバックアップしてください。'}
           </p>
         </div>
         <button
@@ -43,7 +44,14 @@ export default function SaveIndicator() {
           className="flex-shrink-0 p-1 hover:bg-red-500 rounded transition-colors"
           aria-label="閉じる"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
