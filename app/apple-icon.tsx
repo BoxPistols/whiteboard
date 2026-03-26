@@ -19,68 +19,53 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+          background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
           borderRadius: '40px',
         }}
       >
+        {/* ホワイトボード */}
         <div
           style={{
-            display: 'flex',
-            flexWrap: 'wrap',
             width: '120px',
-            height: '120px',
-            gap: '12px',
-            padding: '4px',
+            height: '90px',
+            background: 'rgba(255, 255, 255, 0.92)',
+            borderRadius: '12px',
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          {/* 4つのグリッドセル */}
-          <div
-            style={{
-              width: '50px',
-              height: '50px',
-              background: 'rgba(255, 255, 255, 0.9)',
-              borderRadius: '8px',
-            }}
-          />
-          <div
-            style={{
-              width: '50px',
-              height: '50px',
-              background: 'rgba(255, 255, 255, 0.9)',
-              borderRadius: '8px',
-              position: 'relative',
-            }}
+          {/* ペンストローク（SVG代替：3つのドット+線で表現） */}
+          <svg
+            width="80"
+            height="50"
+            viewBox="0 0 80 50"
+            style={{ position: 'absolute' }}
           >
-            {/* 黄色のアクセント */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '-8px',
-                right: '-8px',
-                width: '20px',
-                height: '20px',
-                background: '#fbbf24',
-                borderRadius: '50%',
-              }}
+            <path
+              d="M12 38 Q28 8 48 24 Q56 32 68 14"
+              fill="none"
+              stroke="#3b82f6"
+              strokeWidth="5"
+              strokeLinecap="round"
             />
-          </div>
-          <div
-            style={{
-              width: '50px',
-              height: '50px',
-              background: 'rgba(255, 255, 255, 0.9)',
-              borderRadius: '8px',
-            }}
-          />
-          <div
-            style={{
-              width: '50px',
-              height: '50px',
-              background: 'rgba(255, 255, 255, 0.9)',
-              borderRadius: '8px',
-            }}
-          />
+          </svg>
         </div>
+        {/* ペン先（右上のアクセント） */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '28px',
+            right: '28px',
+            width: '0',
+            height: '0',
+            borderLeft: '10px solid transparent',
+            borderRight: '10px solid transparent',
+            borderBottom: '24px solid #f59e0b',
+            transform: 'rotate(45deg)',
+          }}
+        />
       </div>
     ),
     {
