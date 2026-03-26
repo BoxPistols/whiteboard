@@ -12,6 +12,4 @@
   <rect width="32" height="32" fill="url(#bg)" rx="7"/>
   <!-- アングルストローク -->
   <polyline points="7,23 13,13 19,20 25,9" fill="none" stroke="url(#stroke)" stroke-width="2.2" stroke-linejoin="bevel"/>
-  <!-- ペン先 -->
-  <polygon points="25,9 28,5.5 28.5,9.5" fill="white"/>
 </svg>

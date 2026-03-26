@@ -269,7 +269,6 @@ export default function Toolbar() {
                 strokeWidth="2.2"
                 strokeLinejoin="bevel"
               />
-              <polygon points="25,9 28,5.5 28.5,9.5" fill="white" />
             </svg>
             <h1 className="text-sm font-medium tracking-wide text-gray-800 dark:text-gray-200">
               The White Board
