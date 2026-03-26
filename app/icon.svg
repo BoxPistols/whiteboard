@@ -1,17 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#3b82f6"/>
-      <stop offset="100%" stop-color="#1d4ed8"/>
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
     </linearGradient>
   </defs>
-  <!-- 背景 -->
-  <rect width="32" height="32" fill="url(#bg)" rx="7"/>
-  <!-- ホワイトボード（角丸長方形） -->
-  <rect x="6" y="8" width="20" height="16" rx="2" fill="white" opacity="0.92"/>
-  <!-- ペンストローク（斜めの曲線） -->
-  <path d="M10 20 Q14 12 18 16 Q20 18 22 13" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
-  <!-- ペン先 -->
-  <path d="M22.5 10.5 L24.5 8.5 L26 10 L24 12 Z" fill="#f59e0b"/>
-  <line x1="22.5" y1="10.5" x2="24" y2="12" stroke="#d97706" stroke-width="0.5"/>
+  <rect width="32" height="32" fill="url(#bg)" rx="8"/>
+  <!-- パスライン -->
+  <path d="M8 22 C12 10, 18 26, 24 12" fill="none" stroke="url(#stroke)" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- カーソル -->
+  <path d="M23 10 L26.5 6 L27 10.5 L23.5 11 Z" fill="white" opacity="0.95"/>
 </svg>

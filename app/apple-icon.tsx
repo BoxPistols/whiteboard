@@ -19,53 +19,26 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+          background: 'linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%)',
           borderRadius: '40px',
         }}
       >
-        {/* ホワイトボード */}
-        <div
-          style={{
-            width: '120px',
-            height: '90px',
-            background: 'rgba(255, 255, 255, 0.92)',
-            borderRadius: '12px',
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {/* ペンストローク（SVG代替：3つのドット+線で表現） */}
-          <svg
-            width="80"
-            height="50"
-            viewBox="0 0 80 50"
-            style={{ position: 'absolute' }}
-          >
-            <path
-              d="M12 38 Q28 8 48 24 Q56 32 68 14"
-              fill="none"
-              stroke="#3b82f6"
-              strokeWidth="5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </div>
-        {/* ペン先（右上のアクセント） */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '28px',
-            right: '28px',
-            width: '0',
-            height: '0',
-            borderLeft: '10px solid transparent',
-            borderRight: '10px solid transparent',
-            borderBottom: '24px solid #f59e0b',
-            transform: 'rotate(45deg)',
-          }}
-        />
+        <svg width="120" height="120" viewBox="0 0 32 32">
+          <defs>
+            <linearGradient id="s" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0%" stopColor="#06b6d4" />
+              <stop offset="100%" stopColor="#a78bfa" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M8 22 C12 10, 18 26, 24 12"
+            fill="none"
+            stroke="url(#s)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          />
+          <path d="M23 10 L26.5 6 L27 10.5 L23.5 11 Z" fill="white" opacity="0.95" />
+        </svg>
       </div>
     ),
     {

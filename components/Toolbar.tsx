@@ -249,22 +249,32 @@ export default function Toolbar() {
           </div>
 
           {/* デスクトップ: ロゴ + タイトル */}
-          <div className="hidden md:flex items-center gap-1.5 mr-1 md:mr-3">
-            <svg width="24" height="24" viewBox="0 0 32 32" className="flex-shrink-0">
+          <div className="hidden md:flex items-center gap-2 mr-3">
+            <svg width="22" height="22" viewBox="0 0 32 32" className="flex-shrink-0">
               <defs>
-                <linearGradient id="toolbar-logo-bg" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6"/>
-                  <stop offset="100%" stopColor="#1d4ed8"/>
+                <linearGradient id="toolbar-bg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#1e1b4b" />
+                  <stop offset="100%" stopColor="#4338ca" />
+                </linearGradient>
+                <linearGradient id="toolbar-stroke" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#06b6d4" />
+                  <stop offset="100%" stopColor="#a78bfa" />
                 </linearGradient>
               </defs>
-              <rect width="32" height="32" fill="url(#toolbar-logo-bg)" rx="7"/>
-              <rect x="6" y="8" width="20" height="16" rx="2" fill="white" opacity="0.92"/>
-              <path d="M10 20 Q14 12 18 16 Q20 18 22 13" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round"/>
-              <path d="M22.5 10.5 L24.5 8.5 L26 10 L24 12 Z" fill="#f59e0b"/>
+              <rect width="32" height="32" fill="url(#toolbar-bg)" rx="8" />
+              <path
+                d="M8 22 C12 10, 18 26, 24 12"
+                fill="none"
+                stroke="url(#toolbar-stroke)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <path d="M23 10 L26.5 6 L27 10.5 L23.5 11 Z" fill="white" opacity="0.95" />
             </svg>
-            <h1 className="text-sm md:text-base font-semibold text-gray-900 dark:text-gray-100">
+            <h1 className="text-sm font-medium tracking-wide text-gray-800 dark:text-gray-200">
               The White Board
             </h1>
+            <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 ml-1" />
           </div>
 
           {/* デスクトップ: ツールバー */}
