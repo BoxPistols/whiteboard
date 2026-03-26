@@ -911,6 +911,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ pages: updatedPages, currentPageId: newCurrentPageId })
   },
   setCurrentPage: (id) => {
+    const { fabricCanvas, currentPageId, layers } = get()
+
+    // 切り替え前に現在のページデータを即座に保存（デバウンス中の変更を失わないため）
+    if (fabricCanvas && currentPageId !== id) {
+      const json = JSON.stringify(fabricCanvas.toJSON(['data']))
+      get().updatePageData(currentPageId, json, layers)
+    }
+
     // ページ切り替え時は履歴をクリア
     set({ currentPageId: id, history: [], historyIndex: -1 })
   },
