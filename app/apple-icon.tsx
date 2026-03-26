@@ -19,25 +19,25 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%)',
+          background: 'linear-gradient(135deg, #0f0a2a 0%, #3730a3 100%)',
           borderRadius: '40px',
         }}
       >
         <svg width="120" height="120" viewBox="0 0 32 32">
           <defs>
-            <linearGradient id="s" x1="0" y1="1" x2="1" y2="0">
+            <linearGradient id="s" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#06b6d4" />
-              <stop offset="100%" stopColor="#a78bfa" />
+              <stop offset="100%" stopColor="#818cf8" />
             </linearGradient>
           </defs>
-          <path
-            d="M8 22 C12 10, 18 26, 24 12"
+          <polyline
+            points="7,23 13,13 19,20 25,9"
             fill="none"
             stroke="url(#s)"
-            strokeWidth="2.5"
-            strokeLinecap="round"
+            strokeWidth="2.2"
+            strokeLinejoin="bevel"
           />
-          <path d="M23 10 L26.5 6 L27 10.5 L23.5 11 Z" fill="white" opacity="0.95" />
+          <polygon points="25,9 28,5.5 28.5,9.5" fill="white" />
         </svg>
       </div>
     ),

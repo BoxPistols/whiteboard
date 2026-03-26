@@ -253,23 +253,23 @@ export default function Toolbar() {
             <svg width="22" height="22" viewBox="0 0 32 32" className="flex-shrink-0">
               <defs>
                 <linearGradient id="toolbar-bg" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#1e1b4b" />
-                  <stop offset="100%" stopColor="#4338ca" />
+                  <stop offset="0%" stopColor="#0f0a2a" />
+                  <stop offset="100%" stopColor="#3730a3" />
                 </linearGradient>
-                <linearGradient id="toolbar-stroke" x1="0" y1="1" x2="1" y2="0">
+                <linearGradient id="toolbar-stroke" x1="0" y1="0" x2="1" y2="0">
                   <stop offset="0%" stopColor="#06b6d4" />
-                  <stop offset="100%" stopColor="#a78bfa" />
+                  <stop offset="100%" stopColor="#818cf8" />
                 </linearGradient>
               </defs>
-              <rect width="32" height="32" fill="url(#toolbar-bg)" rx="8" />
-              <path
-                d="M8 22 C12 10, 18 26, 24 12"
+              <rect width="32" height="32" fill="url(#toolbar-bg)" rx="7" />
+              <polyline
+                points="7,23 13,13 19,20 25,9"
                 fill="none"
                 stroke="url(#toolbar-stroke)"
-                strokeWidth="2.5"
-                strokeLinecap="round"
+                strokeWidth="2.2"
+                strokeLinejoin="bevel"
               />
-              <path d="M23 10 L26.5 6 L27 10.5 L23.5 11 Z" fill="white" opacity="0.95" />
+              <polygon points="25,9 28,5.5 28.5,9.5" fill="white" />
             </svg>
             <h1 className="text-sm font-medium tracking-wide text-gray-800 dark:text-gray-200">
               The White Board
