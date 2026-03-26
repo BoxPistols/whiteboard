@@ -19,68 +19,25 @@ export default function Icon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+          background: 'linear-gradient(135deg, #0f0a2a 0%, #3730a3 100%)',
           borderRadius: '40px',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            width: '120px',
-            height: '120px',
-            gap: '12px',
-            padding: '4px',
-          }}
-        >
-          {/* 4つのグリッドセル */}
-          <div
-            style={{
-              width: '50px',
-              height: '50px',
-              background: 'rgba(255, 255, 255, 0.9)',
-              borderRadius: '8px',
-            }}
+        <svg width="120" height="120" viewBox="0 0 32 32">
+          <defs>
+            <linearGradient id="s" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#06b6d4" />
+              <stop offset="100%" stopColor="#818cf8" />
+            </linearGradient>
+          </defs>
+          <polyline
+            points="7,23 13,13 19,20 25,9"
+            fill="none"
+            stroke="url(#s)"
+            strokeWidth="2.2"
+            strokeLinejoin="bevel"
           />
-          <div
-            style={{
-              width: '50px',
-              height: '50px',
-              background: 'rgba(255, 255, 255, 0.9)',
-              borderRadius: '8px',
-              position: 'relative',
-            }}
-          >
-            {/* 黄色のアクセント */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '-8px',
-                right: '-8px',
-                width: '20px',
-                height: '20px',
-                background: '#fbbf24',
-                borderRadius: '50%',
-              }}
-            />
-          </div>
-          <div
-            style={{
-              width: '50px',
-              height: '50px',
-              background: 'rgba(255, 255, 255, 0.9)',
-              borderRadius: '8px',
-            }}
-          />
-          <div
-            style={{
-              width: '50px',
-              height: '50px',
-              background: 'rgba(255, 255, 255, 0.9)',
-              borderRadius: '8px',
-            }}
-          />
-        </div>
+        </svg>
       </div>
     ),
     {

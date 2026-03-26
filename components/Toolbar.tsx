@@ -248,10 +248,33 @@ export default function Toolbar() {
             </span>
           </div>
 
-          {/* デスクトップ: タイトル */}
-          <h1 className="hidden md:block text-sm md:text-base font-semibold mr-1 md:mr-3 text-gray-900 dark:text-gray-100">
-            The White Board
-          </h1>
+          {/* デスクトップ: ロゴ + タイトル */}
+          <div className="hidden md:flex items-center gap-2 mr-3">
+            <svg width="22" height="22" viewBox="0 0 32 32" className="flex-shrink-0">
+              <defs>
+                <linearGradient id="toolbar-bg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#0f0a2a" />
+                  <stop offset="100%" stopColor="#3730a3" />
+                </linearGradient>
+                <linearGradient id="toolbar-stroke" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#06b6d4" />
+                  <stop offset="100%" stopColor="#818cf8" />
+                </linearGradient>
+              </defs>
+              <rect width="32" height="32" fill="url(#toolbar-bg)" rx="7" />
+              <polyline
+                points="7,23 13,13 19,20 25,9"
+                fill="none"
+                stroke="url(#toolbar-stroke)"
+                strokeWidth="2.2"
+                strokeLinejoin="bevel"
+              />
+            </svg>
+            <h1 className="text-sm font-medium tracking-wide text-gray-800 dark:text-gray-200">
+              The White Board
+            </h1>
+            <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 ml-1" />
+          </div>
 
           {/* デスクトップ: ツールバー */}
           <div className="hidden md:flex gap-0.5">
