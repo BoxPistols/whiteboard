@@ -67,6 +67,10 @@ export default function Toolbar() {
     gridEnabled,
     toggleGrid,
     loadSavedGridSettings,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useCanvasStore()
   const [showHelp, setShowHelp] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -296,6 +300,35 @@ export default function Toolbar() {
                 </button>
               )
             })}
+          </div>
+
+          {/* デスクトップ: Undo/Redo */}
+          <div className="hidden md:flex items-center gap-0.5 ml-2">
+            <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mr-1" />
+            <button
+              onClick={undo}
+              disabled={!canUndo()}
+              className="p-1.5 rounded transition-colors touch-manipulation disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+              title="元に戻す (⌘Z)"
+              aria-label="元に戻す"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              </svg>
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo()}
+              className="p-1.5 rounded transition-colors touch-manipulation disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+              title="やり直し (⌘⇧Z)"
+              aria-label="やり直し"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10" />
+              </svg>
+            </button>
           </div>
         </div>
 

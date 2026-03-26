@@ -272,6 +272,28 @@ export default function Canvas() {
     return () => clearTimeout(timer)
   }, [pages, currentPageId, setLayers, saveHistory])
 
+  // Undo/Redo用の履歴記録（操作完了時にスナップショット保存）
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const handleHistorySnapshot = () => {
+      const state = useCanvasStore.getState()
+      if (!state.pagesInitialized || state.isUndoRedoAction) return
+      saveHistory()
+    }
+
+    canvas.on('object:modified', handleHistorySnapshot)
+    canvas.on('object:added', handleHistorySnapshot)
+    canvas.on('object:removed', handleHistorySnapshot)
+
+    return () => {
+      canvas.off('object:modified', handleHistorySnapshot)
+      canvas.off('object:added', handleHistorySnapshot)
+      canvas.off('object:removed', handleHistorySnapshot)
+    }
+  }, [saveHistory])
+
   // 自動保存（pagesInitialized になるまで保存を抑制）
   useEffect(() => {
     const canvas = fabricCanvasRef.current
