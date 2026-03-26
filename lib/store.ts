@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type { Tool, Layer, ShortcutConfig, ShortcutModifiers } from '@/types'
 import type { fabric } from 'fabric'
 import { DEFAULT_SHORTCUTS } from './shortcuts'
+import { savePagesToDB, loadPagesFromDB, migrateToIndexedDB, onSaveStatusChange } from './storage'
+import type { SaveStatus } from './storage'
 
 interface ObjectProperties {
   fill?: string
@@ -56,6 +58,9 @@ interface CanvasStore {
   history: HistorySnapshot[]
   historyIndex: number
   isUndoRedoAction: boolean
+  // 保存状態
+  saveStatus: SaveStatus
+  saveError: string | null
   // グリッド設定
   gridEnabled: boolean
   gridSize: number
@@ -121,6 +126,8 @@ interface CanvasStore {
   setGridOpacity: (opacity: number) => void
   toggleGridSnap: () => void
   loadSavedGridSettings: () => void
+  // ページデータの非同期初期化（IndexedDBから読み込み）
+  initializePages: () => Promise<void>
 }
 
 // 旧プレフィックスから新プレフィックスへのlocalStorageキー移行（モジュールレベルで一度だけ実行）
@@ -149,30 +156,14 @@ migrateLocalStorageKeys()
 
 const defaultPageId = 'page-1'
 
-// localStorageからページデータを読み込む
-const loadPagesFromStorage = (): Page[] => {
-  if (typeof window === 'undefined') {
-    return [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
-  }
-
-  try {
-    const saved = localStorage.getItem('twb-pages')
-    if (saved) {
-      const pages = JSON.parse(saved) as Page[]
-      return pages.length > 0
-        ? pages
-        : [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
-    }
-  } catch (error) {
-    console.error('Failed to load pages from localStorage:', error)
-  }
-
-  return [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
-}
+// デフォルトのページデータ
+const defaultPages = (): Page[] => [
+  { id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] },
+]
 
 const MAX_HISTORY_LENGTH = 20
 
-// 永続化ヘルパー関数：レイヤーとcanvasData（オプショナル）をlocalStorageに保存
+// 永続化ヘルパー関数：レイヤーとcanvasData（オプショナル）をIndexedDBに保存
 const persistLayersToStorage = (
   state: {
     pages: Page[]
@@ -189,11 +180,9 @@ const persistLayersToStorage = (
   )
 
   if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
-    } catch (error) {
+    savePagesToDB(updatedPages).catch((error) => {
       console.error(`Failed to save ${actionName || 'layer change'}:`, error)
-    }
+    })
   }
 
   return { layers: updatedLayers, pages: updatedPages }
@@ -281,7 +270,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   fabricCanvas: null,
   selectedObjectProps: null,
   clipboard: null,
-  pages: loadPagesFromStorage(),
+  pages: defaultPages(),
   currentPageId: defaultPageId,
   theme: 'dark',
   canvasBackground: '#1f2937',
@@ -297,6 +286,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   history: [],
   historyIndex: -1,
   isUndoRedoAction: false,
+  // 保存状態
+  saveStatus: 'saved' as SaveStatus,
+  saveError: null,
   // グリッド設定（デフォルト値）
   gridEnabled: false,
   gridSize: 10,
@@ -890,13 +882,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }
     const updatedPages = [...get().pages, newPage]
 
-    // localStorageに保存
     if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
-      } catch (error) {
-        console.error('Failed to save pages to localStorage:', error)
-      }
+      savePagesToDB(updatedPages).catch((error) => {
+        console.error('Failed to save pages:', error)
+      })
     }
 
     set({ pages: updatedPages })
@@ -909,13 +898,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         ? state.pages.find((p) => p.id !== id)!.id
         : state.currentPageId
 
-    // localStorageに保存
     if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
-      } catch (error) {
-        console.error('Failed to save pages to localStorage:', error)
-      }
+      savePagesToDB(updatedPages).catch((error) => {
+        console.error('Failed to save pages:', error)
+      })
     }
 
     set({ pages: updatedPages, currentPageId: newCurrentPageId })
@@ -927,13 +913,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   updatePageNotes: (id, notes) => {
     const updatedPages = get().pages.map((page) => (page.id === id ? { ...page, notes } : page))
 
-    // localStorageに保存
     if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
-      } catch (error) {
-        console.error('Failed to save page notes to localStorage:', error)
-      }
+      savePagesToDB(updatedPages).catch((error) => {
+        console.error('Failed to save page notes:', error)
+      })
     }
 
     set({ pages: updatedPages })
@@ -943,13 +926,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       page.id === id ? { ...page, canvasData, layers } : page
     )
 
-    // localStorageに保存
     if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('twb-pages', JSON.stringify(updatedPages))
-      } catch (error) {
-        console.error('Failed to save pages to localStorage:', error)
-      }
+      savePagesToDB(updatedPages).catch((error) => {
+        console.error('Failed to save pages:', error)
+      })
     }
 
     set({ pages: updatedPages })
@@ -1017,13 +997,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // 初期状態のページデータ
     const initialPages = [{ id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] }]
 
-    // localStorageに保存（リロード後も空の状態を維持するため）
     if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('twb-pages', JSON.stringify(initialPages))
-      } catch (error) {
-        console.error('Failed to save reset state to localStorage:', error)
-      }
+      savePagesToDB(initialPages).catch((error) => {
+        console.error('Failed to save reset state:', error)
+      })
     }
 
     // ストアを初期状態にリセット
@@ -1298,6 +1275,35 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
     } catch (e) {
       console.error('Failed to load grid settings:', e)
+    }
+  },
+  initializePages: async () => {
+    if (typeof window === 'undefined') return
+
+    // 保存状態リスナーを登録
+    onSaveStatusChange((status, error) => {
+      set({ saveStatus: status, saveError: error || null })
+    })
+
+    try {
+      // まずIndexedDBから読み込む
+      let pages = await loadPagesFromDB()
+
+      // IndexedDBに無い場合、localStorageから移行を試みる
+      if (!pages) {
+        pages = await migrateToIndexedDB()
+      }
+
+      if (pages && pages.length > 0) {
+        const currentPageId = get().currentPageId
+        const currentPage = pages.find((p) => p.id === currentPageId)
+        set({
+          pages,
+          layers: currentPage?.layers || [],
+        })
+      }
+    } catch (error) {
+      console.error('Failed to initialize pages from IndexedDB:', error)
     }
   },
 }))
