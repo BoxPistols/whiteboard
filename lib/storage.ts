@@ -4,7 +4,7 @@
 import type { Layer } from '@/types'
 
 const DB_NAME = 'twb-whiteboard'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_NAME = 'pages'
 
 export interface PageData {
@@ -49,7 +49,11 @@ async function checkIndexedDB(): Promise<boolean> {
       req.onerror = () => reject(req.error)
     })
     testDB.close()
-    indexedDB.deleteDatabase('__twb_test__')
+    await new Promise<void>((resolve) => {
+      const delReq = indexedDB.deleteDatabase('__twb_test__')
+      delReq.onsuccess = () => resolve()
+      delReq.onerror = () => resolve() // 削除失敗しても利用可能と判定
+    })
     indexedDBAvailable = true
     return true
   } catch {
@@ -68,9 +72,12 @@ function openDB(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const db = request.result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' })
+      // v1の個別レコード形式のストアがあれば削除
+      if (db.objectStoreNames.contains(STORE_NAME)) {
+        db.deleteObjectStore(STORE_NAME)
       }
+      // v2: 単一レコードとして保存するストア（順序保証）
+      db.createObjectStore(STORE_NAME)
     }
 
     request.onsuccess = () => resolve(request.result)
@@ -102,15 +109,15 @@ function loadFromLocalStorage(): PageData[] | null {
 
 // --- IndexedDB操作 ---
 
+const PAGES_KEY = 'all'
+
 async function saveToIndexedDB(pages: PageData[]): Promise<void> {
   const db = await openDB()
   const tx = db.transaction(STORE_NAME, 'readwrite')
   const store = tx.objectStore(STORE_NAME)
 
-  store.clear()
-  for (const page of pages) {
-    store.put(page)
-  }
+  // 単一レコードとして保存（配列の順序を保証）
+  store.put(pages, PAGES_KEY)
 
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => {
@@ -130,12 +137,12 @@ async function loadFromIndexedDB(): Promise<PageData[] | null> {
   const db = await openDB()
   const tx = db.transaction(STORE_NAME, 'readonly')
   const store = tx.objectStore(STORE_NAME)
-  const request = store.getAll()
+  const request = store.get(PAGES_KEY)
 
   return new Promise((resolve, reject) => {
     request.onsuccess = () => {
-      const pages = request.result as PageData[]
-      resolve(pages.length > 0 ? pages : null)
+      const pages = request.result as PageData[] | undefined
+      resolve(pages && pages.length > 0 ? pages : null)
     }
     request.onerror = () => reject(request.error)
   })

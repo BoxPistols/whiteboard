@@ -58,6 +58,8 @@ interface CanvasStore {
   history: HistorySnapshot[]
   historyIndex: number
   isUndoRedoAction: boolean
+  // ページ初期化完了フラグ（IndexedDB読み込み完了まで自動保存を抑制）
+  pagesInitialized: boolean
   // 保存状態
   saveStatus: SaveStatus
   saveError: string | null
@@ -286,6 +288,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   history: [],
   historyIndex: -1,
   isUndoRedoAction: false,
+  // ページ初期化完了フラグ
+  pagesInitialized: false,
   // 保存状態
   saveStatus: 'saved' as SaveStatus,
   saveError: null,
@@ -1279,8 +1283,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   initializePages: async () => {
     if (typeof window === 'undefined') return
+    // 二重初期化防止（React StrictMode対策）
+    if (get().pagesInitialized) return
 
-    // 保存状態リスナーを登録
+    // 保存状態リスナーを登録（初回のみ）
     onSaveStatusChange((status, error) => {
       set({ saveStatus: status, saveError: error || null })
     })
@@ -1300,10 +1306,15 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         set({
           pages,
           layers: currentPage?.layers || [],
+          pagesInitialized: true,
         })
+      } else {
+        set({ pagesInitialized: true })
       }
     } catch (error) {
       console.error('Failed to initialize pages from IndexedDB:', error)
+      // 初期化失敗でもフラグを立てて自動保存を有効化（デフォルトページで動作継続）
+      set({ pagesInitialized: true })
     }
   },
 }))

@@ -249,7 +249,7 @@ export default function Canvas() {
     return () => clearTimeout(timer)
   }, [pages, currentPageId, setLayers, saveHistory])
 
-  // 自動保存
+  // 自動保存（pagesInitialized になるまで保存を抑制）
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas) return
@@ -258,8 +258,9 @@ export default function Canvas() {
     const handleCanvasChange = () => {
       clearTimeout(saveTimeout)
       saveTimeout = setTimeout(() => {
-        const json = JSON.stringify(canvas.toJSON(['data']))
         const state = useCanvasStore.getState()
+        if (!state.pagesInitialized) return
+        const json = JSON.stringify(canvas.toJSON(['data']))
         updatePageData(state.currentPageId, json, state.layers)
       }, 500)
     }
