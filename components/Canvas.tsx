@@ -212,6 +212,17 @@ export default function Canvas() {
     fabricCanvasRef.current = canvas
     setFabricCanvas(canvas)
 
+    // Shift/Cmd押下時に15度スナップ回転
+    canvas.on('object:rotating', (e) => {
+      const evt = e.e as KeyboardEvent | MouseEvent
+      if (evt && (evt.shiftKey || evt.metaKey)) {
+        const obj = e.target
+        if (obj) {
+          obj.set('angle', Math.round((obj.angle || 0) / 15) * 15)
+        }
+      }
+    })
+
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries[0]) {
         canvas.setWidth(entries[0].contentRect.width)
