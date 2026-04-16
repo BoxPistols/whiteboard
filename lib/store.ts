@@ -19,6 +19,13 @@ interface ObjectProperties {
   isArrow?: boolean
 }
 
+// 新規作成シェイプに適用されるスタイル既定値（localStorage に永続化）
+export interface StyleDefaults {
+  fill: string
+  stroke: string
+  strokeWidth: number
+}
+
 // Undo/Redo用の履歴スナップショット
 interface HistorySnapshot {
   canvasJSON: string
@@ -69,6 +76,10 @@ interface CanvasStore {
   gridColor: string
   gridOpacity: number
   gridSnapEnabled: boolean
+  // 最後に使ったスタイル（新規作成時に引き継ぐ）
+  styleDefaults: StyleDefaults
+  // 複製モード（Alt+ドラッグ用インジケーター）
+  duplicateMode: boolean
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -128,6 +139,13 @@ interface CanvasStore {
   setGridOpacity: (opacity: number) => void
   toggleGridSnap: () => void
   loadSavedGridSettings: () => void
+  // スタイル既定値関連
+  setStyleDefaults: (defaults: Partial<StyleDefaults>) => void
+  loadSavedStyleDefaults: () => void
+  // 複製モード
+  setDuplicateMode: (on: boolean) => void
+  // 選択オブジェクトを複製（Toolbar/ショートカット両対応）
+  duplicateSelected: () => void
   // ページデータの非同期初期化（IndexedDBから読み込み）
   initializePages: () => Promise<void>
 }
@@ -299,6 +317,13 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   gridColor: '#888888',
   gridOpacity: 20,
   gridSnapEnabled: false,
+  // スタイル既定値（theme 非依存のため中立色で初期化、使用時にテーマ別色へ補正）
+  styleDefaults: {
+    fill: 'rgba(107, 114, 128, 0.5)',
+    stroke: '#6B7280',
+    strokeWidth: 0,
+  },
+  duplicateMode: false,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -854,6 +879,15 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     activeObject.dirty = true
     fabricCanvas.requestRenderAll()
 
+    // 最後に使ったスタイルを記憶（次回の新規作成で引き継ぎ）
+    if (key === 'fill' && typeof value === 'string') {
+      get().setStyleDefaults({ fill: value })
+    } else if (key === 'stroke' && typeof value === 'string') {
+      get().setStyleDefaults({ stroke: value })
+    } else if (key === 'strokeWidth' && typeof value === 'number') {
+      get().setStyleDefaults({ strokeWidth: value })
+    }
+
     // canvas JSONを即座にlocalStorageに保存
     try {
       const json = JSON.stringify(fabricCanvas.toJSON(['data']))
@@ -1263,6 +1297,70 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const newSnapEnabled = !get().gridSnapEnabled
     set({ gridSnapEnabled: newSnapEnabled })
     persistGridSettings(get())
+  },
+  setStyleDefaults: (defaults) => {
+    const merged = { ...get().styleDefaults, ...defaults }
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('twb-style-defaults', JSON.stringify(merged))
+      } catch (e) {
+        console.error('Failed to save style defaults:', e)
+      }
+    }
+    set({ styleDefaults: merged })
+  },
+  loadSavedStyleDefaults: () => {
+    if (typeof window === 'undefined') return
+    try {
+      const saved = localStorage.getItem('twb-style-defaults')
+      if (!saved) return
+      const parsed = JSON.parse(saved) as Partial<StyleDefaults>
+      set({
+        styleDefaults: {
+          ...get().styleDefaults,
+          ...parsed,
+        },
+      })
+    } catch (e) {
+      console.error('Failed to load style defaults:', e)
+    }
+  },
+  setDuplicateMode: (on) => set({ duplicateMode: on }),
+  duplicateSelected: () => {
+    const { fabricCanvas } = get()
+    if (!fabricCanvas) return
+    const activeObject = fabricCanvas.getActiveObject()
+    if (!activeObject) return
+    activeObject.clone((cloned: fabric.Object) => {
+      const objectId = crypto.randomUUID()
+      const layerId = crypto.randomUUID()
+      cloned.set({
+        left: (cloned.left || 0) + 10,
+        top: (cloned.top || 0) + 10,
+        data: { ...cloned.data, id: objectId },
+        selectable: true,
+        evented: true,
+      })
+      fabricCanvas.add(cloned)
+      fabricCanvas.setActiveObject(cloned)
+      fabricCanvas.renderAll()
+
+      const { layers: currentLayers } = get()
+      const originalObjectId = activeObject.data?.id
+      const originalLayer = currentLayers.find((l) => l.objectId === originalObjectId)
+      if (originalLayer) {
+        get().addLayer({
+          id: layerId,
+          name: `${originalLayer.name} copy`,
+          visible: true,
+          locked: false,
+          objectId,
+          type: originalLayer.type,
+        })
+      }
+      set({ selectedObjectId: objectId })
+      get().saveHistory()
+    })
   },
   loadSavedGridSettings: () => {
     if (typeof window === 'undefined') return

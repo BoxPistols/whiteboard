@@ -249,4 +249,27 @@ describe('Canvas Store', () => {
       expect(zoom).toBe(100)
     })
   })
+
+  describe('Style Defaults', () => {
+    it('should merge partial style defaults', () => {
+      const { setStyleDefaults } = useCanvasStore.getState()
+      const initial = useCanvasStore.getState().styleDefaults
+
+      setStyleDefaults({ fill: '#ff0000' })
+      const after = useCanvasStore.getState().styleDefaults
+      expect(after.fill).toBe('#ff0000')
+      // stroke / strokeWidth は保持される
+      expect(after.stroke).toBe(initial.stroke)
+      expect(after.strokeWidth).toBe(initial.strokeWidth)
+    })
+
+    it('should toggle duplicate mode', () => {
+      const { setDuplicateMode } = useCanvasStore.getState()
+      expect(useCanvasStore.getState().duplicateMode).toBe(false)
+      setDuplicateMode(true)
+      expect(useCanvasStore.getState().duplicateMode).toBe(true)
+      setDuplicateMode(false)
+      expect(useCanvasStore.getState().duplicateMode).toBe(false)
+    })
+  })
 })
