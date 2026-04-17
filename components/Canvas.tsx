@@ -51,6 +51,8 @@ export default function Canvas() {
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
   const prevPageIdRef = useRef<string>(currentPageId)
   const hasLoadedRef = useRef(false)
+  // 画像ペーストをマウス位置に行うため、最後に観測したカーソル位置（キャンバス座標系）を保持
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
 
   // アクションフック
   const canvasActions = useCanvasActions(fabricCanvasRef.current)
@@ -145,14 +147,29 @@ export default function Canvas() {
             fabric.Image.fromURL(imgUrl, (img) => {
               const id = crypto.randomUUID()
 
-              // 画像を中央に配置し、最大サイズを制限
+              // 最大サイズを制限
               const maxWidth = canvas.width! * 0.5
               const maxHeight = canvas.height! * 0.5
               const scale = Math.min(maxWidth / img.width!, maxHeight / img.height!, 1)
+              const drawW = img.width! * scale
+              const drawH = img.height! * scale
+
+              // 配置中心: 直近のカーソル位置（キャンバス座標系）。未取得時はビューポート中央へフォールバック
+              let centerX: number
+              let centerY: number
+              if (lastPointerRef.current) {
+                centerX = lastPointerRef.current.x
+                centerY = lastPointerRef.current.y
+              } else {
+                const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+                const zoom = canvas.getZoom() || 1
+                centerX = (canvas.width! / 2 - vpt[4]) / zoom
+                centerY = (canvas.height! / 2 - vpt[5]) / zoom
+              }
 
               img.set({
-                left: (canvas.width! - img.width! * scale) / 2,
-                top: (canvas.height! - img.height! * scale) / 2,
+                left: centerX - drawW / 2,
+                top: centerY - drawH / 2,
                 scaleX: scale,
                 scaleY: scale,
                 data: { id },
@@ -222,6 +239,13 @@ export default function Canvas() {
         }
       }
     })
+
+    // 画像ペースト位置決定のため、最後のカーソル位置（キャンバス座標系）を保持
+    const trackPointer = (opt: fabric.IEvent) => {
+      const p = canvas.getPointer(opt.e as MouseEvent | TouchEvent)
+      lastPointerRef.current = { x: p.x, y: p.y }
+    }
+    canvas.on('mouse:move', trackPointer)
 
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries[0]) {
