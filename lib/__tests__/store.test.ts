@@ -258,9 +258,19 @@ describe('Canvas Store', () => {
       setStyleDefaults({ fill: '#ff0000' })
       const after = useCanvasStore.getState().styleDefaults
       expect(after.fill).toBe('#ff0000')
-      // stroke / strokeWidth は保持される
+      // stroke / strokeWidth / textFill は保持される
       expect(after.stroke).toBe(initial.stroke)
       expect(after.strokeWidth).toBe(initial.strokeWidth)
+      expect(after.textFill).toBe(initial.textFill)
+    })
+
+    it('should store textFill separately from shape fill', () => {
+      const { setStyleDefaults } = useCanvasStore.getState()
+      setStyleDefaults({ fill: 'rgba(0, 0, 0, 0.5)' })
+      setStyleDefaults({ textFill: '#ff00ff' })
+      const after = useCanvasStore.getState().styleDefaults
+      expect(after.fill).toBe('rgba(0, 0, 0, 0.5)')
+      expect(after.textFill).toBe('#ff00ff')
     })
 
     it('should toggle duplicate mode', () => {
@@ -270,6 +280,28 @@ describe('Canvas Store', () => {
       expect(useCanvasStore.getState().duplicateMode).toBe(true)
       setDuplicateMode(false)
       expect(useCanvasStore.getState().duplicateMode).toBe(false)
+    })
+  })
+
+  describe('Selected Object Props (regression)', () => {
+    it('should accept strokeWidth and isArrow in ObjectProperties', () => {
+      // handleObjectModified が strokeWidth / isArrow を落とすと PropertiesPanel の
+      // 線コントロールが消える回帰が起きるため、型・ストアがこれらを保持できることを担保する
+      const { setSelectedObjectProps } = useCanvasStore.getState()
+      setSelectedObjectProps({
+        fill: '#000000',
+        stroke: '#ffffff',
+        strokeWidth: 3,
+        left: 10,
+        top: 20,
+        width: 100,
+        height: 50,
+        opacity: 1,
+        isArrow: true,
+      })
+      const props = useCanvasStore.getState().selectedObjectProps
+      expect(props?.strokeWidth).toBe(3)
+      expect(props?.isArrow).toBe(true)
     })
   })
 })

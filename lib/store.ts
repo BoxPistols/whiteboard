@@ -20,10 +20,12 @@ interface ObjectProperties {
 }
 
 // 新規作成シェイプに適用されるスタイル既定値（localStorage に永続化）
+// shape 用 fill と text 用 fill は用途が異なる（半透明 vs 単色）ため別持ちにする
 export interface StyleDefaults {
   fill: string
   stroke: string
   strokeWidth: number
+  textFill: string
 }
 
 // Undo/Redo用の履歴スナップショット
@@ -322,6 +324,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     fill: 'rgba(107, 114, 128, 0.5)',
     stroke: '#6B7280',
     strokeWidth: 0,
+    textFill: '',
   },
   duplicateMode: false,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
@@ -880,8 +883,13 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     fabricCanvas.requestRenderAll()
 
     // 最後に使ったスタイルを記憶（次回の新規作成で引き継ぎ）
+    // テキストの fill は shape の fill と別枠で保存する
     if (key === 'fill' && typeof value === 'string') {
-      get().setStyleDefaults({ fill: value })
+      const isText =
+        activeObject.type === 'i-text' ||
+        activeObject.type === 'text' ||
+        activeObject.type === 'textbox'
+      get().setStyleDefaults(isText ? { textFill: value } : { fill: value })
     } else if (key === 'stroke' && typeof value === 'string') {
       get().setStyleDefaults({ stroke: value })
     } else if (key === 'strokeWidth' && typeof value === 'number') {
@@ -1331,6 +1339,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     if (!fabricCanvas) return
     const activeObject = fabricCanvas.getActiveObject()
     if (!activeObject) return
+    // activeSelection はクローンが壊れるため未対応（個別選択の後に実行してもらう）
+    if (activeObject.type === 'activeSelection') return
+    // 元オブジェクトの z-index を控えて、複製を直上に挿入する
+    const originalIndex = fabricCanvas.getObjects().indexOf(activeObject)
     activeObject.clone((cloned: fabric.Object) => {
       const objectId = crypto.randomUUID()
       const layerId = crypto.randomUUID()
@@ -1342,6 +1354,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         evented: true,
       })
       fabricCanvas.add(cloned)
+      if (originalIndex >= 0) {
+        fabricCanvas.moveTo(cloned, originalIndex + 1)
+      }
       fabricCanvas.setActiveObject(cloned)
       fabricCanvas.renderAll()
 
@@ -1356,6 +1371,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           locked: false,
           objectId,
           type: originalLayer.type,
+          parentId: originalLayer.parentId,
         })
       }
       set({ selectedObjectId: objectId })

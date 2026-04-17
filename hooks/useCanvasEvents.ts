@@ -56,9 +56,7 @@ export const useCanvasEvents = ({
         const id = crypto.randomUUID()
         // 前回のテキスト色が保存されていれば引き継ぐ（未設定はテーマ既定）
         const themeTextColor = theme === 'dark' ? '#ffffff' : '#000000'
-        const textColor = styleDefaults.fill?.startsWith('rgba')
-          ? themeTextColor
-          : styleDefaults.fill || themeTextColor
+        const textColor = styleDefaults.textFill || themeTextColor
         const text = new fabric.IText('テキストを入力', {
           left: pointer.x,
           top: pointer.y,
@@ -163,6 +161,7 @@ export const useCanvasEvents = ({
       addLayer,
       setSelectedObjectId,
       shapeCounterRef,
+      styleDefaults,
     ]
   )
 
@@ -402,7 +401,8 @@ export const useCanvasEvents = ({
       }
 
       // オブジェクト上で mouse:down が起きたらドラッグ原点を記録（複製ドラッグの起点）
-      if (opt.target && opt.target.data?.id) {
+      // 複数選択（activeSelection）はクローンが壊れるため複製ドラッグの対象外とする
+      if (opt.target && opt.target.data?.id && opt.target.type !== 'activeSelection') {
         dragOrigin = {
           object: opt.target,
           left: opt.target.left || 0,
@@ -422,6 +422,8 @@ export const useCanvasEvents = ({
       const src = dragOrigin.object
       const originalLeft = dragOrigin.left
       const originalTop = dragOrigin.top
+      // z-order 復元用に元オブジェクトのインデックスを控えておく
+      const originalIndex = fabricCanvas.getObjects().indexOf(src)
       src.clone(
         (cloned: fabric.Object) => {
           const objectId = crypto.randomUUID()
@@ -434,8 +436,10 @@ export const useCanvasEvents = ({
           })
           cloned.setCoords()
           fabricCanvas.add(cloned)
-          // z-order は元オブジェクトの直後に挿入
-          fabricCanvas.sendBackwards(cloned)
+          // 元オブジェクトの直上に挿入（add 直後は最前面）
+          if (originalIndex >= 0) {
+            fabricCanvas.moveTo(cloned, originalIndex + 1)
+          }
           fabricCanvas.renderAll()
 
           const srcId = src.data?.id
@@ -449,9 +453,10 @@ export const useCanvasEvents = ({
               locked: false,
               objectId,
               type: originalLayer.type,
+              parentId: originalLayer.parentId,
             })
           }
-          saveHistory()
+          // saveHistory は canvas の object:added リスナー経由で自動記録される
         },
         ['data']
       )
