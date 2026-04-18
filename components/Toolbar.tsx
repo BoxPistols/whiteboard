@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useCanvasStore } from '@/lib/store'
+import { useCanvasStore, DARK_CANVAS_BG, LIGHT_CANVAS_BG } from '@/lib/store'
 import type { Tool } from '@/types'
 import ExportImportControls from './ExportImportControls'
 import MobileHelpModal from './MobileHelpModal'
@@ -13,6 +13,7 @@ import {
   ArrowIcon,
   TextIcon,
   PencilIcon,
+  StickyIcon,
   SunIcon,
   MoonIcon,
 } from '@/components/icons'
@@ -28,6 +29,7 @@ const tools: {
   { id: 'line', label: '線', icon: LineIcon },
   { id: 'arrow', label: '矢印', icon: ArrowIcon },
   { id: 'text', label: 'テキスト', icon: TextIcon },
+  { id: 'sticky', label: '付箋', icon: StickyIcon },
   { id: 'pencil', label: '鉛筆', icon: PencilIcon },
 ]
 
@@ -76,6 +78,7 @@ export default function Toolbar() {
     setDuplicateMode,
     duplicateSelected,
     selectedObjectId,
+    loadSavedAutoInvertText,
   } = useCanvasStore()
   const [showHelp, setShowHelp] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -87,7 +90,14 @@ export default function Toolbar() {
     loadSavedCanvasBackground()
     loadSavedGridSettings()
     loadSavedStyleDefaults()
-  }, [loadSavedTheme, loadSavedCanvasBackground, loadSavedGridSettings, loadSavedStyleDefaults])
+    loadSavedAutoInvertText()
+  }, [
+    loadSavedTheme,
+    loadSavedCanvasBackground,
+    loadSavedGridSettings,
+    loadSavedStyleDefaults,
+    loadSavedAutoInvertText,
+  ])
 
   // メニュー外クリックで閉じる
   useEffect(() => {
@@ -532,7 +542,9 @@ export default function Toolbar() {
           {/* デスクトップ: Canvas背景色切り替えボタン */}
           <button
             onClick={() =>
-              setCanvasBackground(canvasBackground === '#1f2937' ? '#f5f5f5' : '#1f2937')
+              setCanvasBackground(
+                canvasBackground === DARK_CANVAS_BG ? LIGHT_CANVAS_BG : DARK_CANVAS_BG
+              )
             }
             className="hidden md:flex p-2 md:p-1.5 rounded border border-gray-200 dark:border-gray-700 transition-colors touch-manipulation"
             title="Canvas背景色を切替"
@@ -544,15 +556,19 @@ export default function Toolbar() {
           {/* モバイル: Canvas背景色切り替え（太陽/月アイコン） */}
           <button
             onClick={() =>
-              setCanvasBackground(canvasBackground === '#1f2937' ? '#f5f5f5' : '#1f2937')
+              setCanvasBackground(
+                canvasBackground === DARK_CANVAS_BG ? LIGHT_CANVAS_BG : DARK_CANVAS_BG
+              )
             }
             className="md:hidden p-2 rounded hover:bg-gray-800 text-gray-300 transition-colors touch-manipulation"
-            title={canvasBackground === '#1f2937' ? 'Canvasをライトに' : 'Canvasをダークに'}
+            title={canvasBackground === DARK_CANVAS_BG ? 'Canvasをライトに' : 'Canvasをダークに'}
             aria-label={
-              canvasBackground === '#1f2937' ? 'Canvasをライトモードに' : 'Canvasをダークモードに'
+              canvasBackground === DARK_CANVAS_BG
+                ? 'Canvasをライトモードに'
+                : 'Canvasをダークモードに'
             }
           >
-            {canvasBackground === '#1f2937' ? <SunIcon /> : <MoonIcon />}
+            {canvasBackground === DARK_CANVAS_BG ? <SunIcon /> : <MoonIcon />}
           </button>
           {/* デスクトップ: テーマ切り替えボタン */}
           <button

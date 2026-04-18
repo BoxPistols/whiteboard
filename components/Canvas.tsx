@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { fabric } from 'fabric'
-import { useCanvasStore } from '@/lib/store'
+import { useCanvasStore, DARK_CANVAS_BG, LIGHT_CANVAS_BG } from '@/lib/store'
 import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
 import { convertColorForTheme } from '@/lib/colorUtils'
 import ContextMenu from '@/components/ContextMenu'
@@ -218,7 +218,7 @@ export default function Canvas() {
     const container = canvasRef.current.parentElement
     if (!container) return
 
-    const canvasBg = canvasBackground || (theme === 'dark' ? '#1f2937' : '#f5f5f5')
+    const canvasBg = canvasBackground || (theme === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG)
     const canvas = new fabric.Canvas(canvasRef.current, {
       width: container.clientWidth,
       height: container.clientHeight,
@@ -258,10 +258,25 @@ export default function Canvas() {
 
     return () => {
       resizeObserver.disconnect()
+      // dispose でも一括解除されるが、リスナー解除の対称性を保つため明示 off
+      canvas.off('mouse:move', trackPointer)
       canvas.dispose()
       setFabricCanvas(null)
     }
   }, [])
+
+  // canvasBackground / theme 変化時に Canvas の背景色を追従させる
+  // （初期化 useEffect の依存は [] なので、ここで別 effect で同期する）
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+    const nextBg = canvasBackground || (theme === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG)
+    canvas.setBackgroundColor(nextBg, () => {
+      // autoInvertText が ON のとき、既定色テキストを背景に応じて反転
+      useCanvasStore.getState().applyAutoInvertText()
+      canvas.renderAll()
+    })
+  }, [canvasBackground, theme])
 
   // ページデータの読み込み（初回 + ページ切り替え時）
   useEffect(() => {
@@ -282,7 +297,12 @@ export default function Canvas() {
         setLayers(currentPage.layers || [])
         if (currentPage.canvasData) {
           canvas.loadFromJSON(JSON.parse(currentPage.canvasData), () => {
-            canvas.renderAll()
+            // loadFromJSON は保存時の背景色を復元するため、ここで現在のユーザー設定で上書き
+            const { canvasBackground: bg, theme: t } = useCanvasStore.getState()
+            canvas.setBackgroundColor(
+              bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG),
+              () => canvas.renderAll()
+            )
             setTimeout(() => saveHistory(), 50)
           })
         } else {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { useCanvasStore } from '../store'
+import { useCanvasStore, DARK_CANVAS_BG, LIGHT_CANVAS_BG } from '../store'
 
 describe('Theme Persistence', () => {
   let localStorageMock: { [key: string]: string } = {}
@@ -108,5 +108,23 @@ describe('Theme Persistence', () => {
 
     toggleTheme() // dark -> light
     expect(localStorageMock['twb-theme']).toBe('light')
+  })
+
+  it('should sync canvasBackground to new theme default when current bg is a default', () => {
+    // light テーマ + ライト既定背景 → ダーク切替で canvas もダーク既定に連動
+    useCanvasStore.setState({ theme: 'light', canvasBackground: LIGHT_CANVAS_BG })
+    useCanvasStore.getState().toggleTheme()
+    expect(useCanvasStore.getState().theme).toBe('dark')
+    expect(useCanvasStore.getState().canvasBackground).toBe(DARK_CANVAS_BG)
+    expect(localStorageMock['twb-canvas-bg']).toBe(DARK_CANVAS_BG)
+  })
+
+  it('should preserve custom canvasBackground on theme toggle', () => {
+    // ユーザーが独自色を設定している場合はテーマ切替で破壊しない
+    const custom = '#ff00aa'
+    useCanvasStore.setState({ theme: 'light', canvasBackground: custom })
+    useCanvasStore.getState().toggleTheme()
+    expect(useCanvasStore.getState().canvasBackground).toBe(custom)
+    expect(localStorageMock['twb-canvas-bg']).toBeUndefined()
   })
 })
