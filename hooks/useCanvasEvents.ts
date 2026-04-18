@@ -129,6 +129,9 @@ export const useCanvasEvents = ({
           fill: textColor,
           fontFamily: 'Arial',
           textAlign: 'left',
+          // 単語境界のない長文（英数字連続など）でも幅内で折り返すため、
+          // grapheme 単位での折り返しを有効化
+          splitByGrapheme: true,
           data: { id: textId, type: 'sticky', stickyId, stickyRole: 'text' },
         })
 
@@ -378,6 +381,26 @@ export const useCanvasEvents = ({
         return
       }
 
+      // 付箋の text を通常選択した場合は bg にリダイレクト
+      // （編集中は IText.isEditing が true になるので、その間はスキップ）
+      if (
+        activeObject?.data?.type === 'sticky' &&
+        activeObject.data?.stickyRole === 'text' &&
+        !(activeObject as fabric.IText).isEditing
+      ) {
+        const bg = fabricCanvas
+          .getObjects()
+          .find(
+            (o) =>
+              o.data?.stickyId === activeObject.data?.stickyId && o.data?.stickyRole === 'bg'
+          )
+        if (bg) {
+          fabricCanvas.setActiveObject(bg)
+          // リダイレクト後に selection:updated が再度発火するのでそこで処理継続
+          return
+        }
+      }
+
       setShowAlignmentPanel(false)
       const selected = e.selected?.[0]
       if (selected && selected.data?.id) {
@@ -603,40 +626,39 @@ export const useCanvasEvents = ({
       fabricCanvas.requestRenderAll()
     }
 
-    // 付箋パーツを移動したときに相棒を同じデルタで追従させる
-    // mouse:down で開始位置を記録し、object:moving で差分を計算
-    const stickyStartPos = new Map<string, { left: number; top: number }>()
-
-    const handleStickyMouseDown = (opt: fabric.IEvent) => {
-      const target = opt.target
-      if (!target || target.data?.type !== 'sticky') return
-      const key = target.data?.id
-      if (!key) return
-      stickyStartPos.set(key, { left: target.left || 0, top: target.top || 0 })
+    // 付箋パーツの相対位置を強制的にスナップ（text = bg + pad）
+    // bg が動けば text を追従、text が動けば（通常起こらないが保険で）bg を追従
+    const STICKY_PAD = 16
+    const snapStickyPartner = (moved: fabric.Object) => {
+      const partner = findStickyPartner(moved)
+      if (!partner) return
+      if (moved.data?.stickyRole === 'bg') {
+        partner.set({
+          left: (moved.left || 0) + STICKY_PAD,
+          top: (moved.top || 0) + STICKY_PAD,
+        })
+      } else if (moved.data?.stickyRole === 'text') {
+        partner.set({
+          left: (moved.left || 0) - STICKY_PAD,
+          top: (moved.top || 0) - STICKY_PAD,
+        })
+      }
+      partner.setCoords()
     }
 
     const handleStickyMoving = (opt: fabric.IEvent) => {
       const target = opt.target
       if (!target || target.data?.type !== 'sticky') return
-      const key = target.data?.id
-      if (!key) return
-      const prev = stickyStartPos.get(key)
-      if (!prev) return
-      const dx = (target.left || 0) - prev.left
-      const dy = (target.top || 0) - prev.top
-      if (dx === 0 && dy === 0) return
-      stickyStartPos.set(key, { left: target.left || 0, top: target.top || 0 })
-      const partner = findStickyPartner(target)
-      if (!partner) return
-      partner.set({
-        left: (partner.left || 0) + dx,
-        top: (partner.top || 0) + dy,
-      })
-      partner.setCoords()
+      snapStickyPartner(target)
     }
 
-    const handleStickyMouseUp = () => {
-      stickyStartPos.clear()
+    // object:modified はマウスドラッグ完了時だけでなく、キーボードナッジ（moveSelectedObject）
+    // や整列/分配アクションでも発火するため、両方をここでカバー
+    const handleStickyObjectModifiedSync = (opt: fabric.IEvent) => {
+      const target = opt.target
+      if (!target || target.data?.type !== 'sticky') return
+      snapStickyPartner(target)
+      fabricCanvas.requestRenderAll()
     }
 
     // 付箋パーツが削除されたとき、相棒も削除する（bg 単独削除／text 単独削除を防ぐ）
@@ -675,9 +697,8 @@ export const useCanvasEvents = ({
     fabricCanvas.on('object:modified', handleObjectModified)
     fabricCanvas.on('path:created', handlePathCreated)
     fabricCanvas.on('mouse:dblclick', handleStickyDblClick)
-    fabricCanvas.on('mouse:down', handleStickyMouseDown)
     fabricCanvas.on('object:moving', handleStickyMoving)
-    fabricCanvas.on('mouse:up', handleStickyMouseUp)
+    fabricCanvas.on('object:modified', handleStickyObjectModifiedSync)
     fabricCanvas.on('object:removed', handleStickyObjectRemoved)
 
     return () => {
@@ -696,9 +717,8 @@ export const useCanvasEvents = ({
       fabricCanvas.off('object:modified', handleObjectModified)
       fabricCanvas.off('path:created', handlePathCreated)
       fabricCanvas.off('mouse:dblclick', handleStickyDblClick)
-      fabricCanvas.off('mouse:down', handleStickyMouseDown)
       fabricCanvas.off('object:moving', handleStickyMoving)
-      fabricCanvas.off('mouse:up', handleStickyMouseUp)
+      fabricCanvas.off('object:modified', handleStickyObjectModifiedSync)
       fabricCanvas.off('object:removed', handleStickyObjectRemoved)
     }
   }, [

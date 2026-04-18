@@ -70,34 +70,94 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
     if (!fabricCanvas || !selectedObjectId) return
 
     const activeObject = fabricCanvas.getActiveObject()
-    if (activeObject) {
-      activeObject.clone((cloned: fabric.Object) => {
-        const objectId = crypto.randomUUID()
-        const layerId = crypto.randomUUID()
-        cloned.set({
-          left: (cloned.left || 0) + 10,
-          top: (cloned.top || 0) + 10,
-          data: { ...cloned.data, id: objectId },
-        })
-        fabricCanvas.add(cloned)
-        fabricCanvas.setActiveObject(cloned)
-        fabricCanvas.renderAll()
+    if (!activeObject) return
 
-        const originalLayer = layers.find((l) => l.objectId === selectedObjectId)
-        if (originalLayer) {
-          addLayer({
-            id: layerId,
-            name: `${originalLayer.name} copy`,
-            visible: true,
-            locked: false,
-            objectId: objectId,
-            type: originalLayer.type,
+    // 付箋の場合は bg/text をペアで複製し、新しい stickyId を割り当てる
+    // （従来の clone() は data をそのまま継承するため stickyId が衝突していた）
+    if (activeObject.data?.type === 'sticky' && activeObject.data?.stickyRole === 'bg') {
+      const originalBg = activeObject
+      const originalText = fabricCanvas
+        .getObjects()
+        .find(
+          (o) =>
+            o.data?.stickyId === originalBg.data?.stickyId && o.data?.stickyRole === 'text'
+        )
+      if (!originalText) return
+      const newStickyId = crypto.randomUUID()
+      const newBgId = crypto.randomUUID()
+      const newTextId = crypto.randomUUID()
+      const offset = 10
+      originalBg.clone((clonedBg: fabric.Object) => {
+        originalText.clone((clonedText: fabric.Object) => {
+          clonedBg.set({
+            left: (clonedBg.left || 0) + offset,
+            top: (clonedBg.top || 0) + offset,
+            data: {
+              ...clonedBg.data,
+              id: newBgId,
+              stickyId: newStickyId,
+              stickyRole: 'bg',
+            },
           })
-        }
-        setSelectedObjectId(objectId)
-        saveHistory()
+          clonedText.set({
+            left: (clonedText.left || 0) + offset,
+            top: (clonedText.top || 0) + offset,
+            data: {
+              ...clonedText.data,
+              id: newTextId,
+              stickyId: newStickyId,
+              stickyRole: 'text',
+            },
+          })
+          fabricCanvas.add(clonedBg)
+          fabricCanvas.add(clonedText)
+          fabricCanvas.setActiveObject(clonedBg)
+          fabricCanvas.renderAll()
+
+          const originalLayer = layers.find((l) => l.objectId === selectedObjectId)
+          if (originalLayer) {
+            addLayer({
+              id: crypto.randomUUID(),
+              name: `${originalLayer.name} copy`,
+              visible: true,
+              locked: false,
+              objectId: newBgId,
+              type: originalLayer.type,
+            })
+          }
+          setSelectedObjectId(newBgId)
+          saveHistory()
+        })
       })
+      return
     }
+
+    activeObject.clone((cloned: fabric.Object) => {
+      const objectId = crypto.randomUUID()
+      const layerId = crypto.randomUUID()
+      cloned.set({
+        left: (cloned.left || 0) + 10,
+        top: (cloned.top || 0) + 10,
+        data: { ...cloned.data, id: objectId },
+      })
+      fabricCanvas.add(cloned)
+      fabricCanvas.setActiveObject(cloned)
+      fabricCanvas.renderAll()
+
+      const originalLayer = layers.find((l) => l.objectId === selectedObjectId)
+      if (originalLayer) {
+        addLayer({
+          id: layerId,
+          name: `${originalLayer.name} copy`,
+          visible: true,
+          locked: false,
+          objectId: objectId,
+          type: originalLayer.type,
+        })
+      }
+      setSelectedObjectId(objectId)
+      saveHistory()
+    })
   }, [fabricCanvas, selectedObjectId, layers, addLayer, setSelectedObjectId, saveHistory])
 
   // コピー
