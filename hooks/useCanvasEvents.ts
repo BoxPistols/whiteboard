@@ -1,6 +1,11 @@
 import { useCallback, useRef, useEffect } from 'react'
 import { fabric } from 'fabric'
-import { useCanvasStore } from '@/lib/store'
+import {
+  useCanvasStore,
+  isBackgroundDark,
+  DARK_CANVAS_BG,
+  LIGHT_CANVAS_BG,
+} from '@/lib/store'
 import {
   getCanvasPointer,
   createArrowPathData,
@@ -54,8 +59,12 @@ export const useCanvasEvents = ({
       if (selectedTool === 'text') {
         setSelectedTool('select')
         const id = crypto.randomUUID()
-        // 前回のテキスト色が保存されていれば引き継ぐ（未設定はテーマ既定）
-        const themeTextColor = theme === 'dark' ? '#ffffff' : '#000000'
+        // 前回のテキスト色が保存されていれば引き継ぐ（未設定は現在の背景色に応じて自動選択）
+        // ※ theme ではなく canvasBackground ベース（背景色のみ変更されても視認性を担保）
+        const bgIsDark = isBackgroundDark(
+          canvasBackground || (theme === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG)
+        )
+        const themeTextColor = bgIsDark ? '#ffffff' : '#000000'
         const textColor = styleDefaults.textFill || themeTextColor
         const text = new fabric.IText('テキストを入力', {
           left: pointer.x,
@@ -79,6 +88,52 @@ export const useCanvasEvents = ({
           locked: false,
           objectId: id,
           type: 'TEXT',
+        })
+        setSelectedObjectId(id)
+        return
+      }
+
+      if (selectedTool === 'sticky') {
+        setSelectedTool('select')
+        const id = crypto.randomUUID()
+        // 付箋は FigJam 風：背景色付き Textbox 1 つで表現（Group を使わないのでダブルクリック編集が自然に動く）
+        const bgColor = styleDefaults.stickyColor || '#FEF3B5'
+        const width = 180
+        const pad = 16
+        const textColor = isBackgroundDark(bgColor) ? '#ffffff' : '#1f2937'
+        const sticky = new fabric.Textbox('メモを入力', {
+          left: pointer.x - width / 2,
+          top: pointer.y - width / 2,
+          width,
+          fontSize: 16,
+          fill: textColor,
+          fontFamily: 'Arial',
+          textAlign: 'left',
+          splitByGrapheme: true,
+          backgroundColor: bgColor,
+          padding: pad,
+          shadow: new fabric.Shadow({
+            color: 'rgba(0,0,0,0.15)',
+            blur: 8,
+            offsetX: 0,
+            offsetY: 2,
+          }),
+          data: { id, type: 'sticky', stickyColor: bgColor },
+        })
+        fabricCanvas.add(sticky)
+        fabricCanvas.setActiveObject(sticky)
+        sticky.enterEditing()
+        sticky.selectAll()
+        fabricCanvas.renderAll()
+
+        shapeCounterRef.current.sticky = (shapeCounterRef.current.sticky || 0) + 1
+        addLayer({
+          id,
+          name: `sticky ${shapeCounterRef.current.sticky}`,
+          visible: true,
+          locked: false,
+          objectId: id,
+          type: 'STICKY',
         })
         setSelectedObjectId(id)
         return

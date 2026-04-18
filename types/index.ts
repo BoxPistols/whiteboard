@@ -1,5 +1,13 @@
 // ツール選択用の型定義
-export type Tool = 'select' | 'rectangle' | 'circle' | 'line' | 'arrow' | 'text' | 'pencil'
+export type Tool =
+  | 'select'
+  | 'rectangle'
+  | 'circle'
+  | 'line'
+  | 'arrow'
+  | 'text'
+  | 'pencil'
+  | 'sticky'
 
 // Figma互換のノード型定義
 export type NodeType =
@@ -11,6 +19,7 @@ export type NodeType =
   | 'GROUP'
   | 'FRAME'
   | 'ARROW'
+  | 'STICKY'
 
 // レイヤー管理用の型定義
 export interface Layer {

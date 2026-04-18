@@ -327,3 +327,21 @@ export const FolderIcon = ({ className, size = 20 }: IconProps) => (
     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
   </svg>
 )
+
+// 付箋（sticky note）アイコン。右下が折れた矩形で FigJam 等と近い表現
+export const StickyIcon = ({ className, size = 20 }: IconProps) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3z" />
+    <path d="M15 3v6h6" />
+  </svg>
+)
