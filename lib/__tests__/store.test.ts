@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useCanvasStore } from '../store'
+import { useCanvasStore, isBackgroundDark } from '../store'
 import type { Layer } from '@/types'
 
 describe('Canvas Store', () => {
@@ -247,6 +247,134 @@ describe('Canvas Store', () => {
     it('should initialize with 100% zoom', () => {
       const { zoom } = useCanvasStore.getState()
       expect(zoom).toBe(100)
+    })
+  })
+
+  describe('Style Defaults', () => {
+    it('should merge partial style defaults', () => {
+      const { setStyleDefaults } = useCanvasStore.getState()
+      const initial = useCanvasStore.getState().styleDefaults
+
+      setStyleDefaults({ fill: '#ff0000' })
+      const after = useCanvasStore.getState().styleDefaults
+      expect(after.fill).toBe('#ff0000')
+      // stroke / strokeWidth / textFill は保持される
+      expect(after.stroke).toBe(initial.stroke)
+      expect(after.strokeWidth).toBe(initial.strokeWidth)
+      expect(after.textFill).toBe(initial.textFill)
+    })
+
+    it('should store textFill separately from shape fill', () => {
+      const { setStyleDefaults } = useCanvasStore.getState()
+      setStyleDefaults({ fill: 'rgba(0, 0, 0, 0.5)' })
+      setStyleDefaults({ textFill: '#ff00ff' })
+      const after = useCanvasStore.getState().styleDefaults
+      expect(after.fill).toBe('rgba(0, 0, 0, 0.5)')
+      expect(after.textFill).toBe('#ff00ff')
+    })
+
+    it('should toggle duplicate mode', () => {
+      const { setDuplicateMode } = useCanvasStore.getState()
+      expect(useCanvasStore.getState().duplicateMode).toBe(false)
+      setDuplicateMode(true)
+      expect(useCanvasStore.getState().duplicateMode).toBe(true)
+      setDuplicateMode(false)
+      expect(useCanvasStore.getState().duplicateMode).toBe(false)
+    })
+
+    it('should keep empty textFill by default so that theme default applies on creation', () => {
+      // useCanvasEvents は `styleDefaults.textFill || themeTextColor` で fallback する
+      // 初期状態で textFill が空文字（falsy）であることを担保
+      useCanvasStore.setState({
+        styleDefaults: {
+          fill: 'rgba(107, 114, 128, 0.5)',
+          stroke: '#6B7280',
+          strokeWidth: 0,
+          textFill: '',
+          stickyColor: '#FEF3B5',
+        },
+      })
+      const { styleDefaults } = useCanvasStore.getState()
+      expect(styleDefaults.textFill).toBe('')
+      expect(Boolean(styleDefaults.textFill)).toBe(false)
+    })
+
+    it('should reject non-string/non-number fields from corrupted localStorage', () => {
+      // 汚染された localStorage（型不正）を読み込んでも既定値を破壊しないことを確認
+      const baseline = {
+        fill: 'rgba(107, 114, 128, 0.5)',
+        stroke: '#6B7280',
+        strokeWidth: 0,
+        textFill: '',
+        stickyColor: '#FEF3B5',
+      }
+      useCanvasStore.setState({ styleDefaults: baseline })
+      localStorage.setItem(
+        'twb-style-defaults',
+        JSON.stringify({ fill: 123, stroke: null, strokeWidth: 'abc', textFill: {} })
+      )
+      useCanvasStore.getState().loadSavedStyleDefaults()
+      const after = useCanvasStore.getState().styleDefaults
+      expect(after).toEqual(baseline)
+      localStorage.removeItem('twb-style-defaults')
+    })
+  })
+
+  describe('Auto Invert Text', () => {
+    it('isBackgroundDark should classify common colors correctly', () => {
+      expect(isBackgroundDark('#000000')).toBe(true)
+      expect(isBackgroundDark('#1f2937')).toBe(true)
+      expect(isBackgroundDark('#f5f5f5')).toBe(false)
+      expect(isBackgroundDark('#ffffff')).toBe(false)
+      expect(isBackgroundDark('#fff')).toBe(false)
+      expect(isBackgroundDark('rgb(17, 17, 17)')).toBe(true)
+      expect(isBackgroundDark('rgb(240, 240, 240)')).toBe(false)
+    })
+
+    it('isBackgroundDark should fall back to dark on invalid input', () => {
+      // 空文字や不正形式は「読めないのでダーク」扱い
+      expect(isBackgroundDark('')).toBe(true)
+      expect(isBackgroundDark('not-a-color')).toBe(true)
+    })
+
+    it('setAutoInvertText should persist to localStorage', () => {
+      useCanvasStore.getState().setAutoInvertText(false)
+      expect(useCanvasStore.getState().autoInvertText).toBe(false)
+      expect(localStorage.getItem('twb-auto-invert-text')).toBe('0')
+      useCanvasStore.getState().setAutoInvertText(true)
+      expect(useCanvasStore.getState().autoInvertText).toBe(true)
+      expect(localStorage.getItem('twb-auto-invert-text')).toBe('1')
+      localStorage.removeItem('twb-auto-invert-text')
+    })
+
+    it('loadSavedAutoInvertText should leave default untouched when key absent', () => {
+      localStorage.removeItem('twb-auto-invert-text')
+      useCanvasStore.setState({ autoInvertText: true })
+      useCanvasStore.getState().loadSavedAutoInvertText()
+      // 未保存なら既定値（true）を維持
+      expect(useCanvasStore.getState().autoInvertText).toBe(true)
+    })
+  })
+
+  describe('Selected Object Props (regression)', () => {
+    it('should accept strokeWidth and isArrow in ObjectProperties', () => {
+      // handleObjectModified が strokeWidth / isArrow を落とすと PropertiesPanel の
+      // 線コントロールが消える回帰が起きるため、型・ストアがこれらを保持できることを担保する
+      const { setSelectedObjectProps } = useCanvasStore.getState()
+      setSelectedObjectProps({
+        fill: '#000000',
+        stroke: '#ffffff',
+        strokeWidth: 3,
+        left: 10,
+        top: 20,
+        width: 100,
+        height: 50,
+        opacity: 1,
+        isArrow: true,
+      })
+      const props = useCanvasStore.getState().selectedObjectProps
+      expect(props?.strokeWidth).toBe(3)
+      expect(props?.isArrow).toBe(true)
     })
   })
 })

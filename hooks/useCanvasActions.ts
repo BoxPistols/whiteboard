@@ -24,6 +24,7 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
     line: 0,
     arrow: 0,
     text: 0,
+    sticky: 0,
     pencil: 0,
     paste: 0,
     group: 0,

@@ -14,6 +14,8 @@ export const toolToNodeType = (tool: string): NodeType => {
       return 'LINE'
     case 'text':
       return 'TEXT'
+    case 'sticky':
+      return 'STICKY'
     default:
       return 'VECTOR'
   }

@@ -24,6 +24,8 @@ export default function ShortcutsModal() {
     setGridColor,
     setGridOpacity,
     toggleGridSnap,
+    autoInvertText,
+    setAutoInvertText,
   } = useCanvasStore()
 
   const [activeTab, setActiveTab] = useState<'list' | 'customize' | 'settings'>('list')
@@ -461,6 +463,39 @@ export default function ShortcutsModal() {
                       <span
                         className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
                           gridSnapEnabled ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* テキスト自動反転 */}
+                  <div className="flex items-center justify-between">
+                    <div className="pr-4">
+                      <label className="font-medium text-gray-900 dark:text-gray-100">
+                        テキスト色を自動反転
+                      </label>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        <span className="font-medium">ON</span>：
+                        背景が暗い/明るいに応じて、白黒の既定色テキストを自動で見やすい色に切替
+                        <br />
+                        <span className="font-medium">OFF</span>：
+                        テキスト色を固定（どの背景でも手動で設定した色のまま）
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        ※ ユーザーが任意に設定したカスタム色のテキストは ON/OFF
+                        いずれの場合も変更されません。
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setAutoInvertText(!autoInvertText)}
+                      aria-pressed={autoInvertText}
+                      className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${
+                        autoInvertText ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                          autoInvertText ? 'translate-x-6' : 'translate-x-0'
                         }`}
                       />
                     </button>

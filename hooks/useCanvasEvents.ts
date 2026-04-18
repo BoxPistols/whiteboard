@@ -1,6 +1,11 @@
 import { useCallback, useRef, useEffect } from 'react'
 import { fabric } from 'fabric'
-import { useCanvasStore } from '@/lib/store'
+import {
+  useCanvasStore,
+  isBackgroundDark,
+  DARK_CANVAS_BG,
+  LIGHT_CANVAS_BG,
+} from '@/lib/store'
 import {
   getCanvasPointer,
   createArrowPathData,
@@ -34,6 +39,7 @@ export const useCanvasEvents = ({
     gridSize,
     saveHistory,
     setZoom,
+    styleDefaults,
   } = useCanvasStore()
 
   const isDrawingRef = useRef(false)
@@ -53,7 +59,13 @@ export const useCanvasEvents = ({
       if (selectedTool === 'text') {
         setSelectedTool('select')
         const id = crypto.randomUUID()
-        const textColor = theme === 'dark' ? '#ffffff' : '#000000'
+        // 前回のテキスト色が保存されていれば引き継ぐ（未設定は現在の背景色に応じて自動選択）
+        // ※ theme ではなく canvasBackground ベース（背景色のみ変更されても視認性を担保）
+        const bgIsDark = isBackgroundDark(
+          canvasBackground || (theme === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG)
+        )
+        const themeTextColor = bgIsDark ? '#ffffff' : '#000000'
+        const textColor = styleDefaults.textFill || themeTextColor
         const text = new fabric.IText('テキストを入力', {
           left: pointer.x,
           top: pointer.y,
@@ -81,12 +93,64 @@ export const useCanvasEvents = ({
         return
       }
 
+      if (selectedTool === 'sticky') {
+        setSelectedTool('select')
+        const id = crypto.randomUUID()
+        // 付箋は FigJam 風：背景色付き Textbox 1 つで表現（Group を使わないのでダブルクリック編集が自然に動く）
+        const bgColor = styleDefaults.stickyColor || '#FEF3B5'
+        const width = 180
+        const pad = 16
+        const textColor = isBackgroundDark(bgColor) ? '#ffffff' : '#1f2937'
+        const sticky = new fabric.Textbox('メモを入力', {
+          left: pointer.x - width / 2,
+          top: pointer.y - width / 2,
+          width,
+          fontSize: 16,
+          fill: textColor,
+          fontFamily: 'Arial',
+          textAlign: 'left',
+          splitByGrapheme: true,
+          backgroundColor: bgColor,
+          padding: pad,
+          shadow: new fabric.Shadow({
+            color: 'rgba(0,0,0,0.15)',
+            blur: 8,
+            offsetX: 0,
+            offsetY: 2,
+          }),
+          data: { id, type: 'sticky', stickyColor: bgColor },
+        })
+        fabricCanvas.add(sticky)
+        fabricCanvas.setActiveObject(sticky)
+        sticky.enterEditing()
+        sticky.selectAll()
+        fabricCanvas.renderAll()
+
+        shapeCounterRef.current.sticky = (shapeCounterRef.current.sticky || 0) + 1
+        addLayer({
+          id,
+          name: `sticky ${shapeCounterRef.current.sticky}`,
+          visible: true,
+          locked: false,
+          objectId: id,
+          type: 'STICKY',
+        })
+        setSelectedObjectId(id)
+        return
+      }
+
       isDrawingRef.current = true
       startPointRef.current = { x: pointer.x, y: pointer.y }
 
-      const defaultStrokeColor = theme === 'dark' ? '#6B7280' : '#D1D5DB'
-      const defaultFillColor =
+      // 最後に使ったスタイルを既定として採用（未設定時はテーマ既定）
+      const themeDefaultStroke = theme === 'dark' ? '#6B7280' : '#D1D5DB'
+      const themeDefaultFill =
         theme === 'dark' ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.5)'
+      const defaultStrokeColor = styleDefaults.stroke || themeDefaultStroke
+      const defaultFillColor = styleDefaults.fill || themeDefaultFill
+      const defaultStrokeWidth = styleDefaults.strokeWidth ?? 0
+      // 線/矢印は太さ0だと見えないので最低値1を保証
+      const lineStrokeWidth = Math.max(1, defaultStrokeWidth || 2)
 
       let shape: fabric.Object | null = null
 
@@ -99,7 +163,7 @@ export const useCanvasEvents = ({
             height: 0,
             fill: defaultFillColor,
             stroke: defaultStrokeColor,
-            strokeWidth: 0,
+            strokeWidth: defaultStrokeWidth,
             selectable: false,
             evented: false,
           })
@@ -111,7 +175,7 @@ export const useCanvasEvents = ({
             radius: 0,
             fill: defaultFillColor,
             stroke: defaultStrokeColor,
-            strokeWidth: 0,
+            strokeWidth: defaultStrokeWidth,
             selectable: false,
             evented: false,
           })
@@ -119,7 +183,7 @@ export const useCanvasEvents = ({
         case 'line':
           shape = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
             stroke: defaultStrokeColor,
-            strokeWidth: 2,
+            strokeWidth: lineStrokeWidth,
             selectable: false,
             evented: false,
           })
@@ -130,7 +194,7 @@ export const useCanvasEvents = ({
             left: pointer.x,
             top: pointer.y,
             stroke: defaultStrokeColor,
-            strokeWidth: 2,
+            strokeWidth: lineStrokeWidth,
             fill: defaultStrokeColor,
             selectable: false,
             evented: false,
@@ -152,6 +216,7 @@ export const useCanvasEvents = ({
       addLayer,
       setSelectedObjectId,
       shapeCounterRef,
+      styleDefaults,
     ]
   )
 
@@ -315,6 +380,7 @@ export const useCanvasEvents = ({
           width: selected.width! * (selected.scaleX || 1),
           height: selected.height! * (selected.scaleY || 1),
           opacity: selected.opacity,
+          isArrow: selected.data?.type === 'arrow',
         })
       } else {
         setSelectedObjectId(null)
@@ -325,14 +391,17 @@ export const useCanvasEvents = ({
     const handleObjectModified = (e: fabric.IEvent) => {
       const obj = e.target
       if (obj && obj.data?.id) {
+        // strokeWidth/isArrow を含めないと PropertiesPanel の線コントロールが消えるバグになる
         setSelectedObjectProps({
           fill: obj.fill,
           stroke: obj.stroke,
+          strokeWidth: obj.strokeWidth,
           left: obj.left,
           top: obj.top,
           width: obj.width! * (obj.scaleX || 1),
           height: obj.height! * (obj.scaleY || 1),
           opacity: obj.opacity,
+          isArrow: obj.data?.type === 'arrow',
         })
       }
     }
@@ -360,21 +429,97 @@ export const useCanvasEvents = ({
     let lastPosX = 0
     let lastPosY = 0
 
+    // 複製ドラッグ用: ドラッグ開始位置を記録しておき、最初の object:moving で原点にクローンを残す
+    let dragOrigin: { object: fabric.Object; left: number; top: number } | null = null
+    let altCloneCreated = false
+
     const handleMouseDownInt = (opt: fabric.IEvent) => {
       if (selectedTool !== 'select') return
       const evt = opt.e as MouseEvent | TouchEvent
       const isMiddleButton = 'button' in evt && evt.button === 1
-      const isSpaceKey = 'buttons' in evt && evt.buttons === 1 && (evt as MouseEvent).altKey
+      // 空白エリアの Alt+左ドラッグはパンとして扱う
+      const isAltBlankDrag =
+        !opt.target &&
+        'buttons' in evt &&
+        (evt as MouseEvent).buttons === 1 &&
+        (evt as MouseEvent).altKey
 
-      // パンは中ボタンまたはAlt+ドラッグでのみ有効（通常のクリックはfabric.jsの選択に任せる）
-      if (!opt.target && (isMiddleButton || isSpaceKey)) {
+      // パンは中ボタンまたは空白 Alt+ドラッグでのみ有効（オブジェクト上の Alt+ドラッグは複製に回す）
+      if (!opt.target && (isMiddleButton || isAltBlankDrag)) {
         const mouseEvt = evt as MouseEvent
         const coords = { x: mouseEvt.clientX, y: mouseEvt.clientY }
         isPanning = true
         fabricCanvas.selection = false
         lastPosX = coords.x
         lastPosY = coords.y
+        return
       }
+
+      // オブジェクト上で mouse:down が起きたらドラッグ原点を記録（複製ドラッグの起点）
+      // 複数選択（activeSelection）はクローンが壊れるため複製ドラッグの対象外とする
+      if (opt.target && opt.target.data?.id && opt.target.type !== 'activeSelection') {
+        dragOrigin = {
+          object: opt.target,
+          left: opt.target.left || 0,
+          top: opt.target.top || 0,
+        }
+        altCloneCreated = false
+      }
+    }
+
+    const handleObjectMovingDup = (opt: fabric.IEvent) => {
+      if (!dragOrigin || altCloneCreated) return
+      const evt = opt.e as MouseEvent | undefined
+      const shouldDuplicate = (evt && evt.altKey) || useCanvasStore.getState().duplicateMode
+      if (!shouldDuplicate) return
+      altCloneCreated = true
+
+      const src = dragOrigin.object
+      const originalLeft = dragOrigin.left
+      const originalTop = dragOrigin.top
+      // z-order 復元用に元オブジェクトのインデックスを控えておく
+      const originalIndex = fabricCanvas.getObjects().indexOf(src)
+      src.clone(
+        (cloned: fabric.Object) => {
+          const objectId = crypto.randomUUID()
+          cloned.set({
+            left: originalLeft,
+            top: originalTop,
+            data: { ...src.data, id: objectId },
+            selectable: true,
+            evented: true,
+          })
+          cloned.setCoords()
+          fabricCanvas.add(cloned)
+          // 元オブジェクトの直上に挿入（add 直後は最前面）
+          if (originalIndex >= 0) {
+            fabricCanvas.moveTo(cloned, originalIndex + 1)
+          }
+          fabricCanvas.renderAll()
+
+          const srcId = src.data?.id
+          const { layers: currentLayers } = useCanvasStore.getState()
+          const originalLayer = currentLayers.find((l) => l.objectId === srcId)
+          if (originalLayer) {
+            useCanvasStore.getState().addLayer({
+              id: crypto.randomUUID(),
+              name: `${originalLayer.name} copy`,
+              visible: true,
+              locked: false,
+              objectId,
+              type: originalLayer.type,
+              parentId: originalLayer.parentId,
+            })
+          }
+          // saveHistory は canvas の object:added リスナー経由で自動記録される
+        },
+        ['data']
+      )
+    }
+
+    const handleMouseUpDup = () => {
+      dragOrigin = null
+      altCloneCreated = false
     }
 
     const handleMouseMoveInt = (opt: fabric.IEvent) => {
@@ -413,25 +558,30 @@ export const useCanvasEvents = ({
       })
     }
 
+    const handleMouseUpPan = () => {
+      if (isPanning) {
+        isPanning = false
+        fabricCanvas.selection = true
+      }
+    }
+    const handleSelectionCleared = () => {
+      setSelectedObjectId(null)
+      setSelectedObjectProps(null)
+      setShowAlignmentPanel(false)
+    }
+
     fabricCanvas.on('mouse:down', handleMouseDown)
     fabricCanvas.on('mouse:move', handleMouseMove)
     fabricCanvas.on('mouse:up', handleMouseUp)
     fabricCanvas.on('mouse:down', handleMouseDownInt)
     fabricCanvas.on('mouse:move', handleMouseMoveInt)
-    fabricCanvas.on('mouse:up', () => {
-      if (isPanning) {
-        isPanning = false
-        fabricCanvas.selection = true
-      }
-    })
+    fabricCanvas.on('mouse:up', handleMouseUpPan)
+    fabricCanvas.on('mouse:up', handleMouseUpDup)
+    fabricCanvas.on('object:moving', handleObjectMovingDup)
     fabricCanvas.on('mouse:wheel', handleMouseWheel)
     fabricCanvas.on('selection:created', handleSelection)
     fabricCanvas.on('selection:updated', handleSelection)
-    fabricCanvas.on('selection:cleared', () => {
-      setSelectedObjectId(null)
-      setSelectedObjectProps(null)
-      setShowAlignmentPanel(false)
-    })
+    fabricCanvas.on('selection:cleared', handleSelectionCleared)
     fabricCanvas.on('object:modified', handleObjectModified)
     fabricCanvas.on('path:created', handlePathCreated)
 
@@ -441,9 +591,13 @@ export const useCanvasEvents = ({
       fabricCanvas.off('mouse:up', handleMouseUp)
       fabricCanvas.off('mouse:down', handleMouseDownInt)
       fabricCanvas.off('mouse:move', handleMouseMoveInt)
+      fabricCanvas.off('mouse:up', handleMouseUpPan)
+      fabricCanvas.off('mouse:up', handleMouseUpDup)
+      fabricCanvas.off('object:moving', handleObjectMovingDup)
       fabricCanvas.off('mouse:wheel', handleMouseWheel)
       fabricCanvas.off('selection:created', handleSelection)
       fabricCanvas.off('selection:updated', handleSelection)
+      fabricCanvas.off('selection:cleared', handleSelectionCleared)
       fabricCanvas.off('object:modified', handleObjectModified)
       fabricCanvas.off('path:created', handlePathCreated)
     }

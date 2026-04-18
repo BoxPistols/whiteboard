@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useCanvasStore } from '@/lib/store'
+import { useCanvasStore, DARK_CANVAS_BG, LIGHT_CANVAS_BG } from '@/lib/store'
 import type { Tool } from '@/types'
 import ExportImportControls from './ExportImportControls'
 import MobileHelpModal from './MobileHelpModal'
@@ -13,6 +13,7 @@ import {
   ArrowIcon,
   TextIcon,
   PencilIcon,
+  StickyIcon,
   SunIcon,
   MoonIcon,
 } from '@/components/icons'
@@ -28,6 +29,7 @@ const tools: {
   { id: 'line', label: '線', icon: LineIcon },
   { id: 'arrow', label: '矢印', icon: ArrowIcon },
   { id: 'text', label: 'テキスト', icon: TextIcon },
+  { id: 'sticky', label: '付箋', icon: StickyIcon },
   { id: 'pencil', label: '鉛筆', icon: PencilIcon },
 ]
 
@@ -71,6 +73,12 @@ export default function Toolbar() {
     redo,
     canUndo,
     canRedo,
+    loadSavedStyleDefaults,
+    duplicateMode,
+    setDuplicateMode,
+    duplicateSelected,
+    selectedObjectId,
+    loadSavedAutoInvertText,
   } = useCanvasStore()
   const [showHelp, setShowHelp] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -81,7 +89,15 @@ export default function Toolbar() {
     loadSavedTheme()
     loadSavedCanvasBackground()
     loadSavedGridSettings()
-  }, [loadSavedTheme, loadSavedCanvasBackground, loadSavedGridSettings])
+    loadSavedStyleDefaults()
+    loadSavedAutoInvertText()
+  }, [
+    loadSavedTheme,
+    loadSavedCanvasBackground,
+    loadSavedGridSettings,
+    loadSavedStyleDefaults,
+    loadSavedAutoInvertText,
+  ])
 
   // メニュー外クリックで閉じる
   useEffect(() => {
@@ -347,6 +363,56 @@ export default function Toolbar() {
                 <path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10" />
               </svg>
             </button>
+            <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
+            {/* 選択中オブジェクトを複製 */}
+            <button
+              onClick={duplicateSelected}
+              disabled={!selectedObjectId}
+              className="p-1.5 rounded transition-colors touch-manipulation disabled:opacity-30 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
+              title="複製 (⌘D)"
+              aria-label="選択オブジェクトを複製"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </button>
+            {/* 複製モード: オンにすると Alt を押さなくても選択中オブジェクトのドラッグで複製 */}
+            <button
+              onClick={() => setDuplicateMode(!duplicateMode)}
+              className={`p-1.5 rounded transition-colors touch-manipulation ${
+                duplicateMode
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300'
+              }`}
+              title={`複製モード ${duplicateMode ? 'ON' : 'OFF'}（ドラッグで常に複製 / Altでも複製）`}
+              aria-label="複製モードを切り替え"
+              aria-pressed={duplicateMode}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M8 17l4 4 4-4" />
+                <path d="M12 12v9" />
+                <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -476,7 +542,9 @@ export default function Toolbar() {
           {/* デスクトップ: Canvas背景色切り替えボタン */}
           <button
             onClick={() =>
-              setCanvasBackground(canvasBackground === '#1f2937' ? '#f5f5f5' : '#1f2937')
+              setCanvasBackground(
+                canvasBackground === DARK_CANVAS_BG ? LIGHT_CANVAS_BG : DARK_CANVAS_BG
+              )
             }
             className="hidden md:flex p-2 md:p-1.5 rounded border border-gray-200 dark:border-gray-700 transition-colors touch-manipulation"
             title="Canvas背景色を切替"
@@ -488,15 +556,19 @@ export default function Toolbar() {
           {/* モバイル: Canvas背景色切り替え（太陽/月アイコン） */}
           <button
             onClick={() =>
-              setCanvasBackground(canvasBackground === '#1f2937' ? '#f5f5f5' : '#1f2937')
+              setCanvasBackground(
+                canvasBackground === DARK_CANVAS_BG ? LIGHT_CANVAS_BG : DARK_CANVAS_BG
+              )
             }
             className="md:hidden p-2 rounded hover:bg-gray-800 text-gray-300 transition-colors touch-manipulation"
-            title={canvasBackground === '#1f2937' ? 'Canvasをライトに' : 'Canvasをダークに'}
+            title={canvasBackground === DARK_CANVAS_BG ? 'Canvasをライトに' : 'Canvasをダークに'}
             aria-label={
-              canvasBackground === '#1f2937' ? 'Canvasをライトモードに' : 'Canvasをダークモードに'
+              canvasBackground === DARK_CANVAS_BG
+                ? 'Canvasをライトモードに'
+                : 'Canvasをダークモードに'
             }
           >
-            {canvasBackground === '#1f2937' ? <SunIcon /> : <MoonIcon />}
+            {canvasBackground === DARK_CANVAS_BG ? <SunIcon /> : <MoonIcon />}
           </button>
           {/* デスクトップ: テーマ切り替えボタン */}
           <button

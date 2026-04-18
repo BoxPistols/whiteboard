@@ -5,6 +5,58 @@ import { DEFAULT_SHORTCUTS } from './shortcuts'
 import { savePagesToDB, loadPagesFromDB, migrateToIndexedDB, onSaveStatusChange } from './storage'
 import type { SaveStatus } from './storage'
 
+// Canvas 背景のテーマ別デフォルト色。theme 切替に連動させる判定にも使う
+export const DARK_CANVAS_BG = '#1f2937'
+export const LIGHT_CANVAS_BG = '#f5f5f5'
+
+// `#rgb` / `#rrggbb` / `rgb(..)` から輝度を推定しダーク背景か判定
+// autoInvertText で「現在の背景は暗いか？」を決めるためだけの簡易実装
+export const isBackgroundDark = (color: string): boolean => {
+  if (!color) return true
+  const c = color.trim().toLowerCase()
+  let r = 0
+  let g = 0
+  let b = 0
+  if (c.startsWith('#')) {
+    const hex = c.slice(1)
+    if (hex.length === 3) {
+      r = parseInt(hex[0] + hex[0], 16)
+      g = parseInt(hex[1] + hex[1], 16)
+      b = parseInt(hex[2] + hex[2], 16)
+    } else if (hex.length === 6) {
+      r = parseInt(hex.slice(0, 2), 16)
+      g = parseInt(hex.slice(2, 4), 16)
+      b = parseInt(hex.slice(4, 6), 16)
+    } else {
+      return true
+    }
+  } else if (c.startsWith('rgb')) {
+    const nums = c.match(/\d+(\.\d+)?/g)
+    if (!nums || nums.length < 3) return true
+    r = Number(nums[0])
+    g = Number(nums[1])
+    b = Number(nums[2])
+  } else {
+    return true
+  }
+  // ITU-R BT.601 相当の輝度。0.5 を閾値にダーク判定
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance < 0.5
+}
+
+// autoInvertText は「既定色（白/黒系）」のテキストだけを反転対象にする
+const isDefaultTextColor = (fill: string): boolean => {
+  const c = fill.trim().toLowerCase()
+  return (
+    c === '#000000' ||
+    c === '#000' ||
+    c === 'black' ||
+    c === '#ffffff' ||
+    c === '#fff' ||
+    c === 'white'
+  )
+}
+
 interface ObjectProperties {
   fill?: string
   stroke?: string
@@ -17,6 +69,17 @@ interface ObjectProperties {
   scaleY?: number
   opacity?: number
   isArrow?: boolean
+}
+
+// 新規作成シェイプに適用されるスタイル既定値（localStorage に永続化）
+// shape 用 fill と text 用 fill は用途が異なる（半透明 vs 単色）ため別持ちにする
+export interface StyleDefaults {
+  fill: string
+  stroke: string
+  strokeWidth: number
+  textFill: string
+  // 付箋の背景色（前回選択したカラーを引き継ぐ）
+  stickyColor: string
 }
 
 // Undo/Redo用の履歴スナップショット
@@ -69,6 +132,12 @@ interface CanvasStore {
   gridColor: string
   gridOpacity: number
   gridSnapEnabled: boolean
+  // 最後に使ったスタイル（新規作成時に引き継ぐ）
+  styleDefaults: StyleDefaults
+  // 複製モード（Alt+ドラッグ用インジケーター）
+  duplicateMode: boolean
+  // テキスト色を背景色に応じて自動反転する設定（既定色のみ対象、カスタム色は触らない）
+  autoInvertText: boolean
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   addLayer: (layer: Layer) => void
@@ -128,6 +197,17 @@ interface CanvasStore {
   setGridOpacity: (opacity: number) => void
   toggleGridSnap: () => void
   loadSavedGridSettings: () => void
+  // スタイル既定値関連
+  setStyleDefaults: (defaults: Partial<StyleDefaults>) => void
+  loadSavedStyleDefaults: () => void
+  // 複製モード
+  setDuplicateMode: (on: boolean) => void
+  // 選択オブジェクトを複製（Toolbar/ショートカット両対応）
+  duplicateSelected: () => void
+  // テキスト自動反転
+  setAutoInvertText: (on: boolean) => void
+  loadSavedAutoInvertText: () => void
+  applyAutoInvertText: () => void
   // ページデータの非同期初期化（IndexedDBから読み込み）
   initializePages: () => Promise<void>
 }
@@ -275,7 +355,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   pages: defaultPages(),
   currentPageId: defaultPageId,
   theme: 'dark',
-  canvasBackground: '#1f2937',
+  canvasBackground: DARK_CANVAS_BG,
   showLeftPanel: true,
   showRightPanel: true,
   leftPanelWidth: 224, // 56 * 4 = w-56
@@ -299,6 +379,17 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   gridColor: '#888888',
   gridOpacity: 20,
   gridSnapEnabled: false,
+  // スタイル既定値（theme 非依存のため中立色で初期化、使用時にテーマ別色へ補正）
+  styleDefaults: {
+    fill: 'rgba(107, 114, 128, 0.5)',
+    stroke: '#6B7280',
+    strokeWidth: 0,
+    textFill: '',
+    stickyColor: '#FEF3B5',
+  },
+  duplicateMode: false,
+  // デフォルト ON（既定色テキストのみ背景に応じて自動反転）
+  autoInvertText: true,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
@@ -854,6 +945,20 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     activeObject.dirty = true
     fabricCanvas.requestRenderAll()
 
+    // 最後に使ったスタイルを記憶（次回の新規作成で引き継ぎ）
+    // テキストの fill は shape の fill と別枠で保存する
+    if (key === 'fill' && typeof value === 'string') {
+      const isText =
+        activeObject.type === 'i-text' ||
+        activeObject.type === 'text' ||
+        activeObject.type === 'textbox'
+      get().setStyleDefaults(isText ? { textFill: value } : { fill: value })
+    } else if (key === 'stroke' && typeof value === 'string') {
+      get().setStyleDefaults({ stroke: value })
+    } else if (key === 'strokeWidth' && typeof value === 'number') {
+      get().setStyleDefaults({ strokeWidth: value })
+    }
+
     // canvas JSONを即座にlocalStorageに保存
     try {
       const json = JSON.stringify(fabricCanvas.toJSON(['data']))
@@ -951,7 +1056,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setLeftPanelWidth: (width) => set({ leftPanelWidth: Math.max(200, Math.min(width, 400)) }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: Math.max(250, Math.min(width, 500)) }),
   toggleTheme: () => {
-    const currentTheme = get().theme
+    const { theme: currentTheme, canvasBackground: currentBg } = get()
     const newTheme = currentTheme === 'light' ? 'dark' : 'light'
 
     if (typeof window !== 'undefined') {
@@ -961,6 +1066,21 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         document.documentElement.classList.add('dark')
       }
       localStorage.setItem('twb-theme', newTheme)
+    }
+
+    // カスタム色が未設定（＝どちらかのデフォルト値のまま）の場合のみ、新テーマのデフォルトへ連動
+    const isDefaultBg = currentBg === DARK_CANVAS_BG || currentBg === LIGHT_CANVAS_BG
+    const nextBg = newTheme === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG
+    if (isDefaultBg && currentBg !== nextBg) {
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('twb-canvas-bg', nextBg)
+        } catch (e) {
+          console.error('Failed to save canvas background:', e)
+        }
+      }
+      set({ theme: newTheme, canvasBackground: nextBg })
+      return
     }
 
     set({ theme: newTheme })
@@ -994,8 +1114,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   loadSavedCanvasBackground: () => {
     if (typeof window === 'undefined') return
     const saved = localStorage.getItem('twb-canvas-bg')
-    // デフォルトはダーク背景
-    set({ canvasBackground: saved || '#1f2937' })
+    // 保存値があればそれを優先。未保存時は現在テーマのデフォルト色に揃える
+    const fallback = get().theme === 'light' ? LIGHT_CANVAS_BG : DARK_CANVAS_BG
+    set({ canvasBackground: saved || fallback })
   },
   resetAll: () => {
     const { fabricCanvas } = get()
@@ -1198,7 +1319,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ isUndoRedoAction: true })
 
     fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
-      fabricCanvas.renderAll()
+      // loadFromJSON が保存時点の背景を復元するため、現在のユーザー設定を再適用
+      const { canvasBackground: bg, theme: t } = get()
+      fabricCanvas.setBackgroundColor(
+        bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG),
+        () => fabricCanvas.renderAll()
+      )
       set({
         layers: [...snapshot.layers],
         historyIndex: newIndex,
@@ -1218,7 +1344,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ isUndoRedoAction: true })
 
     fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
-      fabricCanvas.renderAll()
+      // loadFromJSON が保存時点の背景を復元するため、現在のユーザー設定を再適用
+      const { canvasBackground: bg, theme: t } = get()
+      fabricCanvas.setBackgroundColor(
+        bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG),
+        () => fabricCanvas.renderAll()
+      )
       set({
         layers: [...snapshot.layers],
         historyIndex: newIndex,
@@ -1263,6 +1394,127 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const newSnapEnabled = !get().gridSnapEnabled
     set({ gridSnapEnabled: newSnapEnabled })
     persistGridSettings(get())
+  },
+  setStyleDefaults: (defaults) => {
+    const merged = { ...get().styleDefaults, ...defaults }
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('twb-style-defaults', JSON.stringify(merged))
+      } catch (e) {
+        console.error('Failed to save style defaults:', e)
+      }
+    }
+    set({ styleDefaults: merged })
+  },
+  loadSavedStyleDefaults: () => {
+    if (typeof window === 'undefined') return
+    try {
+      const saved = localStorage.getItem('twb-style-defaults')
+      if (!saved) return
+      const raw = JSON.parse(saved) as unknown
+      if (!raw || typeof raw !== 'object') return
+      // 汚染された localStorage を弾くため、各フィールドを明示的に型検証してマージ
+      const sanitized: Partial<StyleDefaults> = {}
+      const obj = raw as Record<string, unknown>
+      if (typeof obj.fill === 'string') sanitized.fill = obj.fill
+      if (typeof obj.stroke === 'string') sanitized.stroke = obj.stroke
+      if (typeof obj.strokeWidth === 'number' && Number.isFinite(obj.strokeWidth)) {
+        sanitized.strokeWidth = obj.strokeWidth
+      }
+      if (typeof obj.textFill === 'string') sanitized.textFill = obj.textFill
+      if (typeof obj.stickyColor === 'string') sanitized.stickyColor = obj.stickyColor
+      set({
+        styleDefaults: {
+          ...get().styleDefaults,
+          ...sanitized,
+        },
+      })
+    } catch (e) {
+      console.error('Failed to load style defaults:', e)
+    }
+  },
+  setDuplicateMode: (on) => set({ duplicateMode: on }),
+  setAutoInvertText: (on) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('twb-auto-invert-text', on ? '1' : '0')
+      } catch (e) {
+        console.error('Failed to save auto-invert-text:', e)
+      }
+    }
+    set({ autoInvertText: on })
+    // トグル直後に既存テキストへ反映（ON 化時に反転、OFF 化時は何もしない）
+    if (on) get().applyAutoInvertText()
+  },
+  loadSavedAutoInvertText: () => {
+    if (typeof window === 'undefined') return
+    const saved = localStorage.getItem('twb-auto-invert-text')
+    if (saved === null) return
+    set({ autoInvertText: saved === '1' })
+  },
+  applyAutoInvertText: () => {
+    const { fabricCanvas, autoInvertText, canvasBackground, theme } = get()
+    if (!fabricCanvas || !autoInvertText) return
+    const bg = canvasBackground || (theme === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG)
+    const bgIsDark = isBackgroundDark(bg)
+    const targetColor = bgIsDark ? '#ffffff' : '#000000'
+    let changed = false
+    fabricCanvas.getObjects().forEach((obj) => {
+      const type = obj.type
+      if (type !== 'i-text' && type !== 'text' && type !== 'textbox') return
+      const fill = typeof obj.fill === 'string' ? obj.fill.toLowerCase() : ''
+      // 既定色（白/黒）のみ対象。ユーザーが任意色を選んだテキストは触らない
+      if (!isDefaultTextColor(fill)) return
+      if (fill === targetColor) return
+      obj.set('fill', targetColor)
+      obj.dirty = true
+      changed = true
+    })
+    if (changed) fabricCanvas.requestRenderAll()
+  },
+  duplicateSelected: () => {
+    const { fabricCanvas } = get()
+    if (!fabricCanvas) return
+    const activeObject = fabricCanvas.getActiveObject()
+    if (!activeObject) return
+    // activeSelection はクローンが壊れるため未対応（個別選択の後に実行してもらう）
+    if (activeObject.type === 'activeSelection') return
+    // 元オブジェクトの z-index を控えて、複製を直上に挿入する
+    const originalIndex = fabricCanvas.getObjects().indexOf(activeObject)
+    activeObject.clone((cloned: fabric.Object) => {
+      const objectId = crypto.randomUUID()
+      const layerId = crypto.randomUUID()
+      cloned.set({
+        left: (cloned.left || 0) + 10,
+        top: (cloned.top || 0) + 10,
+        data: { ...cloned.data, id: objectId },
+        selectable: true,
+        evented: true,
+      })
+      fabricCanvas.add(cloned)
+      if (originalIndex >= 0) {
+        fabricCanvas.moveTo(cloned, originalIndex + 1)
+      }
+      fabricCanvas.setActiveObject(cloned)
+      fabricCanvas.renderAll()
+
+      const { layers: currentLayers } = get()
+      const originalObjectId = activeObject.data?.id
+      const originalLayer = currentLayers.find((l) => l.objectId === originalObjectId)
+      if (originalLayer) {
+        get().addLayer({
+          id: layerId,
+          name: `${originalLayer.name} copy`,
+          visible: true,
+          locked: false,
+          objectId,
+          type: originalLayer.type,
+          parentId: originalLayer.parentId,
+        })
+      }
+      set({ selectedObjectId: objectId })
+      // saveHistory は canvas の object:added リスナー経由で自動記録されるため明示呼び出し不要
+    })
   },
   loadSavedGridSettings: () => {
     if (typeof window === 'undefined') return
