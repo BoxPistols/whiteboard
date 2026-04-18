@@ -1,11 +1,6 @@
 import { useCallback, useRef, useEffect } from 'react'
 import { fabric } from 'fabric'
-import {
-  useCanvasStore,
-  isBackgroundDark,
-  DARK_CANVAS_BG,
-  LIGHT_CANVAS_BG,
-} from '@/lib/store'
+import { useCanvasStore, isBackgroundDark, DARK_CANVAS_BG, LIGHT_CANVAS_BG } from '@/lib/store'
 import {
   getCanvasPointer,
   createArrowPathData,
