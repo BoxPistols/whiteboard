@@ -299,9 +299,8 @@ export default function Canvas() {
           canvas.loadFromJSON(JSON.parse(currentPage.canvasData), () => {
             // loadFromJSON は保存時の背景色を復元するため、ここで現在のユーザー設定で上書き
             const { canvasBackground: bg, theme: t } = useCanvasStore.getState()
-            canvas.setBackgroundColor(
-              bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG),
-              () => canvas.renderAll()
+            canvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
+              canvas.renderAll()
             )
             setTimeout(() => saveHistory(), 50)
           })

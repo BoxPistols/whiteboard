@@ -1321,9 +1321,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
       // loadFromJSON が保存時点の背景を復元するため、現在のユーザー設定を再適用
       const { canvasBackground: bg, theme: t } = get()
-      fabricCanvas.setBackgroundColor(
-        bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG),
-        () => fabricCanvas.renderAll()
+      fabricCanvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
+        fabricCanvas.renderAll()
       )
       set({
         layers: [...snapshot.layers],
@@ -1346,9 +1345,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
       // loadFromJSON が保存時点の背景を復元するため、現在のユーザー設定を再適用
       const { canvasBackground: bg, theme: t } = get()
-      fabricCanvas.setBackgroundColor(
-        bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG),
-        () => fabricCanvas.renderAll()
+      fabricCanvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
+        fabricCanvas.renderAll()
       )
       set({
         layers: [...snapshot.layers],
