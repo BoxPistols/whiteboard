@@ -585,9 +585,7 @@ export const useCanvasEvents = ({
     const findStickyPartner = (obj: fabric.Object): fabric.Object | undefined => {
       const stickyId = obj.data?.stickyId
       if (!stickyId) return
-      return fabricCanvas
-        .getObjects()
-        .find((o) => o.data?.stickyId === stickyId && o !== obj)
+      return fabricCanvas.getObjects().find((o) => o.data?.stickyId === stickyId && o !== obj)
     }
 
     // 付箋（bg）をダブルクリックしたら、対になる Textbox の編集モードへ切替
