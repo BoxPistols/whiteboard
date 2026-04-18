@@ -584,21 +584,47 @@ export const useCanvasEvents = ({
     }
 
     // 付箋（Group）をダブルクリックした際、内部の Textbox を編集モードに入れる
-    // subTargets は subTargetCheck: true + interactive: true の Group で利用可能
+    // fabric 5.x では Group 内の Textbox を直接編集できないため、一時的に ungroup →
+    // 編集完了後に再 group するアプローチを取る
     const handleStickyDblClick = (opt: fabric.IEvent) => {
       const target = opt.target
       if (!target || target.data?.type !== 'sticky') return
-      // subTargets から Textbox を探す
-      const subTargets = (opt as fabric.IEvent & { subTargets?: fabric.Object[] }).subTargets
-      const textbox = subTargets?.find((o) => o.type === 'textbox' || o.type === 'i-text') as
+      const group = target as fabric.Group
+      const items = group.getObjects().slice() // ungroup で破壊されるためコピーを保持
+      const textbox = items.find((o) => o.type === 'textbox' || o.type === 'i-text') as
         | fabric.Textbox
         | fabric.IText
         | undefined
       if (!textbox) return
-      fabricCanvas.setActiveObject(textbox)
+
+      // ungroup 前に group の外観情報を保存（再 group 時に復元）
+      const stickyData = { ...group.data }
+      const stickyShadow = group.shadow
+
+      // Group → ActiveSelection → 個別オブジェクトへ展開
+      group.toActiveSelection()
+      fabricCanvas.discardActiveObject()
+      fabricCanvas.setActiveObject(textbox as fabric.Object)
       ;(textbox as fabric.IText).enterEditing()
       ;(textbox as fabric.IText).selectAll()
       fabricCanvas.requestRenderAll()
+
+      // 編集完了したら元の Group 構造に戻す
+      const onExit = () => {
+        ;(textbox as fabric.IText).off('editing:exited', onExit)
+        // Group 作成直前に canvas から個別オブジェクトを除去
+        items.forEach((it) => fabricCanvas.remove(it))
+        const regrouped = new fabric.Group(items, {
+          subTargetCheck: true,
+          interactive: true,
+          shadow: stickyShadow,
+          data: stickyData,
+        })
+        fabricCanvas.add(regrouped)
+        fabricCanvas.setActiveObject(regrouped)
+        fabricCanvas.requestRenderAll()
+      }
+      ;(textbox as fabric.IText).on('editing:exited', onExit)
     }
 
     fabricCanvas.on('mouse:down', handleMouseDown)
