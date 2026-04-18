@@ -5,11 +5,16 @@ declare module 'fabric' {
     interface Object {
       data?: {
         id: string
-        type?: 'arrow' // オブジェクトの種別識別子
+        type?: 'arrow' | 'sticky' // オブジェクトの種別識別子
         baseFill?: string // テーマ切り替え用の基本色（fill）
         baseStroke?: string // テーマ切り替え用の基本色（stroke）
         baseTheme?: 'light' | 'dark' // 基本色のテーマ
+        stickyColor?: string // 付箋の背景色（自動反転判定等に利用）
       }
+    }
+    // fabric 5.2+ で Group に追加された `interactive` プロパティを型に含める
+    interface IGroupOptions {
+      interactive?: boolean
     }
   }
 }

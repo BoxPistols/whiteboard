@@ -96,22 +96,41 @@ export const useCanvasEvents = ({
       if (selectedTool === 'sticky') {
         setSelectedTool('select')
         const id = crypto.randomUUID()
-        // 付箋は FigJam 風：背景色付き Textbox 1 つで表現（Group を使わないのでダブルクリック編集が自然に動く）
+        // 付箋は FigJam 風に Rect(背景) + Textbox(本文) を Group 化
+        // - 初期サイズは正方形
+        // - Textbox は Rect より一回り小さく配置することで視覚的な余白を確保
+        // - interactive: true により Group 内の Textbox をダブルクリックで編集可能
         const bgColor = styleDefaults.stickyColor || '#FEF3B5'
-        const width = 180
+        const size = 180
         const pad = 16
         const textColor = isBackgroundDark(bgColor) ? '#ffffff' : '#1f2937'
-        const sticky = new fabric.Textbox('メモを入力', {
-          left: pointer.x - width / 2,
-          top: pointer.y - width / 2,
-          width,
+
+        const bg = new fabric.Rect({
+          left: 0,
+          top: 0,
+          width: size,
+          height: size,
+          fill: bgColor,
+          rx: 6,
+          ry: 6,
+          stroke: 'rgba(0,0,0,0.08)',
+          strokeWidth: 1,
+        })
+        const textbox = new fabric.Textbox('メモを入力', {
+          left: pad,
+          top: pad,
+          width: size - pad * 2,
           fontSize: 16,
           fill: textColor,
           fontFamily: 'Arial',
           textAlign: 'left',
-          splitByGrapheme: true,
-          backgroundColor: bgColor,
-          padding: pad,
+        })
+        const sticky = new fabric.Group([bg, textbox], {
+          left: pointer.x - size / 2,
+          top: pointer.y - size / 2,
+          subTargetCheck: true,
+          // fabric 5.2+: Group 内の子要素を直接操作可能にする（ダブルクリック編集に必要）
+          interactive: true,
           shadow: new fabric.Shadow({
             color: 'rgba(0,0,0,0.15)',
             blur: 8,
@@ -122,9 +141,8 @@ export const useCanvasEvents = ({
         })
         fabricCanvas.add(sticky)
         fabricCanvas.setActiveObject(sticky)
-        sticky.enterEditing()
-        sticky.selectAll()
         fabricCanvas.renderAll()
+        // enterEditing/selectAll は自動では呼ばない（残像の原因になるため、ユーザーはダブルクリックで編集）
 
         shapeCounterRef.current.sticky = (shapeCounterRef.current.sticky || 0) + 1
         addLayer({
@@ -570,6 +588,24 @@ export const useCanvasEvents = ({
       setShowAlignmentPanel(false)
     }
 
+    // 付箋（Group）をダブルクリックした際、内部の Textbox を編集モードに入れる
+    // subTargets は subTargetCheck: true + interactive: true の Group で利用可能
+    const handleStickyDblClick = (opt: fabric.IEvent) => {
+      const target = opt.target
+      if (!target || target.data?.type !== 'sticky') return
+      // subTargets から Textbox を探す
+      const subTargets = (opt as fabric.IEvent & { subTargets?: fabric.Object[] }).subTargets
+      const textbox = subTargets?.find((o) => o.type === 'textbox' || o.type === 'i-text') as
+        | fabric.Textbox
+        | fabric.IText
+        | undefined
+      if (!textbox) return
+      fabricCanvas.setActiveObject(textbox)
+      ;(textbox as fabric.IText).enterEditing()
+      ;(textbox as fabric.IText).selectAll()
+      fabricCanvas.requestRenderAll()
+    }
+
     fabricCanvas.on('mouse:down', handleMouseDown)
     fabricCanvas.on('mouse:move', handleMouseMove)
     fabricCanvas.on('mouse:up', handleMouseUp)
@@ -584,6 +620,7 @@ export const useCanvasEvents = ({
     fabricCanvas.on('selection:cleared', handleSelectionCleared)
     fabricCanvas.on('object:modified', handleObjectModified)
     fabricCanvas.on('path:created', handlePathCreated)
+    fabricCanvas.on('mouse:dblclick', handleStickyDblClick)
 
     return () => {
       fabricCanvas.off('mouse:down', handleMouseDown)
@@ -600,6 +637,7 @@ export const useCanvasEvents = ({
       fabricCanvas.off('selection:cleared', handleSelectionCleared)
       fabricCanvas.off('object:modified', handleObjectModified)
       fabricCanvas.off('path:created', handlePathCreated)
+      fabricCanvas.off('mouse:dblclick', handleStickyDblClick)
     }
   }, [
     fabricCanvas,
