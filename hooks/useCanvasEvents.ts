@@ -90,19 +90,22 @@ export const useCanvasEvents = ({
 
       if (selectedTool === 'sticky') {
         setSelectedTool('select')
-        const id = crypto.randomUUID()
-        // 付箋は FigJam 風に Rect(背景) + Textbox(本文) を Group 化
-        // - 初期サイズは正方形
-        // - Textbox は Rect より一回り小さく配置することで視覚的な余白を確保
-        // - interactive: true により Group 内の Textbox をダブルクリックで編集可能
+        // 付箋は Rect(背景) + Textbox(本文) を別オブジェクトとして配置し、
+        // object:moving で同期する（Group にすると Textbox 内の IME 入力が
+        // 正しく動作しないため、独立オブジェクト方式を採用）
+        const stickyId = crypto.randomUUID()
+        const bgId = crypto.randomUUID()
+        const textId = crypto.randomUUID()
         const bgColor = styleDefaults.stickyColor || '#FEF3B5'
         const size = 180
         const pad = 16
         const textColor = isBackgroundDark(bgColor) ? '#ffffff' : '#1f2937'
+        const bgLeft = pointer.x - size / 2
+        const bgTop = pointer.y - size / 2
 
         const bg = new fabric.Rect({
-          left: 0,
-          top: 0,
+          left: bgLeft,
+          top: bgTop,
           width: size,
           height: size,
           fill: bgColor,
@@ -110,45 +113,43 @@ export const useCanvasEvents = ({
           ry: 6,
           stroke: 'rgba(0,0,0,0.08)',
           strokeWidth: 1,
-        })
-        const textbox = new fabric.Textbox('メモを入力', {
-          left: pad,
-          top: pad,
-          width: size - pad * 2,
-          fontSize: 16,
-          fill: textColor,
-          fontFamily: 'Arial',
-          textAlign: 'left',
-        })
-        const sticky = new fabric.Group([bg, textbox], {
-          left: pointer.x - size / 2,
-          top: pointer.y - size / 2,
-          subTargetCheck: true,
-          // fabric 5.2+: Group 内の子要素を直接操作可能にする（ダブルクリック編集に必要）
-          interactive: true,
           shadow: new fabric.Shadow({
             color: 'rgba(0,0,0,0.15)',
             blur: 8,
             offsetX: 0,
             offsetY: 2,
           }),
-          data: { id, type: 'sticky', stickyColor: bgColor },
+          data: { id: bgId, type: 'sticky', stickyId, stickyRole: 'bg', stickyColor: bgColor },
         })
-        fabricCanvas.add(sticky)
-        fabricCanvas.setActiveObject(sticky)
+        const textbox = new fabric.Textbox('メモを入力', {
+          left: bgLeft + pad,
+          top: bgTop + pad,
+          width: size - pad * 2,
+          fontSize: 16,
+          fill: textColor,
+          fontFamily: 'Arial',
+          textAlign: 'left',
+          // 単語境界のない長文（英数字連続など）でも幅内で折り返すため、
+          // grapheme 単位での折り返しを有効化
+          splitByGrapheme: true,
+          data: { id: textId, type: 'sticky', stickyId, stickyRole: 'text' },
+        })
+
+        fabricCanvas.add(bg)
+        fabricCanvas.add(textbox)
+        fabricCanvas.setActiveObject(bg)
         fabricCanvas.renderAll()
-        // enterEditing/selectAll は自動では呼ばない（残像の原因になるため、ユーザーはダブルクリックで編集）
 
         shapeCounterRef.current.sticky = (shapeCounterRef.current.sticky || 0) + 1
         addLayer({
-          id,
+          id: bgId,
           name: `sticky ${shapeCounterRef.current.sticky}`,
           visible: true,
           locked: false,
-          objectId: id,
+          objectId: bgId,
           type: 'STICKY',
         })
-        setSelectedObjectId(id)
+        setSelectedObjectId(bgId)
         return
       }
 
@@ -380,6 +381,25 @@ export const useCanvasEvents = ({
         return
       }
 
+      // 付箋の text を通常選択した場合は bg にリダイレクト
+      // （編集中は IText.isEditing が true になるので、その間はスキップ）
+      if (
+        activeObject?.data?.type === 'sticky' &&
+        activeObject.data?.stickyRole === 'text' &&
+        !(activeObject as fabric.IText).isEditing
+      ) {
+        const bg = fabricCanvas
+          .getObjects()
+          .find(
+            (o) => o.data?.stickyId === activeObject.data?.stickyId && o.data?.stickyRole === 'bg'
+          )
+        if (bg) {
+          fabricCanvas.setActiveObject(bg)
+          // リダイレクト後に selection:updated が再度発火するのでそこで処理継続
+          return
+        }
+      }
+
       setShowAlignmentPanel(false)
       const selected = e.selected?.[0]
       if (selected && selected.data?.id) {
@@ -583,48 +603,104 @@ export const useCanvasEvents = ({
       setShowAlignmentPanel(false)
     }
 
-    // 付箋（Group）をダブルクリックした際、内部の Textbox を編集モードに入れる
-    // fabric 5.x では Group 内の Textbox を直接編集できないため、一時的に ungroup →
-    // 編集完了後に再 group するアプローチを取る
+    // 付箋パーツのペアを検索するヘルパー
+    const findStickyPartner = (obj: fabric.Object): fabric.Object | undefined => {
+      const stickyId = obj.data?.stickyId
+      if (!stickyId) return
+      return fabricCanvas.getObjects().find((o) => o.data?.stickyId === stickyId && o !== obj)
+    }
+
+    // 付箋をダブルクリックしたら、対になる Textbox の編集モードに入る
+    // bg 上 / text 上どちらのダブルクリックでも同じ text を編集対象にする
+    // 注意: enterEditing を setActiveObject より先に呼ぶことで、selection:updated の
+    //      ハンドラが isEditing=true を見て text→bg のリダイレクトをスキップする
     const handleStickyDblClick = (opt: fabric.IEvent) => {
       const target = opt.target
       if (!target || target.data?.type !== 'sticky') return
-      const group = target as fabric.Group
-      const items = group.getObjects().slice() // ungroup で破壊されるためコピーを保持
-      const textbox = items.find((o) => o.type === 'textbox' || o.type === 'i-text') as
-        | fabric.Textbox
-        | fabric.IText
-        | undefined
-      if (!textbox) return
-
-      // ungroup 前に group の外観情報を保存（再 group 時に復元）
-      const stickyData = { ...group.data }
-      const stickyShadow = group.shadow
-
-      // Group → ActiveSelection → 個別オブジェクトへ展開
-      group.toActiveSelection()
-      fabricCanvas.discardActiveObject()
-      fabricCanvas.setActiveObject(textbox as fabric.Object)
+      const textbox =
+        target.data?.stickyRole === 'text'
+          ? (target as fabric.Textbox)
+          : (findStickyPartner(target) as fabric.Textbox | undefined)
+      if (!textbox || !('enterEditing' in textbox)) return
       ;(textbox as fabric.IText).enterEditing()
+      fabricCanvas.setActiveObject(textbox as fabric.Object)
       ;(textbox as fabric.IText).selectAll()
       fabricCanvas.requestRenderAll()
+    }
 
-      // 編集完了したら元の Group 構造に戻す
-      const onExit = () => {
-        ;(textbox as fabric.IText).off('editing:exited', onExit)
-        // Group 作成直前に canvas から個別オブジェクトを除去
-        items.forEach((it) => fabricCanvas.remove(it))
-        const regrouped = new fabric.Group(items, {
-          subTargetCheck: true,
-          interactive: true,
-          shadow: stickyShadow,
-          data: stickyData,
+    // 付箋パーツの相対位置を強制的にスナップ（text = bg + pad）
+    // bg が動けば text を追従、text が動けば（通常起こらないが保険で）bg を追従
+    const STICKY_PAD = 16
+    const snapStickyPartner = (moved: fabric.Object) => {
+      const partner = findStickyPartner(moved)
+      if (!partner) return
+      if (moved.data?.stickyRole === 'bg') {
+        partner.set({
+          left: (moved.left || 0) + STICKY_PAD,
+          top: (moved.top || 0) + STICKY_PAD,
         })
-        fabricCanvas.add(regrouped)
-        fabricCanvas.setActiveObject(regrouped)
+      } else if (moved.data?.stickyRole === 'text') {
+        partner.set({
+          left: (moved.left || 0) - STICKY_PAD,
+          top: (moved.top || 0) - STICKY_PAD,
+        })
+      }
+      partner.setCoords()
+    }
+
+    const handleStickyMoving = (opt: fabric.IEvent) => {
+      const target = opt.target
+      if (!target || target.data?.type !== 'sticky') return
+      snapStickyPartner(target)
+    }
+
+    // object:modified はマウスドラッグ完了時だけでなく、キーボードナッジ（moveSelectedObject）
+    // や整列/分配アクションでも発火するため、両方をここでカバー
+    const handleStickyObjectModifiedSync = (opt: fabric.IEvent) => {
+      const target = opt.target
+      if (!target || target.data?.type !== 'sticky') return
+      snapStickyPartner(target)
+      fabricCanvas.requestRenderAll()
+    }
+
+    // text の内容が変わったら bg の高さを text に合わせて伸縮
+    // （min 180、text より小さくならない）
+    const STICKY_MIN_SIZE = 180
+    const handleStickyTextChanged = (opt: fabric.IEvent) => {
+      const target = opt.target
+      if (!target || target.data?.type !== 'sticky' || target.data?.stickyRole !== 'text') return
+      const text = target as fabric.Textbox
+      const bg = findStickyPartner(text)
+      if (!bg) return
+      const textHeight =
+        typeof text.calcTextHeight === 'function' ? text.calcTextHeight() : text.height || 0
+      const desiredBgHeight = Math.max(STICKY_MIN_SIZE, textHeight + STICKY_PAD * 2)
+      if ((bg.height || 0) !== desiredBgHeight) {
+        bg.set({ height: desiredBgHeight })
+        bg.setCoords()
         fabricCanvas.requestRenderAll()
       }
-      ;(textbox as fabric.IText).on('editing:exited', onExit)
+    }
+
+    // 付箋パーツが削除されたとき、相棒も削除する（bg 単独削除／text 単独削除を防ぐ）
+    let isRemovingStickyPartner = false
+    const handleStickyObjectRemoved = (opt: fabric.IEvent) => {
+      if (isRemovingStickyPartner) return
+      const target = opt.target
+      if (!target || target.data?.type !== 'sticky') return
+      const stickyId = target.data?.stickyId
+      if (!stickyId) return
+      // 相棒はまだ canvas 上にいる想定
+      const partner = fabricCanvas
+        .getObjects()
+        .find((o) => o.data?.stickyId === stickyId && o !== target)
+      if (!partner) return
+      isRemovingStickyPartner = true
+      try {
+        fabricCanvas.remove(partner)
+      } finally {
+        isRemovingStickyPartner = false
+      }
     }
 
     fabricCanvas.on('mouse:down', handleMouseDown)
@@ -642,6 +718,10 @@ export const useCanvasEvents = ({
     fabricCanvas.on('object:modified', handleObjectModified)
     fabricCanvas.on('path:created', handlePathCreated)
     fabricCanvas.on('mouse:dblclick', handleStickyDblClick)
+    fabricCanvas.on('object:moving', handleStickyMoving)
+    fabricCanvas.on('object:modified', handleStickyObjectModifiedSync)
+    fabricCanvas.on('object:removed', handleStickyObjectRemoved)
+    fabricCanvas.on('text:changed', handleStickyTextChanged)
 
     return () => {
       fabricCanvas.off('mouse:down', handleMouseDown)
@@ -659,6 +739,10 @@ export const useCanvasEvents = ({
       fabricCanvas.off('object:modified', handleObjectModified)
       fabricCanvas.off('path:created', handlePathCreated)
       fabricCanvas.off('mouse:dblclick', handleStickyDblClick)
+      fabricCanvas.off('object:moving', handleStickyMoving)
+      fabricCanvas.off('object:modified', handleStickyObjectModifiedSync)
+      fabricCanvas.off('object:removed', handleStickyObjectRemoved)
+      fabricCanvas.off('text:changed', handleStickyTextChanged)
     }
   }, [
     fabricCanvas,
