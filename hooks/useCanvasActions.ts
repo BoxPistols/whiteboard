@@ -15,6 +15,8 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
     setLayers,
     clipboard,
     setClipboard,
+    stickyClipboard,
+    setStickyClipboard,
     saveHistory,
   } = useCanvasStore()
 
@@ -163,16 +165,88 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
   const copySelectedObject = useCallback(() => {
     if (!fabricCanvas) return
     const activeObject = fabricCanvas.getActiveObject()
-    if (activeObject) {
-      activeObject.clone((cloned: fabric.Object) => {
-        setClipboard(cloned)
-      })
+    if (!activeObject) return
+
+    // 付箋の場合は bg/text をペアでクリップボードに保存
+    if (activeObject.data?.type === 'sticky' && activeObject.data?.stickyRole === 'bg') {
+      const text = fabricCanvas
+        .getObjects()
+        .find(
+          (o) =>
+            o.data?.stickyId === activeObject.data?.stickyId && o.data?.stickyRole === 'text'
+        )
+      if (text) {
+        activeObject.clone((clonedBg: fabric.Object) => {
+          text.clone((clonedText: fabric.Object) => {
+            setStickyClipboard({ bg: clonedBg, text: clonedText })
+            setClipboard(null)
+          })
+        })
+        return
+      }
     }
-  }, [fabricCanvas, setClipboard])
+
+    activeObject.clone((cloned: fabric.Object) => {
+      setClipboard(cloned)
+      setStickyClipboard(null)
+    })
+  }, [fabricCanvas, setClipboard, setStickyClipboard])
 
   // ペースト
   const pasteObject = useCallback(() => {
-    if (!fabricCanvas || !clipboard) return
+    if (!fabricCanvas) return
+
+    // 付箋ペーストを優先（copy 時に付箋ペアを保存している場合）
+    if (stickyClipboard) {
+      const newStickyId = crypto.randomUUID()
+      const newBgId = crypto.randomUUID()
+      const newTextId = crypto.randomUUID()
+      const offset = 10
+      stickyClipboard.bg.clone((clonedBg: fabric.Object) => {
+        stickyClipboard.text.clone((clonedText: fabric.Object) => {
+          clonedBg.set({
+            left: (clonedBg.left || 0) + offset,
+            top: (clonedBg.top || 0) + offset,
+            data: { ...clonedBg.data, id: newBgId, stickyId: newStickyId, stickyRole: 'bg' },
+            evented: true,
+            selectable: true,
+          })
+          clonedText.set({
+            left: (clonedText.left || 0) + offset,
+            top: (clonedText.top || 0) + offset,
+            data: {
+              ...clonedText.data,
+              id: newTextId,
+              stickyId: newStickyId,
+              stickyRole: 'text',
+            },
+            evented: true,
+            selectable: true,
+          })
+          fabricCanvas.add(clonedBg)
+          fabricCanvas.add(clonedText)
+          fabricCanvas.setActiveObject(clonedBg)
+          fabricCanvas.renderAll()
+
+          shapeCounterRef.current.sticky = (shapeCounterRef.current.sticky || 0) + 1
+          addLayer({
+            id: crypto.randomUUID(),
+            name: `sticky ${shapeCounterRef.current.sticky}`,
+            visible: true,
+            locked: false,
+            objectId: newBgId,
+            type: 'STICKY',
+          })
+          setSelectedObjectId(newBgId)
+          // 連続ペースト時に毎回オフセットが重ならないよう、保存済みペアの位置も更新
+          setStickyClipboard({ bg: clonedBg, text: clonedText })
+          saveHistory()
+        })
+      })
+      return
+    }
+
+    if (!clipboard) return
 
     clipboard.clone((cloned: fabric.Object) => {
       const objectId = crypto.randomUUID()
@@ -201,7 +275,16 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
       setClipboard(cloned)
       saveHistory()
     })
-  }, [fabricCanvas, clipboard, addLayer, setSelectedObjectId, setClipboard, saveHistory])
+  }, [
+    fabricCanvas,
+    clipboard,
+    stickyClipboard,
+    addLayer,
+    setSelectedObjectId,
+    setClipboard,
+    setStickyClipboard,
+    saveHistory,
+  ])
 
   // 重なり順の変更
   const bringToFront = useCallback(() => {

@@ -104,6 +104,8 @@ interface CanvasStore {
   fabricCanvas: fabric.Canvas | null
   selectedObjectProps: ObjectProperties | null
   clipboard: fabric.Object | null
+  // 付箋ペア用クリップボード（bg/text 両方を保持）
+  stickyClipboard: { bg: fabric.Object; text: fabric.Object } | null
   pages: Page[]
   currentPageId: string
   theme: 'light' | 'dark'
@@ -159,6 +161,7 @@ interface CanvasStore {
   setSelectedObjectProps: (props: ObjectProperties | null) => void
   updateObjectProperty: (key: keyof ObjectProperties, value: number | string) => void
   setClipboard: (obj: fabric.Object | null) => void
+  setStickyClipboard: (pair: { bg: fabric.Object; text: fabric.Object } | null) => void
   addPage: (name: string) => void
   removePage: (id: string) => void
   setCurrentPage: (id: string) => void
@@ -330,6 +333,18 @@ const findFabricObject = (fabricCanvas: fabric.Canvas, objectId: string): fabric
   return null
 }
 
+// 付箋ペア（bg/text）の相棒を取得。obj が付箋パーツでなければ null
+const findStickyPartnerOnCanvas = (
+  fabricCanvas: fabric.Canvas,
+  obj: fabric.Object
+): fabric.Object | null => {
+  const stickyId = obj.data?.stickyId
+  if (!stickyId) return null
+  return (
+    fabricCanvas.getObjects().find((o) => o.data?.stickyId === stickyId && o !== obj) || null
+  )
+}
+
 // fabricCanvasからcanvasDataを取得するヘルパー関数
 const getCanvasData = (
   fabricCanvas: fabric.Canvas | null,
@@ -352,6 +367,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   fabricCanvas: null,
   selectedObjectProps: null,
   clipboard: null,
+  stickyClipboard: null,
   pages: defaultPages(),
   currentPageId: defaultPageId,
   theme: 'dark',
@@ -393,6 +409,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   setClipboard: (obj) => set({ clipboard: obj }),
+  setStickyClipboard: (pair) => set({ stickyClipboard: pair }),
   addLayer: (layer) =>
     set((state) => {
       const { fabricCanvas } = get()
@@ -463,6 +480,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
           const obj = findFabricObject(fabricCanvas, targetLayer.objectId)
           if (obj) {
             obj.visible = newVisible
+            // 付箋 bg と text は同じレイヤーに属さないが、視覚的に一体なので
+            // visibility を相棒にも伝播
+            const partner = findStickyPartnerOnCanvas(fabricCanvas, obj)
+            if (partner) partner.visible = newVisible
           }
         }
         fabricCanvas.renderAll()
@@ -482,22 +503,27 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       const idsToUpdate = [id, ...descendantIds]
 
       if (fabricCanvas) {
+        const lockProps = {
+          lockMovementX: newLockState,
+          lockMovementY: newLockState,
+          lockRotation: newLockState,
+          lockScalingX: newLockState,
+          lockScalingY: newLockState,
+          hasControls: !newLockState,
+          selectable: !newLockState,
+          evented: !newLockState,
+        }
         for (const updateId of idsToUpdate) {
           const targetLayer = state.layers.find((l) => l.id === updateId)
           if (!targetLayer || targetLayer.type === 'FRAME') continue
 
           const obj = findFabricObject(fabricCanvas, targetLayer.objectId)
           if (obj) {
-            obj.set({
-              lockMovementX: newLockState,
-              lockMovementY: newLockState,
-              lockRotation: newLockState,
-              lockScalingX: newLockState,
-              lockScalingY: newLockState,
-              hasControls: !newLockState,
-              selectable: !newLockState,
-              evented: !newLockState,
-            })
+            obj.set(lockProps)
+            // 付箋 bg と text は同じレイヤーに属さないが、一体で操作できるよう
+            // lock 状態を相棒にも伝播
+            const partner = findStickyPartnerOnCanvas(fabricCanvas, obj)
+            if (partner) partner.set(lockProps)
             if (newLockState && fabricCanvas.getActiveObject() === obj) {
               fabricCanvas.discardActiveObject()
             }
