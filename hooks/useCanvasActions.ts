@@ -79,8 +79,7 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
       const originalText = fabricCanvas
         .getObjects()
         .find(
-          (o) =>
-            o.data?.stickyId === originalBg.data?.stickyId && o.data?.stickyRole === 'text'
+          (o) => o.data?.stickyId === originalBg.data?.stickyId && o.data?.stickyRole === 'text'
         )
       if (!originalText) return
       const newStickyId = crypto.randomUUID()

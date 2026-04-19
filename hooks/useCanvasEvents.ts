@@ -391,8 +391,7 @@ export const useCanvasEvents = ({
         const bg = fabricCanvas
           .getObjects()
           .find(
-            (o) =>
-              o.data?.stickyId === activeObject.data?.stickyId && o.data?.stickyRole === 'bg'
+            (o) => o.data?.stickyId === activeObject.data?.stickyId && o.data?.stickyRole === 'bg'
           )
         if (bg) {
           fabricCanvas.setActiveObject(bg)
@@ -611,18 +610,21 @@ export const useCanvasEvents = ({
       return fabricCanvas.getObjects().find((o) => o.data?.stickyId === stickyId && o !== obj)
     }
 
-    // 付箋（bg）をダブルクリックしたら、対になる Textbox の編集モードへ切替
+    // 付箋をダブルクリックしたら、対になる Textbox の編集モードに入る
+    // bg 上 / text 上どちらのダブルクリックでも同じ text を編集対象にする
+    // 注意: enterEditing を setActiveObject より先に呼ぶことで、selection:updated の
+    //      ハンドラが isEditing=true を見て text→bg のリダイレクトをスキップする
     const handleStickyDblClick = (opt: fabric.IEvent) => {
       const target = opt.target
       if (!target || target.data?.type !== 'sticky') return
-      const role = target.data?.stickyRole
-      // 既に textbox 上でダブルクリックされた場合は fabric の標準挙動（編集開始）に任せる
-      if (role === 'text') return
-      const partner = findStickyPartner(target)
-      if (!partner || partner.data?.stickyRole !== 'text') return
-      fabricCanvas.setActiveObject(partner)
-      ;(partner as fabric.IText).enterEditing()
-      ;(partner as fabric.IText).selectAll()
+      const textbox =
+        target.data?.stickyRole === 'text'
+          ? (target as fabric.Textbox)
+          : (findStickyPartner(target) as fabric.Textbox | undefined)
+      if (!textbox || !('enterEditing' in textbox)) return
+      ;(textbox as fabric.IText).enterEditing()
+      fabricCanvas.setActiveObject(textbox as fabric.Object)
+      ;(textbox as fabric.IText).selectAll()
       fabricCanvas.requestRenderAll()
     }
 
@@ -659,6 +661,32 @@ export const useCanvasEvents = ({
       if (!target || target.data?.type !== 'sticky') return
       snapStickyPartner(target)
       fabricCanvas.requestRenderAll()
+    }
+
+    // text の内容が変わったら bg の高さを text に合わせて伸縮
+    // （min 180、text より小さくならない）
+    const STICKY_MIN_SIZE = 180
+    const handleStickyTextChanged = (opt: fabric.IEvent) => {
+      const target = opt.target
+      if (
+        !target ||
+        target.data?.type !== 'sticky' ||
+        target.data?.stickyRole !== 'text'
+      )
+        return
+      const text = target as fabric.Textbox
+      const bg = findStickyPartner(text)
+      if (!bg) return
+      const textHeight =
+        typeof text.calcTextHeight === 'function'
+          ? text.calcTextHeight()
+          : text.height || 0
+      const desiredBgHeight = Math.max(STICKY_MIN_SIZE, textHeight + STICKY_PAD * 2)
+      if ((bg.height || 0) !== desiredBgHeight) {
+        bg.set({ height: desiredBgHeight })
+        bg.setCoords()
+        fabricCanvas.requestRenderAll()
+      }
     }
 
     // 付箋パーツが削除されたとき、相棒も削除する（bg 単独削除／text 単独削除を防ぐ）
@@ -700,6 +728,7 @@ export const useCanvasEvents = ({
     fabricCanvas.on('object:moving', handleStickyMoving)
     fabricCanvas.on('object:modified', handleStickyObjectModifiedSync)
     fabricCanvas.on('object:removed', handleStickyObjectRemoved)
+    fabricCanvas.on('text:changed', handleStickyTextChanged)
 
     return () => {
       fabricCanvas.off('mouse:down', handleMouseDown)
@@ -720,6 +749,7 @@ export const useCanvasEvents = ({
       fabricCanvas.off('object:moving', handleStickyMoving)
       fabricCanvas.off('object:modified', handleStickyObjectModifiedSync)
       fabricCanvas.off('object:removed', handleStickyObjectRemoved)
+      fabricCanvas.off('text:changed', handleStickyTextChanged)
     }
   }, [
     fabricCanvas,
