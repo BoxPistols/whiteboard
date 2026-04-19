@@ -224,6 +224,10 @@ export default function Canvas() {
       height: container.clientHeight,
       backgroundColor: canvasBg,
       enableRetinaScaling: true,
+      // デフォルト false だと選択中オブジェクトが常に最前面で描画されるため、
+      // 付箋の bg を選択したときに text(前面) が隠れる。Figma 等と同様の挙動にするため
+      // スタッキング順を維持
+      preserveObjectStacking: true,
     })
 
     fabricCanvasRef.current = canvas

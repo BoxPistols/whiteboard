@@ -668,19 +668,12 @@ export const useCanvasEvents = ({
     const STICKY_MIN_SIZE = 180
     const handleStickyTextChanged = (opt: fabric.IEvent) => {
       const target = opt.target
-      if (
-        !target ||
-        target.data?.type !== 'sticky' ||
-        target.data?.stickyRole !== 'text'
-      )
-        return
+      if (!target || target.data?.type !== 'sticky' || target.data?.stickyRole !== 'text') return
       const text = target as fabric.Textbox
       const bg = findStickyPartner(text)
       if (!bg) return
       const textHeight =
-        typeof text.calcTextHeight === 'function'
-          ? text.calcTextHeight()
-          : text.height || 0
+        typeof text.calcTextHeight === 'function' ? text.calcTextHeight() : text.height || 0
       const desiredBgHeight = Math.max(STICKY_MIN_SIZE, textHeight + STICKY_PAD * 2)
       if ((bg.height || 0) !== desiredBgHeight) {
         bg.set({ height: desiredBgHeight })
