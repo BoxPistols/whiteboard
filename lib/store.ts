@@ -340,9 +340,7 @@ const findStickyPartnerOnCanvas = (
 ): fabric.Object | null => {
   const stickyId = obj.data?.stickyId
   if (!stickyId) return null
-  return (
-    fabricCanvas.getObjects().find((o) => o.data?.stickyId === stickyId && o !== obj) || null
-  )
+  return fabricCanvas.getObjects().find((o) => o.data?.stickyId === stickyId && o !== obj) || null
 }
 
 // fabricCanvasからcanvasDataを取得するヘルパー関数

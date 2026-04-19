@@ -172,8 +172,7 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
       const text = fabricCanvas
         .getObjects()
         .find(
-          (o) =>
-            o.data?.stickyId === activeObject.data?.stickyId && o.data?.stickyRole === 'text'
+          (o) => o.data?.stickyId === activeObject.data?.stickyId && o.data?.stickyRole === 'text'
         )
       if (text) {
         activeObject.clone((clonedBg: fabric.Object) => {
