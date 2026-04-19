@@ -99,7 +99,9 @@ export const useCanvasEvents = ({
         const bgColor = styleDefaults.stickyColor || '#FEF3B5'
         const size = 180
         const pad = 16
-        const textColor = isBackgroundDark(bgColor) ? '#ffffff' : '#1f2937'
+        // text ツール（#000000 / #ffffff）と揃えることで autoInvertText の既定色判定に
+        // 載せる。light の main 文字カラー = #000000、dark の main 文字カラー = #ffffff
+        const textColor = isBackgroundDark(bgColor) ? '#ffffff' : '#000000'
         const bgLeft = pointer.x - size / 2
         const bgTop = pointer.y - size / 2
 
