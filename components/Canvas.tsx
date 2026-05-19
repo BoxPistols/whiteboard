@@ -148,7 +148,11 @@ export default function Canvas() {
             // 巨大画像をそのまま保持すると、保存・履歴のたびに巨大 JSON を生成して
             // OOM クラッシュを起こすため、ペースト時点で最大1600pxにダウンスケール
             const imgUrl = await downscaleImageDataUrl(rawUrl)
+            // ダウンスケールと fromURL の間にコンポーネントがアンマウントされる可能性があるため
+            // 最新の canvas 参照を毎回チェックする
+            if (!fabricCanvasRef.current) return
             fabric.Image.fromURL(imgUrl, (img) => {
+              if (!fabricCanvasRef.current) return
               const id = crypto.randomUUID()
 
               // 最大サイズを制限
@@ -255,6 +259,22 @@ export default function Canvas() {
     }
     canvas.on('mouse:move', trackPointer)
 
+    // ビューポート変更を grid overlay と同期。レイヤークリックによるパン等、
+    // 個別ハンドラを経由しない経路でも setViewportTransform 後に grid 位置が
+    // 取り残されないよう、after:render で実際の値の変化を検知して反映する
+    let lastVpX = 0
+    let lastVpY = 0
+    const syncViewportOffset = () => {
+      const vpt = canvas.viewportTransform
+      if (!vpt) return
+      if (vpt[4] !== lastVpX || vpt[5] !== lastVpY) {
+        lastVpX = vpt[4]
+        lastVpY = vpt[5]
+        setViewportOffset({ x: lastVpX, y: lastVpY })
+      }
+    }
+    canvas.on('after:render', syncViewportOffset)
+
     const resizeObserver = new ResizeObserver((entries) => {
       if (entries[0]) {
         canvas.setWidth(entries[0].contentRect.width)
@@ -268,6 +288,7 @@ export default function Canvas() {
       resizeObserver.disconnect()
       // dispose でも一括解除されるが、リスナー解除の対称性を保つため明示 off
       canvas.off('mouse:move', trackPointer)
+      canvas.off('after:render', syncViewportOffset)
       canvas.dispose()
       setFabricCanvas(null)
     }
