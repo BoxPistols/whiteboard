@@ -91,3 +91,54 @@ export const getObjectCenter = (obj: fabric.Object) => {
   const center = obj.getCenterPoint()
   return { x: center.x, y: center.y }
 }
+
+/**
+ * 画像 dataURL を最大寸法に収まるよう縮小して再エンコードする。
+ * 巨大画像をそのまま canvas に持たせると IndexedDB 保存や履歴スナップショットで
+ * メモリ枯渇を起こすため、ペースト/ドロップ時にダウンスケールしてから配置する目的で使用する。
+ * 最大寸法以下であれば元の dataURL を返す。
+ */
+export const downscaleImageDataUrl = (
+  dataUrl: string,
+  maxSize = 1600,
+  quality = 0.85
+): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const longest = Math.max(img.width, img.height)
+      if (longest <= maxSize) {
+        resolve(dataUrl)
+        return
+      }
+      const scale = maxSize / longest
+      // 極端な縦横比の画像で 0 になると toDataURL が壊れるので最低 1px を保証
+      const w = Math.max(1, Math.round(img.width * scale))
+      const h = Math.max(1, Math.round(img.height * scale))
+      const tmp = document.createElement('canvas')
+      tmp.width = w
+      tmp.height = h
+      const ctx = tmp.getContext('2d')
+      if (!ctx) {
+        resolve(dataUrl)
+        return
+      }
+      ctx.drawImage(img, 0, 0, w, h)
+      try {
+        // PNG / WebP はアルファチャネルを持ち得るため、JPEG 化すると透過部分が
+        // 黒/白で塗り潰されてしまう。元のフォーマットを保ってロスレスを優先し、
+        // JPEG 由来（または不明）の写真系のみ JPEG 再エンコードでサイズ削減を狙う
+        const mimeMatch = /^data:(image\/[a-z0-9.+-]+)/i.exec(dataUrl)
+        const srcMime = mimeMatch?.[1]?.toLowerCase()
+        const preserveAlpha = srcMime === 'image/png' || srcMime === 'image/webp'
+        const outMime = preserveAlpha ? srcMime! : 'image/jpeg'
+        const out = preserveAlpha ? tmp.toDataURL(outMime) : tmp.toDataURL(outMime, quality)
+        resolve(out)
+      } catch {
+        resolve(dataUrl)
+      }
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}

@@ -246,7 +246,12 @@ const defaultPages = (): Page[] => [
   { id: defaultPageId, name: 'Page 1', canvasData: null, layers: [] },
 ]
 
-const MAX_HISTORY_LENGTH = 20
+// 画像を多用するページでは1スナップショットが数MBに達するため、メモリ枯渇によるクラッシュを防ぐ目的で控えめに
+const MAX_HISTORY_LENGTH = 5
+// 履歴全体のメモリ上限。これを超えたら古いスナップショットを破棄する（OOM 対策）
+const MAX_HISTORY_BYTES = 30 * 1024 * 1024 // 30MB
+// 単一スナップショットがこのサイズを超える場合は履歴記録をスキップ（巨大画像ペースト直後など）
+const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024 // 10MB
 
 // 永続化ヘルパー関数：レイヤーとcanvasData（オプショナル）をIndexedDBに保存
 const persistLayersToStorage = (
@@ -983,14 +988,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       get().setStyleDefaults({ strokeWidth: value })
     }
 
-    // canvas JSONを即座にlocalStorageに保存
-    try {
-      const json = JSON.stringify(fabricCanvas.toJSON(['data']))
-      const { currentPageId, layers: currentLayers } = get()
-      get().updatePageData(currentPageId, json, currentLayers)
-    } catch (error) {
-      console.error('Failed to save after property update:', error)
-    }
+    // 自動保存は object:modified 経由（500ms デバウンス）に委譲する。
+    // ここで毎回 toJSON すると、スライダードラッグ等の連続呼び出しで巨大 JSON を
+    // 大量にアロケートし OOM／クラッシュの原因になっていた
+    fabricCanvas.fire('object:modified', { target: activeObject })
 
     // ストアのプロパティも即座に更新
     if (selectedObjectProps) {
@@ -1313,7 +1314,25 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const { fabricCanvas, layers, history, historyIndex, isUndoRedoAction } = get()
     if (!fabricCanvas || isUndoRedoAction) return
 
-    const canvasJSON = JSON.stringify(fabricCanvas.toJSON(['data']))
+    // 巨大画像を含む canvas では toJSON / stringify が失敗・OOM することがあるため
+    // 履歴記録は best-effort に留め、失敗してもアプリは継続させる
+    let canvasJSON: string
+    try {
+      canvasJSON = JSON.stringify(fabricCanvas.toJSON(['data']))
+    } catch (e) {
+      console.warn('Failed to snapshot canvas for history:', e)
+      return
+    }
+
+    // スナップショット単体が大きすぎる場合は履歴に積まない（巨大画像ペースト等）。
+    // Undo を諦める代わりにアプリの安定性を優先する
+    if (canvasJSON.length > MAX_SNAPSHOT_BYTES) {
+      console.warn(
+        `Skipping history snapshot: canvas size ${(canvasJSON.length / 1024 / 1024).toFixed(1)}MB exceeds limit`
+      )
+      return
+    }
+
     const snapshot: HistorySnapshot = {
       canvasJSON,
       layers: [...layers],
@@ -1323,9 +1342,16 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const newHistory = history.slice(0, historyIndex + 1)
     newHistory.push(snapshot)
 
-    // 最大履歴数を超えたら古いものを削除
-    if (newHistory.length > MAX_HISTORY_LENGTH) {
+    // 件数キャップ
+    while (newHistory.length > MAX_HISTORY_LENGTH) {
       newHistory.shift()
+    }
+
+    // バイト数キャップ（合計が閾値超なら古いものから捨てる）
+    let totalBytes = newHistory.reduce((sum, s) => sum + s.canvasJSON.length, 0)
+    while (newHistory.length > 1 && totalBytes > MAX_HISTORY_BYTES) {
+      const dropped = newHistory.shift()
+      if (dropped) totalBytes -= dropped.canvasJSON.length
     }
 
     set({
