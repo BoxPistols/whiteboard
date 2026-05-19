@@ -9,6 +9,7 @@ import ContextMenu from '@/components/ContextMenu'
 import AlignmentPanel from '@/components/AlignmentPanel'
 import { useCanvasActions } from '@/hooks/useCanvasActions'
 import { useCanvasEvents } from '@/hooks/useCanvasEvents'
+import { downscaleImageDataUrl } from '@/lib/canvasUtils'
 
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -142,8 +143,11 @@ export default function Canvas() {
 
           e.preventDefault()
           const reader = new FileReader()
-          reader.onload = (event) => {
-            const imgUrl = event.target?.result as string
+          reader.onload = async (event) => {
+            const rawUrl = event.target?.result as string
+            // 巨大画像をそのまま保持すると、保存・履歴のたびに巨大 JSON を生成して
+            // OOM クラッシュを起こすため、ペースト時点で最大1600pxにダウンスケール
+            const imgUrl = await downscaleImageDataUrl(rawUrl)
             fabric.Image.fromURL(imgUrl, (img) => {
               const id = crypto.randomUUID()
 
@@ -320,14 +324,22 @@ export default function Canvas() {
   }, [pages, currentPageId, setLayers, saveHistory])
 
   // Undo/Redo用の履歴記録（操作完了時にスナップショット保存）
+  // 連続イベント（ペースト一括追加、整列、複数選択削除など）で毎回 toJSON するとメモリと CPU を浪費し
+  // クラッシュの原因になるため、300ms デバウンスで coalesce する
   useEffect(() => {
     const canvas = fabricCanvasRef.current
     if (!canvas) return
 
+    let snapshotTimer: NodeJS.Timeout | null = null
     const handleHistorySnapshot = () => {
       const state = useCanvasStore.getState()
       if (!state.pagesInitialized || state.isUndoRedoAction) return
-      saveHistory()
+      if (snapshotTimer) clearTimeout(snapshotTimer)
+      snapshotTimer = setTimeout(() => {
+        const s = useCanvasStore.getState()
+        if (!s.pagesInitialized || s.isUndoRedoAction) return
+        saveHistory()
+      }, 300)
     }
 
     canvas.on('object:modified', handleHistorySnapshot)
@@ -335,6 +347,7 @@ export default function Canvas() {
     canvas.on('object:removed', handleHistorySnapshot)
 
     return () => {
+      if (snapshotTimer) clearTimeout(snapshotTimer)
       canvas.off('object:modified', handleHistorySnapshot)
       canvas.off('object:added', handleHistorySnapshot)
       canvas.off('object:removed', handleHistorySnapshot)
@@ -352,8 +365,14 @@ export default function Canvas() {
       saveTimeout = setTimeout(() => {
         const state = useCanvasStore.getState()
         if (!state.pagesInitialized) return
-        const json = JSON.stringify(canvas.toJSON(['data']))
-        updatePageData(state.currentPageId, json, state.layers)
+        // 巨大な canvas（多数の画像）では toJSON / stringify が OOM を起こす可能性があるため
+        // try/catch で保護し、失敗しても以降の操作が止まらないようにする
+        try {
+          const json = JSON.stringify(canvas.toJSON(['data']))
+          updatePageData(state.currentPageId, json, state.layers)
+        } catch (e) {
+          console.error('Auto-save serialization failed:', e)
+        }
       }, 500)
     }
 

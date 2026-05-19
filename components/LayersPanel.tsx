@@ -394,6 +394,23 @@ export default function LayersPanel() {
     handleDragEnd()
   }
 
+  // オブジェクトをビューポート中央に来るようパン（ズームは維持）
+  const panToObject = (obj: fabric.Object) => {
+    if (!fabricCanvas) return
+    // 親変換も含む絶対座標のバウンディングを取得
+    const rect = obj.getBoundingRect(true, true)
+    const objCanvasX = rect.left + rect.width / 2
+    const objCanvasY = rect.top + rect.height / 2
+    const vpt = fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+    const zoom = vpt[0] || 1
+    const vpCenterX = fabricCanvas.getWidth() / 2
+    const vpCenterY = fabricCanvas.getHeight() / 2
+    const panX = vpCenterX - objCanvasX * zoom
+    const panY = vpCenterY - objCanvasY * zoom
+    fabricCanvas.setViewportTransform([zoom, 0, 0, zoom, panX, panY])
+    fabricCanvas.requestRenderAll()
+  }
+
   const selectLayer = (layer: (typeof layers)[0]) => {
     // FRAMEはCanvas上にオブジェクトがないので、レイヤー選択のみ
     if (layer.type === 'FRAME') {
@@ -404,7 +421,7 @@ export default function LayersPanel() {
     if (!fabricCanvas) return
 
     // まずトップレベルで検索
-    let obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+    const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
 
     // 見つからない場合はグループ内を検索
     if (!obj) {
@@ -414,7 +431,7 @@ export default function LayersPanel() {
           const found = group.getObjects().find((o) => o.data?.id === layer.objectId)
           if (found) {
             fabricCanvas.setActiveObject(found)
-            fabricCanvas.renderAll()
+            panToObject(found)
             setSelectedObjectId(layer.objectId)
             return
           }
@@ -424,7 +441,7 @@ export default function LayersPanel() {
 
     if (obj) {
       fabricCanvas.setActiveObject(obj)
-      fabricCanvas.renderAll()
+      panToObject(obj)
       setSelectedObjectId(layer.objectId)
     }
   }
