@@ -366,10 +366,13 @@ export default function LayersPanel() {
     }
     window.addEventListener('click', close)
     window.addEventListener('resize', close)
+    // scrollはバブリングしないのでキャプチャ(true)で全スクロールを捕捉
+    window.addEventListener('scroll', close, true)
     window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('click', close)
       window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', close, true)
       window.removeEventListener('keydown', onKey)
     }
   }, [contextMenu])
@@ -867,8 +870,8 @@ export default function LayersPanel() {
             <div
               className="fixed z-[100] min-w-[190px] py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-xl text-xs"
               style={{
-                top: Math.min(contextMenu.y, window.innerHeight - 320),
-                left: Math.min(contextMenu.x, window.innerWidth - 200),
+                top: Math.max(0, Math.min(contextMenu.y, window.innerHeight - 320)),
+                left: Math.max(0, Math.min(contextMenu.x, window.innerWidth - 200)),
               }}
               onClick={(e) => e.stopPropagation()}
               onContextMenu={(e) => e.preventDefault()}
