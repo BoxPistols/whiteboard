@@ -69,7 +69,7 @@ export default function Home() {
   }, [isResizingLeft, isResizingRight, setLeftPanelWidth, setRightPanelWidth])
 
   return (
-    {/* h-screen + overflow-hidden: ページ全体の高さを画面に固定し、内側リストだけスクロールさせる */}
+    // h-screen + overflow-hidden: ページ全体の高さを画面に固定し、内側リストだけスクロールさせる
     <main className="flex h-screen flex-col overflow-hidden touch-none">
       <Toolbar />
       <div className="flex flex-1 overflow-hidden relative">

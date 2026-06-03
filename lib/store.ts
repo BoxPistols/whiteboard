@@ -99,6 +99,8 @@ interface Page {
 interface CanvasStore {
   selectedTool: Tool
   selectedObjectId: string | null
+  // レイヤーパネルの複数選択（Cmd/Shift+クリック）。単一選択時も常に同期する
+  selectedLayerIds: string[]
   layers: Layer[]
   zoom: number
   fabricCanvas: fabric.Canvas | null
@@ -142,8 +144,13 @@ interface CanvasStore {
   autoInvertText: boolean
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
+  setSelectedLayerIds: (ids: string[]) => void
   addLayer: (layer: Layer) => void
   removeLayer: (id: string) => void
+  // 複数レイヤーを一括削除（子孫含む）
+  removeLayers: (ids: string[]) => void
+  // 選択中レイヤーを新規フォルダにまとめる
+  groupLayersIntoFolder: (layerIds: string[], name?: string) => void
   toggleLayerVisibility: (id: string) => void
   toggleLayerLock: (id: string) => void
   updateLayerName: (id: string, name: string) => void
@@ -365,6 +372,7 @@ const getCanvasData = (
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
   selectedObjectId: null,
+  selectedLayerIds: [],
   layers: [],
   zoom: 100,
   fabricCanvas: null,
@@ -411,6 +419,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   autoInvertText: true,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
+  setSelectedLayerIds: (ids) => set({ selectedLayerIds: ids }),
+  removeLayers: (ids) => {
+    // 重複・子孫の二重削除は removeLayer 側のフィルタが吸収する
+    ids.forEach((id) => get().removeLayer(id))
+    set({ selectedLayerIds: [] })
+  },
   setClipboard: (obj) => set({ clipboard: obj }),
   setStickyClipboard: (pair) => set({ stickyClipboard: pair }),
   addLayer: (layer) =>
@@ -701,6 +715,71 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
       const updatedLayers = [folderLayer, ...state.layers]
       return persistLayersToStorage(state, updatedLayers, undefined, 'folder creation')
+    }),
+  groupLayersIntoFolder: (layerIds, name) =>
+    set((state) => {
+      if (!layerIds || layerIds.length === 0) return {}
+      const idSet = new Set(layerIds)
+
+      // 別の選択レイヤーの子孫は親ごと移動されるので除外（二重移動防止）
+      const isDescendantOfSelected = (id: string): boolean => {
+        let cur = state.layers.find((l) => l.id === id)
+        while (cur?.parentId) {
+          if (idSet.has(cur.parentId)) return true
+          cur = state.layers.find((l) => l.id === cur!.parentId)
+        }
+        return false
+      }
+      const targets = layerIds.filter((id) => !isDescendantOfSelected(id))
+      if (targets.length === 0) return {}
+      const targetSet = new Set(targets)
+
+      // フォルダは最初の選択レイヤーの親階層に配置する
+      const firstLayer = state.layers.find((l) => l.id === targets[0])
+      const folderParentId = firstLayer?.parentId
+
+      const folderId = crypto.randomUUID()
+      const folderCount =
+        state.layers.filter((l) => l.type === 'FRAME' && l.name.startsWith('フォルダ')).length + 1
+      const folderLayer: Layer = {
+        id: folderId,
+        name: name || `フォルダ ${folderCount}`,
+        visible: true,
+        locked: false,
+        objectId: folderId,
+        type: 'FRAME',
+        parentId: folderParentId ?? undefined,
+        children: [...targets],
+        expanded: true,
+      }
+
+      // 選択レイヤーの parentId を folderId に変更し、旧親 children からは除去
+      let updatedLayers = state.layers.map((l) => {
+        if (targetSet.has(l.id)) return { ...l, parentId: folderId }
+        if (l.children?.some((cid) => targetSet.has(cid))) {
+          return { ...l, children: l.children.filter((cid) => !targetSet.has(cid)) }
+        }
+        return l
+      })
+
+      // 新親の children にフォルダを追加
+      if (folderParentId) {
+        updatedLayers = updatedLayers.map((l) =>
+          l.id === folderParentId
+            ? { ...l, children: [...(l.children || []), folderId], expanded: true }
+            : l
+        )
+      }
+
+      // 表示順は配列順に依存するため、フォルダを最初の選択レイヤーの位置へ挿入
+      const firstIdx = updatedLayers.findIndex((l) => l.id === targets[0])
+      updatedLayers.splice(Math.max(firstIdx, 0), 0, folderLayer)
+
+      return {
+        ...persistLayersToStorage(state, updatedLayers, undefined, 'group into folder'),
+        selectedLayerIds: [folderId],
+        selectedObjectId: folderId,
+      }
     }),
   setZoom: (zoom) => {
     const { fabricCanvas } = get()
@@ -1165,6 +1244,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({
       selectedTool: 'select',
       selectedObjectId: null,
+      selectedLayerIds: [],
       layers: [],
       zoom: 100,
       selectedObjectProps: null,
@@ -1379,6 +1459,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         historyIndex: newIndex,
         isUndoRedoAction: false,
         selectedObjectId: null,
+        selectedLayerIds: [],
         selectedObjectProps: null,
       })
     })
@@ -1403,6 +1484,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         historyIndex: newIndex,
         isUndoRedoAction: false,
         selectedObjectId: null,
+        selectedLayerIds: [],
         selectedObjectProps: null,
       })
     })
