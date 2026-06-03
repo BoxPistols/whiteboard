@@ -320,7 +320,6 @@ function ContextMenuItem({
 export default function LayersPanel() {
   const {
     layers,
-    removeLayer,
     toggleLayerVisibility,
     toggleLayerLock,
     updateLayerName,
@@ -328,6 +327,7 @@ export default function LayersPanel() {
     toggleLayerExpanded,
     createFolder,
     setSelectedObjectId,
+    setSelectedObjectProps,
     selectedLayerIds,
     setSelectedLayerIds,
     groupLayersIntoFolder,
@@ -582,12 +582,22 @@ export default function LayersPanel() {
     removeLayers(ids)
   }
 
-  // 行のゴミ箱: 単一削除（フォルダ系のみ確認）
+  // 行のゴミ箱: 単一削除（フォルダ系のみ確認）。removeLayers経由で選択状態も一貫してクリア
   const handleRemoveSingle = (id: string) => {
     const l = layers.find((x) => x.id === id)
     const hasChildren = l ? getChildLayers(l.id).length > 0 : false
     if (hasChildren && !window.confirm('このフォルダと中の子レイヤーをすべて削除しますか？')) return
-    removeLayer(id)
+    removeLayers([id])
+  }
+
+  // 選択解除: Canvasのactiveも破棄し、ストアの選択系stateもすべてクリア
+  // （FRAME選択時はfabricのselectionイベントが発火しないので明示的にクリアが必要）
+  const clearSelection = () => {
+    fabricCanvas?.discardActiveObject()
+    fabricCanvas?.requestRenderAll()
+    setSelectedLayerIds([])
+    setSelectedObjectId(null)
+    setSelectedObjectProps(null)
   }
 
   // 選択中レイヤーをフォルダにまとめる
@@ -794,7 +804,7 @@ export default function LayersPanel() {
               削除
             </button>
             <button
-              onClick={() => setSelectedLayerIds([])}
+              onClick={clearSelection}
               className="px-1 py-0.5 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 rounded whitespace-nowrap"
               title="選択を解除"
               aria-label="選択を解除"

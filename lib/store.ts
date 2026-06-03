@@ -434,6 +434,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
       // Canvasオブジェクトを一括削除（FRAMEはCanvas上にないのでスキップ）
       if (fabricCanvas) {
+        // 削除前にactiveを破棄し、stale な activeSelection を残さない
+        fabricCanvas.discardActiveObject()
         allIdsToRemove.forEach((removeId) => {
           const layer = state.layers.find((l) => l.id === removeId)
           if (!layer || layer.type === 'FRAME') return
@@ -455,9 +457,16 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
       const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
 
+      // 選択中オブジェクトが削除対象なら selectedObjectId/Props も合わせてクリア
+      const removedObjectIds = new Set(
+        state.layers.filter((l) => allIdsToRemove.has(l.id)).map((l) => l.objectId)
+      )
+      const clearSelected = !!state.selectedObjectId && removedObjectIds.has(state.selectedObjectId)
+
       return {
         ...persistLayersToStorage(state, updatedLayers, canvasData, 'batch layer removal'),
         selectedLayerIds: [],
+        ...(clearSelected ? { selectedObjectId: null, selectedObjectProps: null } : {}),
       }
     }),
   setClipboard: (obj) => set({ clipboard: obj }),
