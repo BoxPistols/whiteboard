@@ -535,7 +535,7 @@ export default function LayersPanel() {
   }
 
   return (
-    <div className="w-full h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+    <div className="w-full h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
       {/* ページナビゲーション */}
       <div className="border-b border-gray-200 dark:border-gray-700 p-2">
         <div className="flex items-center justify-between mb-1">
@@ -579,8 +579,8 @@ export default function LayersPanel() {
         </div>
       </div>
 
-      {/* レイヤーリスト */}
-      <div className="flex-1 overflow-y-auto p-2">
+      {/* レイヤーリスト: min-h-0 でflexアイテムを縮小可能にし、ここだけスクロールさせる */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-2">
         <div className="flex items-center justify-between mb-2 px-1">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">レイヤー</h2>
           <button
