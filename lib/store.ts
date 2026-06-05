@@ -99,6 +99,8 @@ interface Page {
 interface CanvasStore {
   selectedTool: Tool
   selectedObjectId: string | null
+  // レイヤーパネルの複数選択（Cmd/Shift+クリック）。単一選択時も常に同期する
+  selectedLayerIds: string[]
   layers: Layer[]
   zoom: number
   fabricCanvas: fabric.Canvas | null
@@ -142,8 +144,13 @@ interface CanvasStore {
   autoInvertText: boolean
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
+  setSelectedLayerIds: (ids: string[]) => void
   addLayer: (layer: Layer) => void
   removeLayer: (id: string) => void
+  // 複数レイヤーを一括削除（子孫含む）
+  removeLayers: (ids: string[]) => void
+  // 選択中レイヤーを新規フォルダにまとめる
+  groupLayersIntoFolder: (layerIds: string[], name?: string) => void
   toggleLayerVisibility: (id: string) => void
   toggleLayerLock: (id: string) => void
   updateLayerName: (id: string, name: string) => void
@@ -365,6 +372,7 @@ const getCanvasData = (
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
   selectedObjectId: null,
+  selectedLayerIds: [],
   layers: [],
   zoom: 100,
   fabricCanvas: null,
@@ -411,6 +419,56 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   autoInvertText: true,
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
+  setSelectedLayerIds: (ids) => set({ selectedLayerIds: ids }),
+  removeLayers: (ids) =>
+    set((state) => {
+      const { fabricCanvas } = get()
+      if (ids.length === 0) return {}
+
+      // 削除対象（指定IDとその子孫すべて）をまとめて収集し、1回のsetで処理する
+      const allIdsToRemove = new Set<string>()
+      ids.forEach((id) => {
+        allIdsToRemove.add(id)
+        getDescendantIds(id, state.layers).forEach((descId) => allIdsToRemove.add(descId))
+      })
+
+      // Canvasオブジェクトを一括削除（FRAMEはCanvas上にないのでスキップ）
+      if (fabricCanvas) {
+        // 削除前にactiveを破棄し、stale な activeSelection を残さない
+        fabricCanvas.discardActiveObject()
+        allIdsToRemove.forEach((removeId) => {
+          const layer = state.layers.find((l) => l.id === removeId)
+          if (!layer || layer.type === 'FRAME') return
+          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
+          if (obj) fabricCanvas.remove(obj)
+        })
+        fabricCanvas.renderAll()
+      }
+
+      // レイヤー配列から除去しつつ、親のchildrenからも除去
+      let updatedLayers = state.layers.filter((l) => !allIdsToRemove.has(l.id))
+      updatedLayers = updatedLayers.map((l) =>
+        l.children?.some((cid) => allIdsToRemove.has(cid))
+          ? { ...l, children: l.children.filter((cid) => !allIdsToRemove.has(cid)) }
+          : l
+      )
+
+      const currentCanvasData =
+        state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
+
+      // 選択中オブジェクトが削除対象なら selectedObjectId/Props も合わせてクリア
+      const removedObjectIds = new Set(
+        state.layers.filter((l) => allIdsToRemove.has(l.id)).map((l) => l.objectId)
+      )
+      const clearSelected = !!state.selectedObjectId && removedObjectIds.has(state.selectedObjectId)
+
+      return {
+        ...persistLayersToStorage(state, updatedLayers, canvasData, 'batch layer removal'),
+        selectedLayerIds: [],
+        ...(clearSelected ? { selectedObjectId: null, selectedObjectProps: null } : {}),
+      }
+    }),
   setClipboard: (obj) => set({ clipboard: obj }),
   setStickyClipboard: (pair) => set({ stickyClipboard: pair }),
   addLayer: (layer) =>
@@ -701,6 +759,87 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       }
       const updatedLayers = [folderLayer, ...state.layers]
       return persistLayersToStorage(state, updatedLayers, undefined, 'folder creation')
+    }),
+  groupLayersIntoFolder: (layerIds, name) =>
+    set((state) => {
+      if (!layerIds || layerIds.length === 0) return {}
+      const { fabricCanvas } = get()
+      const idSet = new Set(layerIds)
+
+      // 別の選択レイヤーの子孫は親ごと移動されるので除外（二重移動防止）
+      // while条件で cur と cur.parentId を確認し、非null断言を避ける
+      const isDescendantOfSelected = (id: string): boolean => {
+        let cur = state.layers.find((l) => l.id === id)
+        while (cur && cur.parentId) {
+          // parentId をconstに取り出し、クロージャ内での型の絞り込みを保つ
+          const parentId = cur.parentId
+          if (idSet.has(parentId)) return true
+          cur = state.layers.find((l) => l.id === parentId)
+        }
+        return false
+      }
+      const targets = layerIds.filter((id) => !isDescendantOfSelected(id))
+      if (targets.length === 0) return {}
+      const targetSet = new Set(targets)
+
+      // フォルダは最初の選択レイヤーの親階層に配置する
+      const firstLayer = state.layers.find((l) => l.id === targets[0])
+      const folderParentId = firstLayer?.parentId
+
+      const folderId = crypto.randomUUID()
+      const folderCount =
+        state.layers.filter((l) => l.type === 'FRAME' && l.name.startsWith('フォルダ')).length + 1
+      const folderLayer: Layer = {
+        id: folderId,
+        name: name || `フォルダ ${folderCount}`,
+        visible: true,
+        locked: false,
+        objectId: folderId,
+        type: 'FRAME',
+        parentId: folderParentId ?? undefined,
+        children: [...targets],
+        expanded: true,
+      }
+
+      // 選択レイヤーの parentId を folderId に変更し、旧親 children からは除去
+      let updatedLayers = state.layers.map((l) => {
+        if (targetSet.has(l.id)) return { ...l, parentId: folderId }
+        if (l.children?.some((cid) => targetSet.has(cid))) {
+          return { ...l, children: l.children.filter((cid) => !targetSet.has(cid)) }
+        }
+        return l
+      })
+
+      // 新親の children にフォルダを追加
+      if (folderParentId) {
+        updatedLayers = updatedLayers.map((l) =>
+          l.id === folderParentId
+            ? { ...l, children: [...(l.children || []), folderId], expanded: true }
+            : l
+        )
+      }
+
+      // 表示順は配列順に依存するため、フォルダを最初の選択レイヤーの位置へ挿入
+      const firstIdx = updatedLayers.findIndex((l) => l.id === targets[0])
+      updatedLayers.splice(Math.max(firstIdx, 0), 0, folderLayer)
+
+      // 非連続レイヤーのグループ化で表示順が変わるため、Fabric.jsのz-orderを
+      // ツリーの深さ優先走査順に同期する（moveLayerと同じ手法）
+      if (fabricCanvas) {
+        const flattened = flattenLayerTree(updatedLayers)
+        // 配列の最後がz-orderの最前面
+        flattened.forEach((l, index) => {
+          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === l.objectId)
+          if (obj) fabricCanvas.moveTo(obj, flattened.length - 1 - index)
+        })
+        fabricCanvas.renderAll()
+      }
+
+      return {
+        ...persistLayersToStorage(state, updatedLayers, undefined, 'group into folder'),
+        selectedLayerIds: [folderId],
+        selectedObjectId: folderId,
+      }
     }),
   setZoom: (zoom) => {
     const { fabricCanvas } = get()
@@ -1165,6 +1304,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({
       selectedTool: 'select',
       selectedObjectId: null,
+      selectedLayerIds: [],
       layers: [],
       zoom: 100,
       selectedObjectProps: null,
@@ -1379,6 +1519,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         historyIndex: newIndex,
         isUndoRedoAction: false,
         selectedObjectId: null,
+        selectedLayerIds: [],
         selectedObjectProps: null,
       })
     })
@@ -1403,6 +1544,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         historyIndex: newIndex,
         isUndoRedoAction: false,
         selectedObjectId: null,
+        selectedLayerIds: [],
         selectedObjectProps: null,
       })
     })

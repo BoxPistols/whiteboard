@@ -29,12 +29,13 @@ interface LayerTreeItemProps {
   isGroup: boolean
   getChildLayers: (parentId: string) => Layer[]
   getSiblingLayers: (layer: Layer) => Layer[]
-  selectedObjectId: string | null
+  selectedLayerIds: string[]
   editingLayerId: string | null
   editingName: string
   draggedLayerId: string | null
   dropTarget: DropTarget | null
-  onSelect: (layer: Layer) => void
+  onSelect: (layer: Layer, e: React.MouseEvent) => void
+  onContextMenu: (layer: Layer, e: React.MouseEvent) => void
   onToggleVisibility: (id: string) => void
   onToggleLock: (id: string) => void
   onToggleExpanded: (id: string) => void
@@ -59,12 +60,13 @@ function LayerTreeItem({
   isGroup,
   getChildLayers,
   getSiblingLayers,
-  selectedObjectId,
+  selectedLayerIds,
   editingLayerId,
   editingName,
   draggedLayerId,
   dropTarget,
   onSelect,
+  onContextMenu,
   onToggleVisibility,
   onToggleLock,
   onToggleExpanded,
@@ -83,6 +85,7 @@ function LayerTreeItem({
 }: LayerTreeItemProps) {
   const children = getChildLayers(layer.id)
   const hasChildren = children.length > 0
+  const isSelected = selectedLayerIds.includes(layer.id)
   const isExpanded = layer.expanded ?? true // デフォルトは展開
   const siblings = getSiblingLayers(layer)
   const siblingIndex = siblings.findIndex((l) => l.id === layer.id)
@@ -102,10 +105,11 @@ function LayerTreeItem({
         onDragOver={(e) => onDragOver(e, layer.id, isGroup || hasChildren)}
         onDragEnd={onDragEnd}
         onDrop={onDrop}
-        onClick={() => onSelect(layer)}
+        onClick={(e) => onSelect(layer, e)}
+        onContextMenu={(e) => onContextMenu(layer, e)}
         style={{ paddingLeft: `${depth * 12 + 6}px` }}
         className={`flex items-center justify-between py-1 pr-1.5 rounded cursor-move transition-all ${
-          selectedObjectId === layer.objectId
+          isSelected
             ? 'bg-blue-500 dark:bg-blue-600 text-white'
             : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100'
         } ${draggedLayerId === layer.id ? 'opacity-50' : ''} ${
@@ -123,7 +127,7 @@ function LayerTreeItem({
                 onToggleExpanded(layer.id)
               }}
               className={`flex-shrink-0 w-4 h-4 flex items-center justify-center ${
-                selectedObjectId === layer.objectId
+                isSelected
                   ? 'text-white'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
@@ -140,7 +144,7 @@ function LayerTreeItem({
             <FolderIcon
               size={12}
               className={`flex-shrink-0 ${
-                selectedObjectId === layer.objectId
+                isSelected
                   ? 'text-white'
                   : layer.type === 'FRAME'
                     ? 'text-yellow-500 dark:text-yellow-400'
@@ -155,7 +159,7 @@ function LayerTreeItem({
               onToggleVisibility(layer.id)
             }}
             className={`flex-shrink-0 ${
-              selectedObjectId === layer.objectId
+              isSelected
                 ? 'text-white/80 hover:text-white'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
@@ -179,9 +183,7 @@ function LayerTreeItem({
           ) : (
             <span
               className={`text-xs truncate select-none cursor-pointer ${
-                selectedObjectId === layer.objectId
-                  ? 'text-white'
-                  : 'text-gray-900 dark:text-gray-100'
+                isSelected ? 'text-white' : 'text-gray-900 dark:text-gray-100'
               }`}
               onDoubleClick={(e) => onStartEditing(layer, e)}
               title="ダブルクリックで編集"
@@ -195,7 +197,7 @@ function LayerTreeItem({
             onClick={(e) => onMoveUp(layer, e)}
             disabled={isFirst}
             className={`disabled:opacity-30 disabled:cursor-not-allowed ${
-              selectedObjectId === layer.objectId
+              isSelected
                 ? 'text-white/80 hover:text-white'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
@@ -208,7 +210,7 @@ function LayerTreeItem({
             onClick={(e) => onMoveDown(layer, e)}
             disabled={isLast}
             className={`disabled:opacity-30 disabled:cursor-not-allowed ${
-              selectedObjectId === layer.objectId
+              isSelected
                 ? 'text-white/80 hover:text-white'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
@@ -223,7 +225,7 @@ function LayerTreeItem({
               onToggleLock(layer.id)
             }}
             className={`${
-              selectedObjectId === layer.objectId
+              isSelected
                 ? 'text-white/80 hover:text-white'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
@@ -257,12 +259,13 @@ function LayerTreeItem({
               isGroup={isGroupLayer(childLayer)}
               getChildLayers={getChildLayers}
               getSiblingLayers={getSiblingLayers}
-              selectedObjectId={selectedObjectId}
+              selectedLayerIds={selectedLayerIds}
               editingLayerId={editingLayerId}
               editingName={editingName}
               draggedLayerId={draggedLayerId}
               dropTarget={dropTarget}
               onSelect={onSelect}
+              onContextMenu={onContextMenu}
               onToggleVisibility={onToggleVisibility}
               onToggleLock={onToggleLock}
               onToggleExpanded={onToggleExpanded}
@@ -286,10 +289,37 @@ function LayerTreeItem({
   )
 }
 
+// 右クリックメニューの項目
+function ContextMenuItem({
+  onClick,
+  icon,
+  label,
+  danger,
+  disabled,
+}: {
+  onClick: () => void
+  icon?: React.ReactNode
+  label: string
+  danger?: boolean
+  disabled?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700 ${
+        danger ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'
+      }`}
+    >
+      <span className="w-3.5 flex-shrink-0 flex items-center justify-center">{icon}</span>
+      <span className="truncate">{label}</span>
+    </button>
+  )
+}
+
 export default function LayersPanel() {
   const {
     layers,
-    removeLayer,
     toggleLayerVisibility,
     toggleLayerLock,
     updateLayerName,
@@ -297,7 +327,12 @@ export default function LayersPanel() {
     toggleLayerExpanded,
     createFolder,
     setSelectedObjectId,
-    selectedObjectId,
+    setSelectedObjectProps,
+    selectedLayerIds,
+    setSelectedLayerIds,
+    groupLayersIntoFolder,
+    removeLayers,
+    duplicateSelected,
     fabricCanvas,
     pages,
     currentPageId,
@@ -312,9 +347,35 @@ export default function LayersPanel() {
   const [editingName, setEditingName] = useState('')
   const [isMounted, setIsMounted] = useState(false)
   const dragOverRef = useRef<{ layerId: string; rect: DOMRect } | null>(null)
+  // 右クリックメニュー（位置と対象レイヤー）
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; layer: Layer } | null>(
+    null
+  )
+  // Shift範囲選択の起点
+  const lastSelectedRef = useRef<string | null>(null)
 
   // Hydrationエラー回避（SSRとクライアントでpages.lengthが異なる）
   useEffect(() => setIsMounted(true), [])
+
+  // 右クリックメニューを外側クリック/スクロール/Escで閉じる
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null)
+    }
+    window.addEventListener('click', close)
+    window.addEventListener('resize', close)
+    // scrollはバブリングしないのでキャプチャ(true)で全スクロールを捕捉
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [contextMenu])
 
   const handleDragStart = (e: DragEvent<HTMLDivElement>, layerId: string) => {
     setDraggedLayerId(layerId)
@@ -446,6 +507,111 @@ export default function LayersPanel() {
     }
   }
 
+  // 表示順（深さ優先・展開中のみ）のフラットなレイヤー配列。Shift範囲選択に使う
+  const getVisibleFlatLayers = (): Layer[] => {
+    const result: Layer[] = []
+    const walk = (items: Layer[]) => {
+      items.forEach((l) => {
+        result.push(l)
+        const kids = getChildLayers(l.id)
+        if (kids.length > 0 && (l.expanded ?? true)) walk(kids)
+      })
+    }
+    walk(rootLayers)
+    return result
+  }
+
+  // クリック選択（通常=単一 / Cmd・Ctrl=トグル / Shift=範囲）
+  const handleSelectLayer = (layer: Layer, e: React.MouseEvent) => {
+    // Cmd/Ctrl: トグル追加（パネル内の複数選択）
+    if (e.metaKey || e.ctrlKey) {
+      const next = selectedLayerIds.includes(layer.id)
+        ? selectedLayerIds.filter((id) => id !== layer.id)
+        : [...selectedLayerIds, layer.id]
+      setSelectedLayerIds(next)
+      lastSelectedRef.current = layer.id
+      return
+    }
+    // Shift: 直前の起点からの範囲選択
+    if (e.shiftKey && lastSelectedRef.current) {
+      const flat = getVisibleFlatLayers()
+      const a = flat.findIndex((l) => l.id === lastSelectedRef.current)
+      const b = flat.findIndex((l) => l.id === layer.id)
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a]
+        setSelectedLayerIds(flat.slice(lo, hi + 1).map((l) => l.id))
+        return
+      }
+    }
+    // 通常クリック: 単一選択（Canvasも同期）
+    lastSelectedRef.current = layer.id
+    setSelectedLayerIds([layer.id])
+    selectLayer(layer)
+  }
+
+  // 右クリック: 対象が未選択なら単一選択に切り替えてからメニューを開く
+  const handleContextMenu = (layer: Layer, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!selectedLayerIds.includes(layer.id)) {
+      setSelectedLayerIds([layer.id])
+      lastSelectedRef.current = layer.id
+      selectLayer(layer)
+    }
+    setContextMenu({ x: e.clientX, y: e.clientY, layer })
+  }
+
+  // 削除方針: 複数(2件以上)またはフォルダ(子あり)は確認、単一は即時
+  const deleteLayerIds = (ids: string[]) => {
+    if (ids.length === 0) return
+    const hasFolder = ids.some((id) => {
+      const l = layers.find((x) => x.id === id)
+      return l ? getChildLayers(l.id).length > 0 || l.type === 'FRAME' || l.type === 'GROUP' : false
+    })
+    const needConfirm = ids.length >= 2 || hasFolder
+    if (
+      needConfirm &&
+      !window.confirm(
+        `${ids.length}件のレイヤーを削除しますか？${
+          hasFolder ? '（フォルダ/グループ内の子レイヤーも削除されます）' : ''
+        }`
+      )
+    ) {
+      return
+    }
+    removeLayers(ids)
+  }
+
+  // 行のゴミ箱: 単一削除（フォルダ系のみ確認）。removeLayers経由で選択状態も一貫してクリア
+  const handleRemoveSingle = (id: string) => {
+    const l = layers.find((x) => x.id === id)
+    const hasChildren = l ? getChildLayers(l.id).length > 0 : false
+    if (hasChildren && !window.confirm('このフォルダと中の子レイヤーをすべて削除しますか？')) return
+    removeLayers([id])
+  }
+
+  // 選択解除: Canvasのactiveも破棄し、ストアの選択系stateもすべてクリア
+  // （FRAME選択時はfabricのselectionイベントが発火しないので明示的にクリアが必要）
+  const clearSelection = () => {
+    fabricCanvas?.discardActiveObject()
+    fabricCanvas?.requestRenderAll()
+    setSelectedLayerIds([])
+    setSelectedObjectId(null)
+    setSelectedObjectProps(null)
+  }
+
+  // 選択中レイヤーをフォルダにまとめる
+  const handleGroupSelected = () => {
+    if (selectedLayerIds.length === 0) return
+    groupLayersIntoFolder(selectedLayerIds)
+  }
+
+  // コンテキストメニューの対象ID群（複数選択中ならその全体、単一なら右クリック対象）
+  const getActionTargetIds = (layer: Layer): string[] =>
+    selectedLayerIds.includes(layer.id) && selectedLayerIds.length > 1
+      ? selectedLayerIds
+      : [layer.id]
+
   // 同じ親内で1つ上に移動
   const moveLayerUp = (layer: (typeof layers)[0], e: React.MouseEvent) => {
     e.stopPropagation()
@@ -468,6 +634,24 @@ export default function LayersPanel() {
 
   const startEditing = (layer: (typeof layers)[0], e: React.MouseEvent) => {
     e.stopPropagation()
+    setEditingLayerId(layer.id)
+    setEditingName(layer.name)
+  }
+
+  // 右クリックメニュー用（イベント不要版）の前面/背面移動と名前変更
+  const bringForward = (layer: Layer) => {
+    const parentId = layer.parentId || null
+    const siblings = getSiblingLayersByParentId(parentId)
+    const idx = siblings.findIndex((l) => l.id === layer.id)
+    if (idx > 0) moveLayer(layer.id, parentId, idx - 1)
+  }
+  const sendBackward = (layer: Layer) => {
+    const parentId = layer.parentId || null
+    const siblings = getSiblingLayersByParentId(parentId)
+    const idx = siblings.findIndex((l) => l.id === layer.id)
+    if (idx >= 0 && idx < siblings.length - 1) moveLayer(layer.id, parentId, idx + 1)
+  }
+  const startRename = (layer: Layer) => {
     setEditingLayerId(layer.id)
     setEditingName(layer.name)
   }
@@ -535,7 +719,7 @@ export default function LayersPanel() {
   }
 
   return (
-    <div className="w-full h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+    <div className="w-full h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden">
       {/* ページナビゲーション */}
       <div className="border-b border-gray-200 dark:border-gray-700 p-2">
         <div className="flex items-center justify-between mb-1">
@@ -579,20 +763,57 @@ export default function LayersPanel() {
         </div>
       </div>
 
-      {/* レイヤーリスト */}
-      <div className="flex-1 overflow-y-auto p-2">
+      {/* レイヤーリスト: min-h-0 でflexアイテムを縮小可能にし、ここだけスクロールさせる */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-2">
         <div className="flex items-center justify-between mb-2 px-1">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">レイヤー</h2>
           <button
             onClick={() => createFolder()}
             className="px-1.5 py-0.5 text-xs bg-yellow-500 hover:bg-yellow-600 text-white rounded flex items-center gap-0.5"
-            title="新しいフォルダを作成"
-            aria-label="新しいフォルダを作成"
+            title="空のフォルダを作成"
+            aria-label="空のフォルダを作成"
           >
             <FolderIcon size={10} />
             <span>+</span>
           </button>
         </div>
+
+        {/* 選択時の一括アクションバー（明確な削除/グループ化アクション） */}
+        {selectedLayerIds.length >= 1 && (
+          <div className="flex items-center gap-1 mb-2 px-1.5 py-1 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded text-xs">
+            <span className="text-blue-700 dark:text-blue-300 font-medium whitespace-nowrap">
+              {selectedLayerIds.length}件選択
+            </span>
+            <div className="flex-1" />
+            <button
+              onClick={handleGroupSelected}
+              className="px-1.5 py-0.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded flex items-center gap-0.5 whitespace-nowrap"
+              title="選択中のレイヤーをフォルダにまとめる"
+              aria-label="選択中のレイヤーをフォルダにまとめる"
+            >
+              <FolderIcon size={10} />
+              まとめる
+            </button>
+            <button
+              onClick={() => deleteLayerIds(selectedLayerIds)}
+              className="px-1.5 py-0.5 bg-red-500 hover:bg-red-600 text-white rounded flex items-center gap-0.5 whitespace-nowrap"
+              title="選択中のレイヤーを削除"
+              aria-label="選択中のレイヤーを削除"
+            >
+              <TrashIcon size={10} />
+              削除
+            </button>
+            <button
+              onClick={clearSelection}
+              className="px-1 py-0.5 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 rounded whitespace-nowrap"
+              title="選択を解除"
+              aria-label="選択を解除"
+            >
+              解除
+            </button>
+          </div>
+        )}
+
         {layers.length > 0 ? (
           <div className="space-y-0.5">
             {rootLayers.map((layer) => (
@@ -603,16 +824,17 @@ export default function LayersPanel() {
                 isGroup={isGroupLayer(layer)}
                 getChildLayers={getChildLayers}
                 getSiblingLayers={getSiblingLayers}
-                selectedObjectId={selectedObjectId}
+                selectedLayerIds={selectedLayerIds}
                 editingLayerId={editingLayerId}
                 editingName={editingName}
                 draggedLayerId={draggedLayerId}
                 dropTarget={dropTarget}
-                onSelect={selectLayer}
+                onSelect={handleSelectLayer}
+                onContextMenu={handleContextMenu}
                 onToggleVisibility={toggleLayerVisibility}
                 onToggleLock={toggleLayerLock}
                 onToggleExpanded={toggleLayerExpanded}
-                onRemove={removeLayer}
+                onRemove={handleRemoveSingle}
                 onMoveUp={moveLayerUp}
                 onMoveDown={moveLayerDown}
                 onStartEditing={startEditing}
@@ -642,6 +864,75 @@ export default function LayersPanel() {
           className="flex-1 w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-vertical focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
+
+      {/* 右クリックコンテキストメニュー */}
+      {contextMenu &&
+        (() => {
+          const layer = contextMenu.layer
+          const targetIds = getActionTargetIds(layer)
+          const multiple = targetIds.length > 1
+          // 操作後にメニューを閉じるラッパー
+          const run = (fn: () => void) => () => {
+            fn()
+            setContextMenu(null)
+          }
+          return (
+            <div
+              className="fixed z-[100] min-w-[190px] py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-xl text-xs"
+              style={{
+                top: Math.max(0, Math.min(contextMenu.y, window.innerHeight - 320)),
+                left: Math.max(0, Math.min(contextMenu.x, window.innerWidth - 200)),
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              <ContextMenuItem
+                icon={<FolderIcon size={12} />}
+                label={multiple ? `フォルダにまとめる (${targetIds.length})` : 'フォルダにまとめる'}
+                onClick={run(() => groupLayersIntoFolder(targetIds))}
+              />
+              {!multiple && (
+                <ContextMenuItem label="名前を変更" onClick={run(() => startRename(layer))} />
+              )}
+              {!multiple && layer.type !== 'FRAME' && (
+                <ContextMenuItem label="複製" onClick={run(() => duplicateSelected())} />
+              )}
+              <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+              <ContextMenuItem
+                icon={layer.visible ? <EyeIcon size={12} /> : <EyeOffIcon size={12} />}
+                label="表示 / 非表示を切替"
+                onClick={run(() => targetIds.forEach((id) => toggleLayerVisibility(id)))}
+              />
+              <ContextMenuItem
+                icon={layer.locked ? <LockIcon size={12} /> : <UnlockIcon size={12} />}
+                label="ロック / 解除を切替"
+                onClick={run(() => targetIds.forEach((id) => toggleLayerLock(id)))}
+              />
+              {!multiple && (
+                <>
+                  <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+                  <ContextMenuItem
+                    icon={<ArrowUpIcon size={12} />}
+                    label="前面へ移動"
+                    onClick={run(() => bringForward(layer))}
+                  />
+                  <ContextMenuItem
+                    icon={<ArrowDownIcon size={12} />}
+                    label="背面へ移動"
+                    onClick={run(() => sendBackward(layer))}
+                  />
+                </>
+              )}
+              <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+              <ContextMenuItem
+                icon={<TrashIcon size={12} />}
+                label={multiple ? `削除 (${targetIds.length}件)` : '削除'}
+                danger
+                onClick={run(() => deleteLayerIds(targetIds))}
+              />
+            </div>
+          )
+        })()}
     </div>
   )
 }

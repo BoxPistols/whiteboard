@@ -58,8 +58,8 @@ export default function PropertiesPanel() {
         プロパティ
       </h2>
 
-      {/* スクロール可能なプロパティエリア */}
-      <div className="flex-1 overflow-y-auto space-y-2">
+      {/* スクロール可能なプロパティエリア: min-h-0 でflexアイテムを縮小可能にする */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
         {!selectedObjectProps.isArrow &&
           (selectedObjectProps.fill || selectedObjectProps.fill === '') && (
             <details

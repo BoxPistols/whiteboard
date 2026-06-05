@@ -376,6 +376,13 @@ export const useCanvasEvents = ({
       if (activeObject?.type === 'activeSelection') {
         setShowAlignmentPanel(true)
         setSelectedObjectId('__multi_selection__')
+        // Canvas の複数選択をレイヤーパネルのハイライトへ同期
+        const { layers: curLayers, setSelectedLayerIds } = useCanvasStore.getState()
+        const ids = (activeObject as fabric.ActiveSelection)
+          .getObjects()
+          .map((o) => curLayers.find((l) => l.objectId === o.data?.id)?.id)
+          .filter((x): x is string => Boolean(x))
+        setSelectedLayerIds(ids)
         // プロパティ表示用（簡易版）
         const first = (activeObject as fabric.ActiveSelection).getObjects()[0]
         if (first)
@@ -406,6 +413,10 @@ export const useCanvasEvents = ({
       const selected = e.selected?.[0]
       if (selected && selected.data?.id) {
         setSelectedObjectId(selected.data.id)
+        // 単一選択もレイヤーパネルのハイライトへ同期
+        const { layers: curLayers, setSelectedLayerIds } = useCanvasStore.getState()
+        const layerId = curLayers.find((l) => l.objectId === selected.data?.id)?.id
+        setSelectedLayerIds(layerId ? [layerId] : [])
         setSelectedObjectProps({
           fill: selected.fill,
           stroke: selected.stroke,
@@ -420,6 +431,7 @@ export const useCanvasEvents = ({
       } else {
         setSelectedObjectId(null)
         setSelectedObjectProps(null)
+        useCanvasStore.getState().setSelectedLayerIds([])
       }
     }
 
@@ -603,6 +615,7 @@ export const useCanvasEvents = ({
       setSelectedObjectId(null)
       setSelectedObjectProps(null)
       setShowAlignmentPanel(false)
+      useCanvasStore.getState().setSelectedLayerIds([])
     }
 
     // 付箋パーツのペアを検索するヘルパー
