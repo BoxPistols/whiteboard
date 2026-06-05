@@ -21,6 +21,7 @@ export default function Canvas() {
     addLayer,
     layers,
     selectedObjectId,
+    selectedLayerIds,
     setFabricCanvas,
     setSelectedObjectProps,
     clipboard,
@@ -28,6 +29,7 @@ export default function Canvas() {
     pages,
     updatePageData,
     setLayers,
+    groupLayersIntoFolder,
     resetZoom,
     resetView,
     zoomToFit,
@@ -52,6 +54,12 @@ export default function Canvas() {
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
   const prevPageIdRef = useRef<string>(currentPageId)
   const hasLoadedRef = useRef(false)
+  // canvas が実際に保持しているページID。自動保存はこのページにのみ書き込む
+  // （currentPageId はページ切替で即座に変わるが、canvas の中身は非同期ロード完了まで旧ページのまま）
+  const loadedPageIdRef = useRef<string | null>(null)
+  // ページ読み込み中フラグ。loadFromJSON / clear が発火する object イベントで
+  // 過渡的な内容を別ページへ誤保存しないよう自動保存・履歴記録を抑制する
+  const isLoadingPageRef = useRef(false)
   // 画像ペーストをマウス位置に行うため、最後に観測したカーソル位置（キャンバス座標系）を保持
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null)
 
@@ -320,25 +328,39 @@ export default function Canvas() {
     const timer = setTimeout(() => {
       hasLoadedRef.current = true
       prevPageIdRef.current = currentPageId
+      isLoadingPageRef.current = true
 
-      const currentPage = pages.find((p) => p.id === currentPageId)
-      if (currentPage) {
-        setLayers(currentPage.layers || [])
-        if (currentPage.canvasData) {
-          canvas.loadFromJSON(JSON.parse(currentPage.canvasData), () => {
-            // loadFromJSON は保存時の背景色を復元するため、ここで現在のユーザー設定で上書き
-            const { canvasBackground: bg, theme: t } = useCanvasStore.getState()
-            canvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
-              canvas.renderAll()
-            )
-            setTimeout(() => saveHistory(), 50)
-          })
-        } else {
-          // 空ページの場合はCanvasをクリア
-          canvas.clear()
-          canvas.renderAll()
-          saveHistory()
-        }
+      // タイマー発火までに pages が再保存されている可能性があるため、最新を取得
+      const targetPageId = currentPageId
+      const currentPage = useCanvasStore.getState().pages.find((p) => p.id === targetPageId)
+      if (!currentPage) {
+        isLoadingPageRef.current = false
+        return
+      }
+
+      setLayers(currentPage.layers || [])
+
+      // ロード完了時: canvas が保持するページを記録し、抑制フラグを解除してから履歴を取る
+      const finishLoad = () => {
+        loadedPageIdRef.current = targetPageId
+        isLoadingPageRef.current = false
+        saveHistory()
+      }
+
+      if (currentPage.canvasData) {
+        canvas.loadFromJSON(JSON.parse(currentPage.canvasData), () => {
+          // loadFromJSON は保存時の背景色を復元するため、ここで現在のユーザー設定で上書き
+          const { canvasBackground: bg, theme: t } = useCanvasStore.getState()
+          canvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
+            canvas.renderAll()
+          )
+          finishLoad()
+        })
+      } else {
+        // 空ページの場合はCanvasをクリア
+        canvas.clear()
+        canvas.renderAll()
+        finishLoad()
       }
     }, 100)
     return () => clearTimeout(timer)
@@ -354,11 +376,11 @@ export default function Canvas() {
     let snapshotTimer: NodeJS.Timeout | null = null
     const handleHistorySnapshot = () => {
       const state = useCanvasStore.getState()
-      if (!state.pagesInitialized || state.isUndoRedoAction) return
+      if (!state.pagesInitialized || state.isUndoRedoAction || isLoadingPageRef.current) return
       if (snapshotTimer) clearTimeout(snapshotTimer)
       snapshotTimer = setTimeout(() => {
         const s = useCanvasStore.getState()
-        if (!s.pagesInitialized || s.isUndoRedoAction) return
+        if (!s.pagesInitialized || s.isUndoRedoAction || isLoadingPageRef.current) return
         saveHistory()
       }, 300)
     }
@@ -386,11 +408,17 @@ export default function Canvas() {
       saveTimeout = setTimeout(() => {
         const state = useCanvasStore.getState()
         if (!state.pagesInitialized) return
+        // ページ読み込み中は保存しない（clear/loadFromJSON の過渡的な内容を書き込まない）
+        if (isLoadingPageRef.current) return
+        // canvas が保持するページと現在ページが食い違う間（切替の過渡期）は保存しない。
+        // これをしないと旧ページの canvas 内容を新ページへ上書きしてデータが壊れる
+        const targetPageId = loadedPageIdRef.current
+        if (!targetPageId || targetPageId !== state.currentPageId) return
         // 巨大な canvas（多数の画像）では toJSON / stringify が OOM を起こす可能性があるため
         // try/catch で保護し、失敗しても以降の操作が止まらないようにする
         try {
           const json = JSON.stringify(canvas.toJSON(['data']))
-          updatePageData(state.currentPageId, json, state.layers)
+          updatePageData(targetPageId, json, state.layers)
         } catch (e) {
           console.error('Auto-save serialization failed:', e)
         }
@@ -431,8 +459,42 @@ export default function Canvas() {
     canvas.renderAll()
   }, [theme])
 
+  // キャンバス右クリック: カーソル下のオブジェクトをヒットテストし、
+  // 未選択ならそれを選択してからコンテキストメニューを開く（空白上でも開く＝ペースト用）
+  const handleCanvasContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const target = canvas.findTarget(e.nativeEvent, false) as fabric.Object | undefined
+    if (target) {
+      const active = canvas.getActiveObject()
+      const isPartOfActive =
+        active?.type === 'activeSelection' &&
+        (active as fabric.ActiveSelection).getObjects().includes(target)
+      // 既存の選択（単一/複数）に含まれていなければ、対象を単一選択に切り替える
+      if (active !== target && !isPartOfActive) {
+        canvas.setActiveObject(target)
+        canvas.requestRenderAll()
+        if (target.data?.id) {
+          setSelectedObjectId(target.data.id)
+          const layerId = layers.find((l) => l.objectId === target.data?.id)?.id
+          useCanvasStore.getState().setSelectedLayerIds(layerId ? [layerId] : [])
+        }
+      }
+    }
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  // 右クリックメニューから「フォルダにまとめる」: Canvas の複数選択に同期された
+  // selectedLayerIds をそのままフォルダ化する
+  const groupSelectionIntoFolder = () => {
+    const ids = useCanvasStore.getState().selectedLayerIds
+    if (ids.length > 0) groupLayersIntoFolder(ids)
+  }
+
   return (
-    <div className="flex-1 min-w-0 relative">
+    <div className="flex-1 min-w-0 relative" onContextMenu={handleCanvasContextMenu}>
       <canvas ref={canvasRef} />
       {gridEnabled && (
         <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
@@ -483,6 +545,8 @@ export default function Canvas() {
           onSendToBack={sendToBack}
           onGroup={groupObjects}
           onUngroup={ungroupObjects}
+          onGroupIntoFolder={groupSelectionIntoFolder}
+          canGroupIntoFolder={selectedLayerIds.length >= 2}
           hasSelection={!!selectedObjectId}
           isLocked={
             selectedObjectId ? layers.find((l) => l.id === selectedObjectId)?.locked : false
