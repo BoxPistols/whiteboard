@@ -348,14 +348,24 @@ export default function Canvas() {
       }
 
       if (currentPage.canvasData) {
-        canvas.loadFromJSON(JSON.parse(currentPage.canvasData), () => {
-          // loadFromJSON は保存時の背景色を復元するため、ここで現在のユーザー設定で上書き
-          const { canvasBackground: bg, theme: t } = useCanvasStore.getState()
-          canvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
-            canvas.renderAll()
-          )
+        // canvasData が壊れている場合 JSON.parse / loadFromJSON が throw し得る。
+        // ここで例外が抜けると isLoadingPageRef が true のままになり、自動保存・履歴が
+        // 永久に止まるため、必ず finishLoad() で復帰させる
+        try {
+          canvas.loadFromJSON(JSON.parse(currentPage.canvasData), () => {
+            // loadFromJSON は保存時の背景色を復元するため、ここで現在のユーザー設定で上書き
+            const { canvasBackground: bg, theme: t } = useCanvasStore.getState()
+            canvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
+              canvas.renderAll()
+            )
+            finishLoad()
+          })
+        } catch (e) {
+          console.error('Failed to load page canvas:', e)
+          canvas.clear()
+          canvas.renderAll()
           finishLoad()
-        })
+        }
       } else {
         // 空ページの場合はCanvasをクリア
         canvas.clear()
@@ -549,7 +559,9 @@ export default function Canvas() {
           canGroupIntoFolder={selectedLayerIds.length >= 2}
           hasSelection={!!selectedObjectId}
           isLocked={
-            selectedObjectId ? layers.find((l) => l.id === selectedObjectId)?.locked : false
+            selectedObjectId
+              ? layers.find((l) => l.objectId === selectedObjectId)?.locked
+              : false
           }
           hasClipboard={!!clipboard}
           canGroup={fabricCanvasRef.current?.getActiveObject()?.type === 'activeSelection'}
