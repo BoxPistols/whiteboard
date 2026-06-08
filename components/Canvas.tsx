@@ -559,9 +559,7 @@ export default function Canvas() {
           canGroupIntoFolder={selectedLayerIds.length >= 2}
           hasSelection={!!selectedObjectId}
           isLocked={
-            selectedObjectId
-              ? layers.find((l) => l.objectId === selectedObjectId)?.locked
-              : false
+            selectedObjectId ? layers.find((l) => l.objectId === selectedObjectId)?.locked : false
           }
           hasClipboard={!!clipboard}
           canGroup={fabricCanvasRef.current?.getActiveObject()?.type === 'activeSelection'}
