@@ -16,11 +16,14 @@ interface ContextMenuProps {
   onSendToBack?: () => void
   onGroup?: () => void
   onUngroup?: () => void
+  onGroupIntoFolder?: () => void
   hasSelection: boolean
   isLocked?: boolean
   hasClipboard: boolean
   canGroup?: boolean
   canUngroup?: boolean
+  // 複数選択中にレイヤーをフォルダ（FRAME）へまとめられるか
+  canGroupIntoFolder?: boolean
 }
 
 export default function ContextMenu({
@@ -37,11 +40,13 @@ export default function ContextMenu({
   onSendToBack,
   onGroup,
   onUngroup,
+  onGroupIntoFolder,
   hasSelection,
   isLocked,
   hasClipboard,
   canGroup,
   canUngroup,
+  canGroupIntoFolder,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -124,6 +129,12 @@ export default function ContextMenu({
         <Divider />
         <MenuItem label="グループ化" onClick={onGroup} disabled={!canGroup} shortcut="⌘G" />
         <MenuItem label="グループ解除" onClick={onUngroup} disabled={!canUngroup} shortcut="⌘⇧G" />
+        <MenuItem
+          label="フォルダにまとめる"
+          onClick={onGroupIntoFolder}
+          // ハンドラ未指定時はクリックしても何も起きないため無効化する
+          disabled={!canGroupIntoFolder || !onGroupIntoFolder}
+        />
         <Divider />
         <MenuItem label="最前面へ" onClick={onBringToFront} disabled={!hasSelection} />
         <MenuItem label="最背面へ" onClick={onSendToBack} disabled={!hasSelection} />
