@@ -362,6 +362,9 @@ export default function Canvas() {
           })
         } catch (e) {
           console.error('Failed to load page canvas:', e)
+          // canvas を空にする際は store の layers も揃えないと、空 canvas + 旧 layers の
+          // 不整合な状態が saveHistory()/自動保存で永続化されてしまう
+          setLayers([])
           canvas.clear()
           canvas.renderAll()
           finishLoad()
@@ -499,8 +502,9 @@ export default function Canvas() {
   // 右クリックメニューから「フォルダにまとめる」: Canvas の複数選択に同期された
   // selectedLayerIds をそのままフォルダ化する
   const groupSelectionIntoFolder = () => {
+    // メニューの有効化条件（2件以上）と揃え、単一レイヤーだけのフォルダ生成を防ぐ
     const ids = useCanvasStore.getState().selectedLayerIds
-    if (ids.length > 0) groupLayersIntoFolder(ids)
+    if (ids.length >= 2) groupLayersIntoFolder(ids)
   }
 
   return (

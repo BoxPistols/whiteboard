@@ -132,7 +132,8 @@ export default function ContextMenu({
         <MenuItem
           label="フォルダにまとめる"
           onClick={onGroupIntoFolder}
-          disabled={!canGroupIntoFolder}
+          // ハンドラ未指定時はクリックしても何も起きないため無効化する
+          disabled={!canGroupIntoFolder || !onGroupIntoFolder}
         />
         <Divider />
         <MenuItem label="最前面へ" onClick={onBringToFront} disabled={!hasSelection} />
