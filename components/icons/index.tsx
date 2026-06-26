@@ -345,3 +345,117 @@ export const StickyIcon = ({ className, size = 20 }: IconProps) => (
     <path d="M15 3v6h6" />
   </svg>
 )
+
+// --- 整列 / 分散アイコン（ガイド線=stroke、対象バー=fill） ---
+
+export const AlignLeftIcon = ({ className, size = 20 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <line
+      x1="4"
+      y1="3"
+      x2="4"
+      y2="21"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <rect x="6" y="6" width="13" height="4" rx="1" fill="currentColor" />
+    <rect x="6" y="14" width="8" height="4" rx="1" fill="currentColor" />
+  </svg>
+)
+
+export const AlignCenterHIcon = ({ className, size = 20 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <line
+      x1="12"
+      y1="3"
+      x2="12"
+      y2="21"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <rect x="4" y="6" width="16" height="4" rx="1" fill="currentColor" />
+    <rect x="7" y="14" width="10" height="4" rx="1" fill="currentColor" />
+  </svg>
+)
+
+export const AlignRightIcon = ({ className, size = 20 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <line
+      x1="20"
+      y1="3"
+      x2="20"
+      y2="21"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <rect x="5" y="6" width="13" height="4" rx="1" fill="currentColor" />
+    <rect x="10" y="14" width="8" height="4" rx="1" fill="currentColor" />
+  </svg>
+)
+
+export const AlignTopIcon = ({ className, size = 20 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <line
+      x1="3"
+      y1="4"
+      x2="21"
+      y2="4"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <rect x="6" y="6" width="4" height="13" rx="1" fill="currentColor" />
+    <rect x="14" y="6" width="4" height="8" rx="1" fill="currentColor" />
+  </svg>
+)
+
+export const AlignMiddleVIcon = ({ className, size = 20 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <line
+      x1="3"
+      y1="12"
+      x2="21"
+      y2="12"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <rect x="6" y="4" width="4" height="16" rx="1" fill="currentColor" />
+    <rect x="14" y="7" width="4" height="10" rx="1" fill="currentColor" />
+  </svg>
+)
+
+export const AlignBottomIcon = ({ className, size = 20 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <line
+      x1="3"
+      y1="20"
+      x2="21"
+      y2="20"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+    />
+    <rect x="6" y="5" width="4" height="13" rx="1" fill="currentColor" />
+    <rect x="14" y="10" width="4" height="8" rx="1" fill="currentColor" />
+  </svg>
+)
+
+export const DistributeHorizontalIcon = ({ className, size = 20 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <rect x="3" y="5" width="3" height="14" rx="1" fill="currentColor" />
+    <rect x="10.5" y="5" width="3" height="14" rx="1" fill="currentColor" />
+    <rect x="18" y="5" width="3" height="14" rx="1" fill="currentColor" />
+  </svg>
+)
+
+export const DistributeVerticalIcon = ({ className, size = 20 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <rect x="5" y="3" width="14" height="3" rx="1" fill="currentColor" />
+    <rect x="5" y="10.5" width="14" height="3" rx="1" fill="currentColor" />
+    <rect x="5" y="18" width="14" height="3" rx="1" fill="currentColor" />
+  </svg>
+)
