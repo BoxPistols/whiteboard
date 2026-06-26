@@ -1483,12 +1483,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // 「アクション内の明示 saveHistory()」の双方から呼ばれ二重記録され、
     // Undo を1回押しても見た目が変わらず2回押す必要が生じていた。
     // canvas 内容(canvasJSON)とレイヤー(layers)が共に直前と同一なら no-op として無視する。
+    // layers はストア全体でイミュータブル更新されるため、JSON.stringify せず
+    // 長さ＋要素の参照比較（浅い比較）で等価判定できる（大量レイヤー時の負荷を回避）。
     const prev = history[historyIndex]
-    if (
-      prev &&
-      prev.canvasJSON === canvasJSON &&
-      JSON.stringify(prev.layers) === JSON.stringify(layers)
-    ) {
+    const layersUnchanged =
+      !!prev && prev.layers.length === layers.length && prev.layers.every((l, i) => l === layers[i])
+    if (prev && prev.canvasJSON === canvasJSON && layersUnchanged) {
       return
     }
 
