@@ -356,6 +356,24 @@ const findStickyPartnerOnCanvas = (
   return fabricCanvas.getObjects().find((o) => o.data?.stickyId === stickyId && o !== obj) || null
 }
 
+// canvas シリアライズ時に既定プロパティへ追加で含めるプロパティ。
+// fabric v5 の toJSON 既定出力には lock/selectable/evented が含まれないため、
+// これらを明示しないとリロード/ページ切替/Undo でロック状態が失われる
+// （visible は既定で含まれるが、ロック系は含めないと round-trip しない）。
+// 全シリアライズ箇所（getCanvasData / 自動保存 / ページ切替 / 履歴 / エクスポート）で
+// 同一の配列を使い、保存と復元のプロパティ集合を一致させる。
+export const CANVAS_SERIALIZE_PROPS = [
+  'data',
+  'selectable',
+  'evented',
+  'hasControls',
+  'lockMovementX',
+  'lockMovementY',
+  'lockRotation',
+  'lockScalingX',
+  'lockScalingY',
+]
+
 // fabricCanvasからcanvasDataを取得するヘルパー関数
 const getCanvasData = (
   fabricCanvas: fabric.Canvas | null,
@@ -363,7 +381,7 @@ const getCanvasData = (
 ): string | null => {
   if (!fabricCanvas) return currentCanvasData
   try {
-    return JSON.stringify(fabricCanvas.toJSON(['data']))
+    return JSON.stringify(fabricCanvas.toJSON(CANVAS_SERIALIZE_PROPS))
   } catch (error) {
     console.error('Failed to serialize canvas:', error)
     return currentCanvasData
@@ -551,7 +569,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         fabricCanvas.renderAll()
       }
 
-      return persistLayersToStorage(state, updatedLayers, undefined, 'layer visibility change')
+      // 可視状態は fabric の既定 toJSON に乗るが、canvasData を更新しないと
+      // リロード時に旧 visible が復元される。新しい canvas 状態を再シリアライズして保存。
+      const currentCanvasData =
+        state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
+      return persistLayersToStorage(state, updatedLayers, canvasData, 'layer visibility change')
     }),
   toggleLayerLock: (id) =>
     set((state) => {
@@ -598,7 +621,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         idsToUpdate.includes(l.id) ? { ...l, locked: newLockState } : l
       )
 
-      return persistLayersToStorage(state, updatedLayers, undefined, 'layer lock change')
+      // ロック系プロパティ(selectable/evented/lock*)は CANVAS_SERIALIZE_PROPS により
+      // canvasData へ round-trip する。新しい canvas 状態を再シリアライズして保存。
+      const currentCanvasData =
+        state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
+      return persistLayersToStorage(state, updatedLayers, canvasData, 'layer lock change')
     }),
   updateLayerName: (id, name) =>
     set((state) => {
@@ -625,7 +653,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         fabricCanvas.renderAll()
       }
 
-      return persistLayersToStorage(state, result, undefined, 'layer reorder')
+      // z-order は canvasData のオブジェクト配列順そのもの。canvasData を更新しないと
+      // 新しい並び順とシリアライズ済み順序がズレてリロードで巻き戻る。
+      const currentCanvasData =
+        state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
+      return persistLayersToStorage(state, result, canvasData, 'layer reorder')
     }),
   moveLayer: (layerId, targetParentId, targetIndex) =>
     set((state) => {
@@ -721,7 +754,11 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         fabricCanvas.renderAll()
       }
 
-      return persistLayersToStorage(state, finalLayers, undefined, 'layer move')
+      // z-order を canvasData に反映（更新しないとリロードでスタッキングが巻き戻る）
+      const currentCanvasData =
+        state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
+      return persistLayersToStorage(state, finalLayers, canvasData, 'layer move')
     }),
   toggleLayerExpanded: (id) =>
     set((state) => {
@@ -836,8 +873,12 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         fabricCanvas.renderAll()
       }
 
+      // グループ化で z-order が変わるため canvasData も更新（リロードで巻き戻さない）
+      const currentCanvasData =
+        state.pages.find((p) => p.id === state.currentPageId)?.canvasData || null
+      const canvasData = getCanvasData(fabricCanvas, currentCanvasData)
       return {
-        ...persistLayersToStorage(state, updatedLayers, undefined, 'group into folder'),
+        ...persistLayersToStorage(state, updatedLayers, canvasData, 'group into folder'),
         selectedLayerIds: [folderId],
         selectedObjectId: folderId,
       }
@@ -1189,7 +1230,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
     // 切り替え前に現在のページデータを即座に保存（デバウンス中の変更を失わないため）
     if (fabricCanvas && currentPageId !== id) {
-      const json = JSON.stringify(fabricCanvas.toJSON(['data']))
+      const json = JSON.stringify(fabricCanvas.toJSON(CANVAS_SERIALIZE_PROPS))
       get().updatePageData(currentPageId, json, layers)
     }
 
@@ -1463,7 +1504,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // 履歴記録は best-effort に留め、失敗してもアプリは継続させる
     let canvasJSON: string
     try {
-      canvasJSON = JSON.stringify(fabricCanvas.toJSON(['data']))
+      canvasJSON = JSON.stringify(fabricCanvas.toJSON(CANVAS_SERIALIZE_PROPS))
     } catch (e) {
       console.warn('Failed to snapshot canvas for history:', e)
       return

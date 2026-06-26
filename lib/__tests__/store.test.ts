@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useCanvasStore, isBackgroundDark } from '../store'
+import { useCanvasStore, isBackgroundDark, CANVAS_SERIALIZE_PROPS } from '../store'
 import type { Layer } from '@/types'
+import type { fabric } from 'fabric'
 
 describe('Canvas Store', () => {
   beforeEach(() => {
@@ -375,6 +376,88 @@ describe('Canvas Store', () => {
       const props = useCanvasStore.getState().selectedObjectProps
       expect(props?.strokeWidth).toBe(3)
       expect(props?.isArrow).toBe(true)
+    })
+  })
+
+  describe('Persistence integrity (regression)', () => {
+    // 並び順/ロック/可視性などのレイヤー操作後、現在ページの canvasData が
+    // 最新の canvas からシリアライズし直されること（=リロードで巻き戻らないこと）を担保する。
+
+    // toJSON 呼び出しのたびに tick を増やす最小モック canvas
+    function makeMockCanvas(obj: { data: { id: string }; visible: boolean }) {
+      let tick = 0
+      return {
+        getObjects: () => [obj],
+        moveTo: () => {},
+        renderAll: () => {},
+        getActiveObject: () => null,
+        discardActiveObject: () => {},
+        toJSON: () => ({ tick: ++tick, objects: [{ id: obj.data.id, visible: obj.visible }] }),
+      } as unknown as fabric.Canvas
+    }
+
+    const seedLayer: Layer = {
+      id: 'l1',
+      name: 'L1',
+      visible: true,
+      locked: false,
+      objectId: 'obj-1',
+      type: 'RECTANGLE',
+    }
+
+    function seedStore(mockCanvas: fabric.Canvas) {
+      useCanvasStore.setState({
+        fabricCanvas: mockCanvas,
+        layers: [{ ...seedLayer }],
+        pages: [{ id: 'page-1', name: 'Page 1', canvasData: 'STALE', layers: [{ ...seedLayer }] }],
+        currentPageId: 'page-1',
+      })
+    }
+
+    it('CANVAS_SERIALIZE_PROPS includes lock props so they round-trip', () => {
+      for (const p of [
+        'selectable',
+        'evented',
+        'lockMovementX',
+        'lockMovementY',
+        'lockRotation',
+        'lockScalingX',
+        'lockScalingY',
+      ]) {
+        expect(CANVAS_SERIALIZE_PROPS).toContain(p)
+      }
+    })
+
+    it('toggleLayerVisibility refreshes canvasData and reflects the new visible state', () => {
+      const obj = { data: { id: 'obj-1' }, visible: true }
+      seedStore(makeMockCanvas(obj))
+      useCanvasStore.getState().toggleLayerVisibility('l1')
+
+      const st = useCanvasStore.getState()
+      expect(st.layers[0].visible).toBe(false)
+      const page = st.pages.find((p) => p.id === 'page-1')!
+      expect(page.canvasData).not.toBe('STALE') // 再シリアライズされている
+      expect(JSON.parse(page.canvasData!).objects[0].visible).toBe(false)
+    })
+
+    it('toggleLayerLock refreshes canvasData and flips locked', () => {
+      const obj = { data: { id: 'obj-1' }, visible: true, set: () => {} }
+      seedStore(makeMockCanvas(obj))
+      useCanvasStore.getState().toggleLayerLock('l1')
+
+      const st = useCanvasStore.getState()
+      expect(st.layers[0].locked).toBe(true)
+      const page = st.pages.find((p) => p.id === 'page-1')!
+      expect(page.canvasData).not.toBe('STALE')
+    })
+
+    it('reorderLayers refreshes canvasData (z-order persisted)', () => {
+      const obj = { data: { id: 'obj-1' }, visible: true }
+      seedStore(makeMockCanvas(obj))
+      useCanvasStore.getState().reorderLayers(0, 0)
+
+      const page = useCanvasStore.getState().pages.find((p) => p.id === 'page-1')!
+      expect(page.canvasData).not.toBe('STALE')
     })
   })
 
