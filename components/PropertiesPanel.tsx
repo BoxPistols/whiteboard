@@ -4,6 +4,7 @@ import { useMemo, useCallback } from 'react'
 import { useCanvasStore } from '@/lib/store'
 import ColorPalette from './ColorPalette'
 import NumberInput from './NumberInput'
+import HexColorInput from './HexColorInput'
 import { parseColor, hexToRgba } from '@/lib/colorUtils'
 
 export default function PropertiesPanel() {
@@ -83,12 +84,19 @@ export default function PropertiesPanel() {
                 塗りつぶし
               </summary>
               <div className="p-2 space-y-2">
-                <input
-                  type="color"
-                  className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-                  value={fillColor.hex}
-                  onChange={(e) => handleColorChange('fill', e.target.value)}
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    className="h-7 w-10 flex-shrink-0 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
+                    value={fillColor.hex}
+                    onChange={(e) => handleColorChange('fill', e.target.value)}
+                    aria-label="塗りつぶしカラー"
+                  />
+                  <HexColorInput
+                    value={fillColor.hex}
+                    onChange={(hex) => handleColorChange('fill', hex)}
+                  />
+                </div>
                 <div>
                   <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
                     透明度: {Math.round(fillColor.alpha * 100)}%
@@ -127,12 +135,19 @@ export default function PropertiesPanel() {
               線のカラー
             </summary>
             <div className="p-2 space-y-2">
-              <input
-                type="color"
-                className="w-full h-7 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
-                value={strokeColor.hex}
-                onChange={(e) => handleColorChange('stroke', e.target.value)}
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  className="h-7 w-10 flex-shrink-0 rounded border border-gray-300 dark:border-gray-600 cursor-pointer bg-white dark:bg-gray-800"
+                  value={strokeColor.hex}
+                  onChange={(e) => handleColorChange('stroke', e.target.value)}
+                  aria-label="線のカラー"
+                />
+                <HexColorInput
+                  value={strokeColor.hex}
+                  onChange={(hex) => handleColorChange('stroke', hex)}
+                />
+              </div>
               <div>
                 <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
                   透明度: {Math.round(strokeColor.alpha * 100)}%
@@ -179,50 +194,60 @@ export default function PropertiesPanel() {
             />
           </div>
         )}
-        {selectedObjectProps.left !== undefined && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
-              X座標
-            </label>
-            <NumberInput
-              value={Math.round(selectedObjectProps.left)}
-              onValueChange={(v) => updateObjectProperty('left', v)}
-            />
+        {/* 位置 X|Y（Figma 風の2カラム・インラインラベル） */}
+        {(selectedObjectProps.left !== undefined || selectedObjectProps.top !== undefined) && (
+          <div className="grid grid-cols-2 gap-2">
+            {selectedObjectProps.left !== undefined && (
+              <label className="flex items-center gap-1">
+                <span className="w-4 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                  X
+                </span>
+                <NumberInput
+                  value={Math.round(selectedObjectProps.left)}
+                  onValueChange={(v) => updateObjectProperty('left', v)}
+                />
+              </label>
+            )}
+            {selectedObjectProps.top !== undefined && (
+              <label className="flex items-center gap-1">
+                <span className="w-4 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                  Y
+                </span>
+                <NumberInput
+                  value={Math.round(selectedObjectProps.top)}
+                  onValueChange={(v) => updateObjectProperty('top', v)}
+                />
+              </label>
+            )}
           </div>
         )}
-        {selectedObjectProps.top !== undefined && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
-              Y座標
-            </label>
-            <NumberInput
-              value={Math.round(selectedObjectProps.top)}
-              onValueChange={(v) => updateObjectProperty('top', v)}
-            />
-          </div>
-        )}
-        {selectedObjectProps.width !== undefined && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
-              幅
-            </label>
-            <NumberInput
-              value={Math.round(selectedObjectProps.width)}
-              onValueChange={(v) => updateObjectProperty('width', v)}
-              min={1}
-            />
-          </div>
-        )}
-        {selectedObjectProps.height !== undefined && (
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
-              高さ
-            </label>
-            <NumberInput
-              value={Math.round(selectedObjectProps.height)}
-              onValueChange={(v) => updateObjectProperty('height', v)}
-              min={1}
-            />
+        {/* サイズ W|H */}
+        {(selectedObjectProps.width !== undefined || selectedObjectProps.height !== undefined) && (
+          <div className="grid grid-cols-2 gap-2">
+            {selectedObjectProps.width !== undefined && (
+              <label className="flex items-center gap-1">
+                <span className="w-4 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                  W
+                </span>
+                <NumberInput
+                  value={Math.round(selectedObjectProps.width)}
+                  onValueChange={(v) => updateObjectProperty('width', v)}
+                  min={1}
+                />
+              </label>
+            )}
+            {selectedObjectProps.height !== undefined && (
+              <label className="flex items-center gap-1">
+                <span className="w-4 text-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                  H
+                </span>
+                <NumberInput
+                  value={Math.round(selectedObjectProps.height)}
+                  onValueChange={(v) => updateObjectProperty('height', v)}
+                  min={1}
+                />
+              </label>
+            )}
           </div>
         )}
       </div>
