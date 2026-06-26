@@ -1,5 +1,18 @@
 'use client'
 
+import type { ComponentType } from 'react'
+import type { IconProps } from './icons'
+import {
+  AlignLeftIcon,
+  AlignCenterHIcon,
+  AlignRightIcon,
+  AlignTopIcon,
+  AlignMiddleVIcon,
+  AlignBottomIcon,
+  DistributeHorizontalIcon,
+  DistributeVerticalIcon,
+} from './icons'
+
 interface AlignmentPanelProps {
   onAlignLeft: () => void
   onAlignCenter: () => void
@@ -21,47 +34,49 @@ export default function AlignmentPanel({
   onDistributeHorizontal,
   onDistributeVertical,
 }: AlignmentPanelProps) {
+  // テキストラベルではなく Figma 風のアイコンボタン。title はスクリーンリーダー/ツールチップ用に維持。
   const AlignButton = ({
-    label,
+    Icon,
     onClick,
     title,
   }: {
-    label: string
+    Icon: ComponentType<IconProps>
     onClick: () => void
     title: string
   }) => (
     <button
       onClick={onClick}
       title={title}
-      className="px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100"
+      aria-label={title}
+      className="flex h-7 w-7 items-center justify-center rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
     >
-      {label}
+      <Icon size={16} />
     </button>
   )
 
   return (
-    <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-2 z-10">
+    <div className="absolute top-2 left-1/2 z-10 -translate-x-1/2 transform rounded-lg border border-gray-300 bg-white p-2 shadow-lg dark:border-gray-600 dark:bg-gray-800">
       <div className="flex items-center gap-1">
-        <div className="flex gap-1 border-r border-gray-300 dark:border-gray-600 pr-2">
-          <AlignButton label="左揃え" onClick={onAlignLeft} title="Align Left" />
-          <AlignButton label="中央" onClick={onAlignCenter} title="Align Center" />
-          <AlignButton label="右揃え" onClick={onAlignRight} title="Align Right" />
+        <div className="flex gap-1 border-r border-gray-300 pr-2 dark:border-gray-600">
+          <AlignButton Icon={AlignLeftIcon} onClick={onAlignLeft} title="左揃え" />
+          <AlignButton Icon={AlignCenterHIcon} onClick={onAlignCenter} title="左右中央揃え" />
+          <AlignButton Icon={AlignRightIcon} onClick={onAlignRight} title="右揃え" />
         </div>
-        <div className="flex gap-1 border-r border-gray-300 dark:border-gray-600 pr-2">
-          <AlignButton label="上揃え" onClick={onAlignTop} title="Align Top" />
-          <AlignButton label="中央" onClick={onAlignMiddle} title="Align Middle" />
-          <AlignButton label="下揃え" onClick={onAlignBottom} title="Align Bottom" />
+        <div className="flex gap-1 border-r border-gray-300 pr-2 dark:border-gray-600">
+          <AlignButton Icon={AlignTopIcon} onClick={onAlignTop} title="上揃え" />
+          <AlignButton Icon={AlignMiddleVIcon} onClick={onAlignMiddle} title="上下中央揃え" />
+          <AlignButton Icon={AlignBottomIcon} onClick={onAlignBottom} title="下揃え" />
         </div>
         <div className="flex gap-1">
           <AlignButton
-            label="水平分散"
+            Icon={DistributeHorizontalIcon}
             onClick={onDistributeHorizontal}
-            title="Distribute Horizontally"
+            title="左右に等間隔配置"
           />
           <AlignButton
-            label="垂直分散"
+            Icon={DistributeVerticalIcon}
             onClick={onDistributeVertical}
-            title="Distribute Vertically"
+            title="上下に等間隔配置"
           />
         </div>
       </div>
