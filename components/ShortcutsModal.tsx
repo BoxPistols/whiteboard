@@ -111,11 +111,16 @@ export default function ShortcutsModal() {
     (e: KeyboardEvent) => {
       if (!editingId) return
 
-      e.preventDefault()
+      // 編集中の打鍵はグローバルショートカットへ流さない。stopPropagation だけでは
+      // 同一 window の別リスナー（useKeyboardShortcuts）は止まらないため、capture 登録
+      // （下の effect）＋ stopImmediatePropagation で確実に握り潰す。
       e.stopPropagation()
+      e.stopImmediatePropagation()
 
-      // IME 変換中は確定キーを束縛しない
+      // IME 変換中は preventDefault せず素通し（変換確定を妨げない）。束縛もしない。
       if (e.isComposing) return
+      e.preventDefault()
+
       // Esc は「取消」。これが無いと Esc が 'escape' というキーに束縛されてしまっていた。
       if (e.key === 'Escape') {
         cancelEdit()
@@ -144,11 +149,12 @@ export default function ShortcutsModal() {
     [editingId, pendingKey, pendingModifiers, cancelEdit, confirmEdit, checkConflict]
   )
 
-  // キー入力リスナーの設定
+  // キー入力リスナーの設定。capture フェーズで登録し、グローバルショートカット
+  // （bubble フェーズ）より先に拾って stopImmediatePropagation で遮断する。
   useEffect(() => {
     if (editingId) {
-      window.addEventListener('keydown', handleKeyDown)
-      return () => window.removeEventListener('keydown', handleKeyDown)
+      window.addEventListener('keydown', handleKeyDown, true)
+      return () => window.removeEventListener('keydown', handleKeyDown, true)
     }
   }, [editingId, handleKeyDown])
 
