@@ -44,6 +44,105 @@ export const useCanvasEvents = ({
   const isDrawingRef = useRef(false)
   const startPointRef = useRef<{ x: number; y: number } | null>(null)
   const currentShapeRef = useRef<fabric.Object | null>(null)
+  // Space を押している間は（ツールに関係なく）左ドラッグでパンする Figma 互換ジェスチャ用
+  const isSpaceDownRef = useRef(false)
+  // Space パン中は描画モードを一時停止し、離したら元のツール状態へ戻すための退避フラグ
+  const wasDrawingModeRef = useRef(false)
+  // パン進行中フラグ。別 effect の blur ハンドラからも停止できるよう ref で共有する
+  const isPanningRef = useRef(false)
+
+  // --------------------------------------------------------------------------
+  // Space+ドラッグでパン（Figma の標準パンジェスチャ）
+  // ツールに関係なく機能させるため window で Space を追跡。テキスト入力中・IME 変換中・
+  // IText 編集中は無効化し、押下中は grab カーソル＋選択無効＋描画モード停止にする。
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    if (!fabricCanvas) return
+
+    // Space を奪うと、フォーカス中のボタン/入力の本来の挙動（ボタン活性化・テキスト入力）を
+    // 壊す。インタラクティブな要素にフォーカスがある間は Space パンを無効化する。
+    const isInteractiveTarget = (el: EventTarget | null): boolean => {
+      const node = el as HTMLElement | null
+      if (!node || !node.tagName) return false
+      if (node.isContentEditable) return true
+      const tag = node.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return true
+      if (tag === 'A' && node.hasAttribute('href')) return true
+      const role = node.getAttribute('role')
+      return role === 'button' || role === 'menuitem' || role === 'tab' || role === 'link'
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' && e.key !== ' ') return
+      if (
+        isInteractiveTarget(e.target) ||
+        isInteractiveTarget(document.activeElement) ||
+        e.isComposing
+      )
+        return
+      const active = fabricCanvas.getActiveObject() as fabric.IText | null
+      if (active && active.isEditing) return
+      // リピート keydown でもページスクロールを抑止する（preventDefault を return より前に）
+      e.preventDefault()
+      if (e.repeat || isSpaceDownRef.current) return
+      isSpaceDownRef.current = true
+      // 鉛筆など描画モード中は一時停止（Space ドラッグで線を引かない）
+      if (fabricCanvas.isDrawingMode) {
+        wasDrawingModeRef.current = true
+        fabricCanvas.isDrawingMode = false
+      }
+      // selection=false だけだと個別オブジェクトのドラッグは止まらないため、
+      // skipTargetFind=true で当たり判定を無効化し、オブジェクト上でも確実にパンする。
+      fabricCanvas.skipTargetFind = true
+      fabricCanvas.defaultCursor = 'grab'
+      fabricCanvas.setCursor('grab')
+      fabricCanvas.selection = false
+      fabricCanvas.requestRenderAll()
+    }
+
+    const releaseSpace = () => {
+      if (!isSpaceDownRef.current) return
+      isSpaceDownRef.current = false
+      // 進行中のパンも確実に止める（blur で mouseup を取りこぼしても固着しない）
+      isPanningRef.current = false
+      // 描画モードを元のツール状態に復元
+      if (wasDrawingModeRef.current) {
+        fabricCanvas.isDrawingMode = useCanvasStore.getState().selectedTool === 'pencil'
+        wasDrawingModeRef.current = false
+      }
+      fabricCanvas.skipTargetFind = false
+      fabricCanvas.defaultCursor = 'default'
+      fabricCanvas.setCursor('default')
+      fabricCanvas.selection = true
+      fabricCanvas.requestRenderAll()
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' && e.key !== ' ') return
+      releaseSpace()
+    }
+
+    // alt-tab 等でフォーカスが外れて keyup/mouseup を取りこぼしてもパン状態が固着しないよう保険
+    const handleBlur = () => {
+      releaseSpace() // Space パン中ならここで isPanningRef ごと解除
+      // 中ボタン/Alt パン中に blur した場合も latch を解除して復帰させる
+      if (isPanningRef.current) {
+        isPanningRef.current = false
+        fabricCanvas.selection = true
+        fabricCanvas.setCursor('default')
+        fabricCanvas.requestRenderAll()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [fabricCanvas])
 
   // --------------------------------------------------------------------------
   // 鉛筆ツール: フリーハンド描画モードの切替
@@ -70,6 +169,8 @@ export const useCanvasEvents = ({
   const handleMouseDown = useCallback(
     (e: fabric.IEvent<Event>) => {
       if (!fabricCanvas || selectedTool === 'select' || selectedTool === 'pencil') return
+      // Space パン中はツールに関係なく描画を開始しない
+      if (isSpaceDownRef.current) return
 
       const pointer = getCanvasPointer(e.e as MouseEvent | TouchEvent, fabricCanvas)
 
@@ -516,8 +617,7 @@ export const useCanvasEvents = ({
       }
     }
 
-    // ズーム/パン処理
-    let isPanning = false
+    // ズーム/パン処理（isPanning は blur からも停止できるよう hook レベルの ref を使う）
     let lastPosX = 0
     let lastPosY = 0
 
@@ -526,8 +626,18 @@ export const useCanvasEvents = ({
     let altCloneCreated = false
 
     const handleMouseDownInt = (opt: fabric.IEvent) => {
-      if (selectedTool !== 'select') return
       const evt = opt.e as MouseEvent | TouchEvent
+      // Space 押下中はツールに関係なく左ドラッグでパン（select 早期 return より前で判定）
+      if (isSpaceDownRef.current && 'buttons' in evt && (evt as MouseEvent).buttons === 1) {
+        const mouseEvt = evt as MouseEvent
+        isPanningRef.current = true
+        fabricCanvas.selection = false
+        lastPosX = mouseEvt.clientX
+        lastPosY = mouseEvt.clientY
+        fabricCanvas.setCursor('grabbing')
+        return
+      }
+      if (selectedTool !== 'select') return
       const isMiddleButton = 'button' in evt && evt.button === 1
       // 空白エリアの Alt+左ドラッグはパンとして扱う
       const isAltBlankDrag =
@@ -540,7 +650,7 @@ export const useCanvasEvents = ({
       if (!opt.target && (isMiddleButton || isAltBlankDrag)) {
         const mouseEvt = evt as MouseEvent
         const coords = { x: mouseEvt.clientX, y: mouseEvt.clientY }
-        isPanning = true
+        isPanningRef.current = true
         fabricCanvas.selection = false
         lastPosX = coords.x
         lastPosY = coords.y
@@ -615,7 +725,7 @@ export const useCanvasEvents = ({
     }
 
     const handleMouseMoveInt = (opt: fabric.IEvent) => {
-      if (isPanning) {
+      if (isPanningRef.current) {
         const e = opt.e as MouseEvent | TouchEvent
         const coords =
           'touches' in e
@@ -657,9 +767,11 @@ export const useCanvasEvents = ({
     }
 
     const handleMouseUpPan = () => {
-      if (isPanning) {
-        isPanning = false
-        fabricCanvas.selection = true
+      if (isPanningRef.current) {
+        isPanningRef.current = false
+        // Space を押し続けている間は引き続きパンできるよう grab を維持する
+        fabricCanvas.selection = !isSpaceDownRef.current
+        fabricCanvas.setCursor(isSpaceDownRef.current ? 'grab' : 'default')
       }
     }
     const handleSelectionCleared = () => {
