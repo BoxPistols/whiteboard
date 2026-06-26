@@ -127,6 +127,12 @@ interface CanvasStore {
   isUndoRedoAction: boolean
   // ページ初期化完了フラグ（IndexedDB読み込み完了まで自動保存を抑制）
   pagesInitialized: boolean
+  // 初期化処理が開始済みか（同期ガード）。pagesInitialized は await 後にしか true に
+  // ならず StrictMode の二重実行を弾けないため、開始時点で即立てる同期フラグを別に持つ
+  pagesInitStarted: boolean
+  // canvas が実際にロード済みのページID。setCurrentPage の保存ガードに使う
+  // （currentPageId は切替で即変わるが canvas 内容は非同期ロード完了まで旧ページのまま）
+  loadedPageId: string | null
   // 保存状態
   saveStatus: SaveStatus
   saveError: string | null
@@ -173,6 +179,7 @@ interface CanvasStore {
   addPage: (name: string) => void
   removePage: (id: string) => void
   setCurrentPage: (id: string) => void
+  setLoadedPageId: (id: string | null) => void
   updatePageNotes: (id: string, notes: string) => void
   updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
   toggleLeftPanel: () => void
@@ -436,6 +443,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   isUndoRedoAction: false,
   // ページ初期化完了フラグ
   pagesInitialized: false,
+  pagesInitStarted: false,
+  loadedPageId: null,
   // 保存状態
   saveStatus: 'saved' as SaveStatus,
   saveError: null,
@@ -1229,10 +1238,13 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     set({ pages: updatedPages, currentPageId: newCurrentPageId })
   },
   setCurrentPage: (id) => {
-    const { fabricCanvas, currentPageId, layers } = get()
+    const { fabricCanvas, currentPageId, layers, loadedPageId } = get()
 
-    // 切り替え前に現在のページデータを即座に保存（デバウンス中の変更を失わないため）
-    if (fabricCanvas && currentPageId !== id) {
+    // 切り替え前に現在のページデータを即座に保存（デバウンス中の変更を失わないため）。
+    // ただし canvas が現在ページの内容を保持しているとき（loadedPageId === currentPageId）
+    // のみ保存する。高速切替(A→B→A)中は canvas がまだ旧ページを表示しているため、
+    // 無条件に保存すると別ページの内容で誤上書きしデータが壊れる。
+    if (fabricCanvas && currentPageId !== id && loadedPageId === currentPageId) {
       const json = JSON.stringify(fabricCanvas.toJSON(CANVAS_SERIALIZE_PROPS))
       get().updatePageData(currentPageId, json, layers)
     }
@@ -1240,6 +1252,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     // ページ切り替え時は履歴をクリア
     set({ currentPageId: id, history: [], historyIndex: -1 })
   },
+  setLoadedPageId: (id) => set({ loadedPageId: id }),
   updatePageNotes: (id, notes) => {
     const updatedPages = get().pages.map((page) => (page.id === id ? { ...page, notes } : page))
 
@@ -1796,10 +1809,13 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   },
   initializePages: async () => {
     if (typeof window === 'undefined') return
-    // 二重初期化防止（React StrictMode対策）
-    if (get().pagesInitialized) return
+    // 二重初期化防止（React StrictMode対策）。pagesInitialized は await 完了後に
+    // しか true にならず、StrictMode の2回目マウントを同期で弾けない（リスナー多重登録・
+    // 二重読込の原因）。開始時点で即立てる同期フラグ pagesInitStarted で確実に弾く。
+    if (get().pagesInitStarted) return
+    set({ pagesInitStarted: true })
 
-    // 保存状態リスナーを登録（初回のみ）
+    // 保存状態リスナーを登録（pagesInitStarted ガードにより初回のみ実行される）
     onSaveStatusChange((status, error) => {
       set({ saveStatus: status, saveError: error || null })
     })

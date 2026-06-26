@@ -32,6 +32,8 @@ export default function Canvas() {
     clipboard,
     currentPageId,
     pages,
+    pagesInitialized,
+    setLoadedPageId,
     updatePageData,
     setLayers,
     groupLayersIntoFolder,
@@ -330,6 +332,13 @@ export default function Canvas() {
 
     if (!isInitialLoad && !isPageSwitch) return
 
+    // 初回ロードは IndexedDB のハイドレーション完了（pagesInitialized）まで待つ。
+    // 待たないと 100ms タイマーが既定の空 pages に対して先に発火し、空 canvas を
+    // ロード→以降ユーザー編集が空内容で保存され、保存済みデータを恒久的に上書きする。
+    // ref を立てずに return することで、pagesInitialized が true になった再実行で
+    // 初回ロードが正しく走る（deps に pagesInitialized を含めている）。
+    if (isInitialLoad && !pagesInitialized) return
+
     const timer = setTimeout(() => {
       hasLoadedRef.current = true
       prevPageIdRef.current = currentPageId
@@ -345,9 +354,11 @@ export default function Canvas() {
 
       setLayers(currentPage.layers || [])
 
-      // ロード完了時: canvas が保持するページを記録し、抑制フラグを解除してから履歴を取る
+      // ロード完了時: canvas が保持するページを記録し、抑制フラグを解除してから履歴を取る。
+      // store の loadedPageId にも反映し、setCurrentPage の保存ガードが参照できるようにする。
       const finishLoad = () => {
         loadedPageIdRef.current = targetPageId
+        setLoadedPageId(targetPageId)
         isLoadingPageRef.current = false
         saveHistory()
       }
@@ -382,7 +393,7 @@ export default function Canvas() {
       }
     }, 100)
     return () => clearTimeout(timer)
-  }, [pages, currentPageId, setLayers, saveHistory])
+  }, [pages, currentPageId, pagesInitialized, setLoadedPageId, setLayers, saveHistory])
 
   // Undo/Redo用の履歴記録（操作完了時にスナップショット保存）
   // 連続イベント（ペースト一括追加、整列、複数選択削除など）で毎回 toJSON するとメモリと CPU を浪費し

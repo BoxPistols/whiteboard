@@ -498,6 +498,57 @@ describe('Canvas Store', () => {
     })
   })
 
+  describe('Page switch race guard (regression)', () => {
+    const mkCanvas = () =>
+      ({
+        toJSON: () => ({ objects: [{ id: 'live' }] }),
+        getObjects: () => [],
+        renderAll: () => {},
+      }) as unknown as fabric.Canvas
+
+    function seedTwoPages(loadedPageId: string | null) {
+      useCanvasStore.setState({
+        fabricCanvas: mkCanvas(),
+        currentPageId: 'A',
+        loadedPageId,
+        layers: [],
+        pages: [
+          { id: 'A', name: 'A', canvasData: 'A_OLD', layers: [] },
+          { id: 'B', name: 'B', canvasData: 'B_ORIGINAL', layers: [] },
+        ],
+      })
+    }
+
+    it('flushes the current page when the canvas holds it (loadedPageId === currentPageId)', () => {
+      seedTwoPages('A')
+      useCanvasStore.getState().setCurrentPage('B')
+
+      const pages = useCanvasStore.getState().pages
+      expect(pages.find((p) => p.id === 'A')!.canvasData).not.toBe('A_OLD') // A はフラッシュ済み
+      expect(useCanvasStore.getState().currentPageId).toBe('B')
+    })
+
+    it('does NOT overwrite another page during a rapid A→B→A switch', () => {
+      seedTwoPages('A') // canvas shows A
+      const store = useCanvasStore.getState()
+
+      store.setCurrentPage('B') // A をフラッシュ。currentPageId=B, loadedPageId は A のまま
+      store.setCurrentPage('A') // loadedPageId(A) !== currentPageId(B) → B への誤フラッシュを抑止
+
+      const pages = useCanvasStore.getState().pages
+      // B は live(A) 内容で上書きされず元のまま
+      expect(pages.find((p) => p.id === 'B')!.canvasData).toBe('B_ORIGINAL')
+    })
+
+    it('does NOT flush when no page is loaded yet (loadedPageId === null)', () => {
+      seedTwoPages(null)
+      useCanvasStore.getState().setCurrentPage('B')
+
+      const pages = useCanvasStore.getState().pages
+      expect(pages.find((p) => p.id === 'A')!.canvasData).toBe('A_OLD') // 未ロードなら保存しない
+    })
+  })
+
   describe('History dedup (regression)', () => {
     // add/remove 操作はデバウンスリスナーと明示 saveHistory() の双方から呼ばれ
     // 二重記録され、Undo に2回必要になっていた。同一内容なら無視することを担保する。
