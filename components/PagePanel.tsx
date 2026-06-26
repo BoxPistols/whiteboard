@@ -1,6 +1,7 @@
 'use client'
 
 import { useCanvasStore } from '@/lib/store'
+import { PlusIcon, XIcon } from './icons'
 
 export default function PagePanel() {
   const { pages, currentPageId, addPage, removePage, setCurrentPage } = useCanvasStore()
@@ -35,10 +36,11 @@ export default function PagePanel() {
             {pages.length > 1 && (
               <button
                 onClick={(e) => handleRemovePage(page.id, e)}
-                className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                 title="ページを削除"
+                aria-label={`${page.name}を削除`}
               >
-                ×
+                <XIcon size={10} />
               </button>
             )}
           </div>
@@ -46,10 +48,11 @@ export default function PagePanel() {
       </div>
       <button
         onClick={handleAddPage}
-        className="px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded"
+        className="px-3 py-1 text-sm bg-green-500 hover:bg-green-600 text-white rounded flex items-center justify-center"
         title="新しいページを追加"
+        aria-label="新しいページを追加"
       >
-        +
+        <PlusIcon size={16} />
       </button>
     </div>
   )
