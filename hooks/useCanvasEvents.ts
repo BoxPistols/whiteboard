@@ -343,8 +343,10 @@ export const useCanvasEvents = ({
 
         // ドラッグせずクリックしただけ（しきい値未満）なら 0 サイズのゴミになるので破棄する。
         // ツールは選択状態を維持し、誤クリックでツールから抜けないようにする。
+        // opt.e（ネイティブイベント）が無いケースは距離不明として Infinity を維持し、
+        // 図形は破棄せず通常確定する（getCanvasPointer 内の 'touches' in undefined を回避）。
         let dragDistance = Infinity
-        if (opt && startPointRef.current && fabricCanvas) {
+        if (opt?.e && startPointRef.current && fabricCanvas) {
           const p = getCanvasPointer(opt.e as MouseEvent | TouchEvent, fabricCanvas)
           dragDistance = Math.hypot(p.x - startPointRef.current.x, p.y - startPointRef.current.y)
         }
