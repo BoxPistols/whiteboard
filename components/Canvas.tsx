@@ -288,6 +288,10 @@ export default function Canvas() {
       // 付箋の bg を選択したときに text(前面) が隠れる。Figma 等と同様の挙動にするため
       // スタッキング順を維持
       preserveObjectStacking: true,
+      // fabric 既定は uniformScaling=true（比率維持が既定で Shift で自由）だが、
+      // Figma は逆（自由が既定で Shift 押下中のみ比率維持）。uniScaleKey は既定の
+      // 'shiftKey' のままにし、uniformScaling=false で Figma 同様の挙動にする。
+      uniformScaling: false,
     })
 
     fabricCanvasRef.current = canvas
