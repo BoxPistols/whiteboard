@@ -1478,6 +1478,20 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       return
     }
 
+    // 同一内容の連続スナップショットは積まない。
+    // add/remove 系操作は「object:added/removed のデバウンスリスナー」と
+    // 「アクション内の明示 saveHistory()」の双方から呼ばれ二重記録され、
+    // Undo を1回押しても見た目が変わらず2回押す必要が生じていた。
+    // canvas 内容(canvasJSON)とレイヤー(layers)が共に直前と同一なら no-op として無視する。
+    const prev = history[historyIndex]
+    if (
+      prev &&
+      prev.canvasJSON === canvasJSON &&
+      JSON.stringify(prev.layers) === JSON.stringify(layers)
+    ) {
+      return
+    }
+
     const snapshot: HistorySnapshot = {
       canvasJSON,
       layers: [...layers],

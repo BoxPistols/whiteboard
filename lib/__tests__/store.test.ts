@@ -377,4 +377,43 @@ describe('Canvas Store', () => {
       expect(props?.isArrow).toBe(true)
     })
   })
+
+  describe('History dedup (regression)', () => {
+    // add/remove 操作はデバウンスリスナーと明示 saveHistory() の双方から呼ばれ
+    // 二重記録され、Undo に2回必要になっていた。同一内容なら無視することを担保する。
+    it('should skip a duplicate consecutive snapshot but record real changes', () => {
+      let toJSONResult: { objects: { id: string }[] } = { objects: [{ id: 'a' }] }
+      const mockCanvas = { toJSON: () => toJSONResult } as unknown as import('fabric').fabric.Canvas
+      useCanvasStore.setState({
+        fabricCanvas: mockCanvas,
+        layers: [],
+        history: [],
+        historyIndex: -1,
+        isUndoRedoAction: false,
+      })
+
+      const { saveHistory } = useCanvasStore.getState()
+
+      saveHistory()
+      expect(useCanvasStore.getState().history).toHaveLength(1)
+
+      // 同一内容の二度目 → 無視されて件数据え置き
+      saveHistory()
+      expect(useCanvasStore.getState().history).toHaveLength(1)
+
+      // canvas 内容が変われば記録される
+      toJSONResult = { objects: [{ id: 'a' }, { id: 'b' }] }
+      saveHistory()
+      expect(useCanvasStore.getState().history).toHaveLength(2)
+
+      // canvas 同一でも layers が変われば記録される
+      useCanvasStore.setState({
+        layers: [
+          { id: 'l1', name: 'L1', visible: true, locked: false, objectId: 'b', type: 'RECTANGLE' },
+        ],
+      })
+      saveHistory()
+      expect(useCanvasStore.getState().history).toHaveLength(3)
+    })
+  })
 })
