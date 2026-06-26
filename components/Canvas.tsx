@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { fabric } from 'fabric'
-import { useCanvasStore, DARK_CANVAS_BG, LIGHT_CANVAS_BG } from '@/lib/store'
+import {
+  useCanvasStore,
+  DARK_CANVAS_BG,
+  LIGHT_CANVAS_BG,
+  CANVAS_SERIALIZE_PROPS,
+} from '@/lib/store'
 import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
 import { convertColorForTheme } from '@/lib/colorUtils'
 import ContextMenu from '@/components/ContextMenu'
@@ -430,7 +435,7 @@ export default function Canvas() {
         // 巨大な canvas（多数の画像）では toJSON / stringify が OOM を起こす可能性があるため
         // try/catch で保護し、失敗しても以降の操作が止まらないようにする
         try {
-          const json = JSON.stringify(canvas.toJSON(['data']))
+          const json = JSON.stringify(canvas.toJSON(CANVAS_SERIALIZE_PROPS))
           updatePageData(targetPageId, json, state.layers)
         } catch (e) {
           console.error('Auto-save serialization failed:', e)

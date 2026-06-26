@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useCanvasStore, isBackgroundDark } from '../store'
+import { useCanvasStore, isBackgroundDark, CANVAS_SERIALIZE_PROPS } from '../store'
 import type { Layer } from '@/types'
+import type { fabric } from 'fabric'
 
 describe('Canvas Store', () => {
   beforeEach(() => {
@@ -375,6 +376,125 @@ describe('Canvas Store', () => {
       const props = useCanvasStore.getState().selectedObjectProps
       expect(props?.strokeWidth).toBe(3)
       expect(props?.isArrow).toBe(true)
+    })
+  })
+
+  describe('Persistence integrity (regression)', () => {
+    // 並び順/ロック/可視性などのレイヤー操作後、現在ページの canvasData が
+    // 最新の canvas からシリアライズし直されること（=リロードで巻き戻らないこと）を担保する。
+
+    // toJSON 呼び出しのたびに tick を増やす最小モック canvas
+    function makeMockCanvas(obj: { data: { id: string }; visible: boolean }) {
+      let tick = 0
+      return {
+        getObjects: () => [obj],
+        moveTo: () => {},
+        renderAll: () => {},
+        getActiveObject: () => null,
+        discardActiveObject: () => {},
+        toJSON: () => ({ tick: ++tick, objects: [{ id: obj.data.id, visible: obj.visible }] }),
+      } as unknown as fabric.Canvas
+    }
+
+    const seedLayer: Layer = {
+      id: 'l1',
+      name: 'L1',
+      visible: true,
+      locked: false,
+      objectId: 'obj-1',
+      type: 'RECTANGLE',
+    }
+
+    function seedStore(mockCanvas: fabric.Canvas) {
+      useCanvasStore.setState({
+        fabricCanvas: mockCanvas,
+        layers: [{ ...seedLayer }],
+        pages: [{ id: 'page-1', name: 'Page 1', canvasData: 'STALE', layers: [{ ...seedLayer }] }],
+        currentPageId: 'page-1',
+      })
+    }
+
+    it('CANVAS_SERIALIZE_PROPS includes lock props so they round-trip', () => {
+      for (const p of [
+        'selectable',
+        'evented',
+        'lockMovementX',
+        'lockMovementY',
+        'lockRotation',
+        'lockScalingX',
+        'lockScalingY',
+      ]) {
+        expect(CANVAS_SERIALIZE_PROPS).toContain(p)
+      }
+    })
+
+    it('toggleLayerVisibility refreshes canvasData and reflects the new visible state', () => {
+      const obj = { data: { id: 'obj-1' }, visible: true }
+      seedStore(makeMockCanvas(obj))
+      useCanvasStore.getState().toggleLayerVisibility('l1')
+
+      const st = useCanvasStore.getState()
+      expect(st.layers[0].visible).toBe(false)
+      const page = st.pages.find((p) => p.id === 'page-1')!
+      expect(page.canvasData).not.toBe('STALE') // 再シリアライズされている
+      expect(JSON.parse(page.canvasData!).objects[0].visible).toBe(false)
+    })
+
+    it('toggleLayerLock refreshes canvasData and flips locked', () => {
+      const obj = { data: { id: 'obj-1' }, visible: true, set: () => {} }
+      seedStore(makeMockCanvas(obj))
+      useCanvasStore.getState().toggleLayerLock('l1')
+
+      const st = useCanvasStore.getState()
+      expect(st.layers[0].locked).toBe(true)
+      const page = st.pages.find((p) => p.id === 'page-1')!
+      expect(page.canvasData).not.toBe('STALE')
+    })
+
+    it('reorderLayers refreshes canvasData (z-order persisted)', () => {
+      const obj = { data: { id: 'obj-1' }, visible: true }
+      seedStore(makeMockCanvas(obj))
+      useCanvasStore.getState().reorderLayers(0, 0)
+
+      const page = useCanvasStore.getState().pages.find((p) => p.id === 'page-1')!
+      expect(page.canvasData).not.toBe('STALE')
+    })
+
+    it('syncs correct fabric z-order when a FRAME (folder) is interleaved (no index drift)', () => {
+      // パネル順(上=前面): A, B, FRAME, C, D（FRAME は canvas オブジェクトを持たない）。
+      // 旧実装は length にフレームを含めるため中間挿入で A/B が入れ替わっていた。
+      const mk = (id: string) => ({ data: { id } })
+      const objs = [mk('a'), mk('b'), mk('c'), mk('d')]
+      const arr = [...objs]
+      const mockCanvas = {
+        getObjects: () => arr,
+        moveTo: (obj: { data: { id: string } }, index: number) => {
+          const i = arr.indexOf(obj)
+          if (i >= 0) arr.splice(i, 1)
+          arr.splice(index, 0, obj)
+        },
+        renderAll: () => {},
+        toJSON: () => ({ objects: arr.map((o) => ({ id: o.data.id })) }),
+      } as unknown as fabric.Canvas
+
+      const layers: Layer[] = [
+        { id: 'la', name: 'A', visible: true, locked: false, objectId: 'a', type: 'RECTANGLE' },
+        { id: 'lb', name: 'B', visible: true, locked: false, objectId: 'b', type: 'RECTANGLE' },
+        { id: 'lf', name: 'F', visible: true, locked: false, objectId: 'f', type: 'FRAME' },
+        { id: 'lc', name: 'C', visible: true, locked: false, objectId: 'c', type: 'RECTANGLE' },
+        { id: 'ld', name: 'D', visible: true, locked: false, objectId: 'd', type: 'RECTANGLE' },
+      ]
+      useCanvasStore.setState({
+        fabricCanvas: mockCanvas,
+        layers,
+        pages: [{ id: 'page-1', name: 'P', canvasData: null, layers }],
+        currentPageId: 'page-1',
+      })
+
+      useCanvasStore.getState().reorderLayers(0, 0)
+
+      // canvas index0 = 最背面。パネル先頭 A が最前面なので [d, c, b, a] が正しい順序。
+      expect(arr.map((o) => o.data.id)).toEqual(['d', 'c', 'b', 'a'])
     })
   })
 

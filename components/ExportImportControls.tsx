@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { useCanvasStore } from '@/lib/store'
+import { useCanvasStore, CANVAS_SERIALIZE_PROPS } from '@/lib/store'
 
 export default function ExportImportControls() {
   const { fabricCanvas, layers } = useCanvasStore()
@@ -12,7 +12,7 @@ export default function ExportImportControls() {
     if (!fabricCanvas) return
 
     const data = {
-      canvas: fabricCanvas.toJSON(['data']),
+      canvas: fabricCanvas.toJSON(CANVAS_SERIALIZE_PROPS),
       layers: layers,
       version: '1.0.0',
       exportedAt: new Date().toISOString(),
