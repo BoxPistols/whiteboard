@@ -114,13 +114,31 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
     description: '選択オブジェクトを複製',
   },
   {
+    id: 'edit-select-all',
+    action: 'selectAll',
+    defaultKey: 'a',
+    modifiers: { meta: true },
+    category: 'edit',
+    label: '全選択',
+    description: 'すべてのオブジェクトを選択',
+  },
+  {
     id: 'edit-delete',
     action: 'delete',
     defaultKey: 'backspace',
     modifiers: {},
     category: 'edit',
     label: '削除',
-    description: '選択オブジェクトを削除',
+    description: '選択オブジェクトを削除 (Backspace / Delete)',
+  },
+  {
+    id: 'edit-deselect',
+    action: 'deselect',
+    defaultKey: 'escape',
+    modifiers: {},
+    category: 'edit',
+    label: '選択解除',
+    description: '選択を解除 (Esc)',
   },
   // 矢印キー移動（ナッジ）
   {
@@ -364,8 +382,11 @@ export function matchesShortcut(e: KeyboardEvent, shortcut: ShortcutConfig): boo
   } else if (/^[a-zA-Z]$/.test(key)) {
     // アルファベットキーの場合はe.codeまたはe.keyでチェック
     keyMatches = e.code === `Key${key.toUpperCase()}` || e.key.toLowerCase() === key.toLowerCase()
+  } else if (key === 'backspace') {
+    // Figma 同様、Backspace と前方 Delete の両方を削除キーとして扱う
+    keyMatches = e.key === 'Backspace' || e.key === 'Delete'
   } else {
-    // その他のキー（Backspace, [, ] など）はe.keyでチェック
+    // その他のキー（[, ] など）はe.keyでチェック
     keyMatches = e.key.toLowerCase() === key.toLowerCase()
   }
 
