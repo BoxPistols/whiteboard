@@ -3,6 +3,7 @@
 import { useMemo, useCallback } from 'react'
 import { useCanvasStore } from '@/lib/store'
 import ColorPalette from './ColorPalette'
+import NumberInput from './NumberInput'
 import { parseColor, hexToRgba } from '@/lib/colorUtils'
 
 export default function PropertiesPanel() {
@@ -154,11 +155,9 @@ export default function PropertiesPanel() {
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               線の太さ
             </label>
-            <input
-              type="number"
-              className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            <NumberInput
               value={Math.round(selectedObjectProps.strokeWidth)}
-              onChange={(e) => updateObjectProperty('strokeWidth', parseInt(e.target.value, 10))}
+              onValueChange={(v) => updateObjectProperty('strokeWidth', v)}
               min={0}
               max={20}
             />
@@ -185,11 +184,9 @@ export default function PropertiesPanel() {
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               X座標
             </label>
-            <input
-              type="number"
-              className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            <NumberInput
               value={Math.round(selectedObjectProps.left)}
-              onChange={(e) => updateObjectProperty('left', parseInt(e.target.value, 10))}
+              onValueChange={(v) => updateObjectProperty('left', v)}
             />
           </div>
         )}
@@ -198,11 +195,9 @@ export default function PropertiesPanel() {
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               Y座標
             </label>
-            <input
-              type="number"
-              className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            <NumberInput
               value={Math.round(selectedObjectProps.top)}
-              onChange={(e) => updateObjectProperty('top', parseInt(e.target.value, 10))}
+              onValueChange={(v) => updateObjectProperty('top', v)}
             />
           </div>
         )}
@@ -211,11 +206,9 @@ export default function PropertiesPanel() {
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               幅
             </label>
-            <input
-              type="number"
-              className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            <NumberInput
               value={Math.round(selectedObjectProps.width)}
-              onChange={(e) => updateObjectProperty('width', parseInt(e.target.value, 10))}
+              onValueChange={(v) => updateObjectProperty('width', v)}
               min={1}
             />
           </div>
@@ -225,11 +218,9 @@ export default function PropertiesPanel() {
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
               高さ
             </label>
-            <input
-              type="number"
-              className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            <NumberInput
               value={Math.round(selectedObjectProps.height)}
-              onChange={(e) => updateObjectProperty('height', parseInt(e.target.value, 10))}
+              onValueChange={(v) => updateObjectProperty('height', v)}
               min={1}
             />
           </div>
