@@ -20,6 +20,8 @@ interface UseKeyboardShortcutsProps {
   bringForward?: () => void
   sendBackward?: () => void
   showShortcuts?: () => void
+  selectAll?: () => void
+  deselectAll?: () => void
   moveSelectedObject?: (direction: 'up' | 'down' | 'left' | 'right', useNudge: boolean) => void
   undo?: () => void
   redo?: () => void
@@ -43,6 +45,8 @@ export const useKeyboardShortcuts = ({
   bringForward,
   sendBackward,
   showShortcuts,
+  selectAll,
+  deselectAll,
   moveSelectedObject,
   undo,
   redo,
@@ -186,6 +190,18 @@ export const useKeyboardShortcuts = ({
             showShortcuts()
           }
           break
+        case 'selectAll':
+          if (selectAll) {
+            e.preventDefault()
+            selectAll()
+          }
+          break
+        case 'deselect':
+          if (deselectAll) {
+            e.preventDefault()
+            deselectAll()
+          }
+          break
       }
     }
 
@@ -209,6 +225,8 @@ export const useKeyboardShortcuts = ({
     bringForward,
     sendBackward,
     showShortcuts,
+    selectAll,
+    deselectAll,
     moveSelectedObject,
     undo,
     redo,

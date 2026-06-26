@@ -115,9 +115,37 @@ export default function Canvas() {
   })
 
   // キーボードショートカット
+  // 全選択 / 選択解除（Figma の Cmd+A / Esc 相当）
+  const selectAll = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+    canvas.discardActiveObject()
+    const objects = canvas
+      .getObjects()
+      .filter((o) => o.selectable && o.evented && o.visible !== false)
+    if (objects.length === 0) return
+    if (objects.length === 1) {
+      canvas.setActiveObject(objects[0])
+    } else {
+      canvas.setActiveObject(new fabric.ActiveSelection(objects, { canvas }))
+    }
+    canvas.requestRenderAll()
+  }, [])
+
+  const deselectAll = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+    if (canvas.getActiveObject()) {
+      canvas.discardActiveObject()
+      canvas.requestRenderAll()
+    }
+  }, [])
+
   useKeyboardShortcuts({
     shortcuts,
     setSelectedTool,
+    selectAll,
+    deselectAll,
     deleteSelectedObject,
     duplicateSelectedObject,
     copySelectedObject,
