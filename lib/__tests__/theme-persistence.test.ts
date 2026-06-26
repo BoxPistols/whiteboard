@@ -2,22 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useCanvasStore, DARK_CANVAS_BG, LIGHT_CANVAS_BG } from '../store'
 
 describe('Theme Persistence', () => {
-  let localStorageMock: { [key: string]: string } = {}
+  // localStorage は tests/setup.ts の共有モック（spy 付き・Map バック）を利用する
 
   beforeEach(() => {
     // Reset store state
     useCanvasStore.setState({
       theme: 'light',
-    })
-
-    // Mock localStorage
-    localStorageMock = {}
-    global.Storage.prototype.getItem = vi.fn((key: string) => localStorageMock[key] || null)
-    global.Storage.prototype.setItem = vi.fn((key: string, value: string) => {
-      localStorageMock[key] = value
-    })
-    global.Storage.prototype.removeItem = vi.fn((key: string) => {
-      delete localStorageMock[key]
     })
 
     // Mock document.documentElement.classList
@@ -27,6 +17,7 @@ describe('Theme Persistence', () => {
       contains: vi.fn(),
     }
     Object.defineProperty(document.documentElement, 'classList', {
+      configurable: true,
       value: classListMock,
       writable: true,
     })
@@ -34,6 +25,9 @@ describe('Theme Persistence', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    // classList は defineProperty で差し替えており restoreAllMocks では戻らないため、
+    // own プロパティを削除して prototype のアクセサ（本来の DOMTokenList）へ復帰させる
+    delete (document.documentElement as { classList?: unknown }).classList
   })
 
   it('should toggle theme from light to dark', () => {
@@ -58,7 +52,7 @@ describe('Theme Persistence', () => {
   })
 
   it('should load saved dark theme from localStorage', () => {
-    localStorageMock['twb-theme'] = 'dark'
+    localStorage.setItem('twb-theme', 'dark')
     const { loadSavedTheme } = useCanvasStore.getState()
 
     loadSavedTheme()
@@ -68,7 +62,7 @@ describe('Theme Persistence', () => {
   })
 
   it('should load saved light theme from localStorage', () => {
-    localStorageMock['twb-theme'] = 'light'
+    localStorage.setItem('twb-theme', 'light')
     const { loadSavedTheme } = useCanvasStore.getState()
 
     loadSavedTheme()
@@ -104,10 +98,10 @@ describe('Theme Persistence', () => {
     const { toggleTheme } = useCanvasStore.getState()
 
     toggleTheme() // light -> dark
-    expect(localStorageMock['twb-theme']).toBe('dark')
+    expect(localStorage.getItem('twb-theme')).toBe('dark')
 
     toggleTheme() // dark -> light
-    expect(localStorageMock['twb-theme']).toBe('light')
+    expect(localStorage.getItem('twb-theme')).toBe('light')
   })
 
   it('should sync canvasBackground to new theme default when current bg is a default', () => {
@@ -116,7 +110,7 @@ describe('Theme Persistence', () => {
     useCanvasStore.getState().toggleTheme()
     expect(useCanvasStore.getState().theme).toBe('dark')
     expect(useCanvasStore.getState().canvasBackground).toBe(DARK_CANVAS_BG)
-    expect(localStorageMock['twb-canvas-bg']).toBe(DARK_CANVAS_BG)
+    expect(localStorage.getItem('twb-canvas-bg')).toBe(DARK_CANVAS_BG)
   })
 
   it('should preserve custom canvasBackground on theme toggle', () => {
@@ -125,6 +119,6 @@ describe('Theme Persistence', () => {
     useCanvasStore.setState({ theme: 'light', canvasBackground: custom })
     useCanvasStore.getState().toggleTheme()
     expect(useCanvasStore.getState().canvasBackground).toBe(custom)
-    expect(localStorageMock['twb-canvas-bg']).toBeUndefined()
+    expect(localStorage.getItem('twb-canvas-bg')).toBeNull()
   })
 })
