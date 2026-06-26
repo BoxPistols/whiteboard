@@ -459,6 +459,43 @@ describe('Canvas Store', () => {
       const page = useCanvasStore.getState().pages.find((p) => p.id === 'page-1')!
       expect(page.canvasData).not.toBe('STALE')
     })
+
+    it('syncs correct fabric z-order when a FRAME (folder) is interleaved (no index drift)', () => {
+      // パネル順(上=前面): A, B, FRAME, C, D（FRAME は canvas オブジェクトを持たない）。
+      // 旧実装は length にフレームを含めるため中間挿入で A/B が入れ替わっていた。
+      const mk = (id: string) => ({ data: { id } })
+      const objs = [mk('a'), mk('b'), mk('c'), mk('d')]
+      const arr = [...objs]
+      const mockCanvas = {
+        getObjects: () => arr,
+        moveTo: (obj: { data: { id: string } }, index: number) => {
+          const i = arr.indexOf(obj)
+          if (i >= 0) arr.splice(i, 1)
+          arr.splice(index, 0, obj)
+        },
+        renderAll: () => {},
+        toJSON: () => ({ objects: arr.map((o) => ({ id: o.data.id })) }),
+      } as unknown as fabric.Canvas
+
+      const layers: Layer[] = [
+        { id: 'la', name: 'A', visible: true, locked: false, objectId: 'a', type: 'RECTANGLE' },
+        { id: 'lb', name: 'B', visible: true, locked: false, objectId: 'b', type: 'RECTANGLE' },
+        { id: 'lf', name: 'F', visible: true, locked: false, objectId: 'f', type: 'FRAME' },
+        { id: 'lc', name: 'C', visible: true, locked: false, objectId: 'c', type: 'RECTANGLE' },
+        { id: 'ld', name: 'D', visible: true, locked: false, objectId: 'd', type: 'RECTANGLE' },
+      ]
+      useCanvasStore.setState({
+        fabricCanvas: mockCanvas,
+        layers,
+        pages: [{ id: 'page-1', name: 'P', canvasData: null, layers }],
+        currentPageId: 'page-1',
+      })
+
+      useCanvasStore.getState().reorderLayers(0, 0)
+
+      // canvas index0 = 最背面。パネル先頭 A が最前面なので [d, c, b, a] が正しい順序。
+      expect(arr.map((o) => o.data.id)).toEqual(['d', 'c', 'b', 'a'])
+    })
   })
 
   describe('History dedup (regression)', () => {

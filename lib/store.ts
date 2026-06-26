@@ -307,6 +307,26 @@ function getDescendantIds(layerId: string, layers: Layer[]): string[] {
   return children.flatMap((child) => [child.id, ...getDescendantIds(child.id, layers)])
 }
 
+// レイヤーのパネル表示順（先頭=最前面）に合わせて fabric の z-order を同期する。
+// FRAME（フォルダ）等 canvas オブジェクトを持たないレイヤーはインデックス空間から
+// 除外し、実オブジェクトだけを詰めて moveTo する。これをしないと length にフレームが
+// 混ざり、フレーム混在時に重なり順がズレる（CodeRabbit 指摘）。
+// objectId→object の Map を一度だけ構築して O(n) で解決する（getObjects().find の O(n^2) 回避）。
+const syncFabricZOrder = (fabricCanvas: fabric.Canvas, orderedLayers: Layer[]): void => {
+  const byId = new Map<string, fabric.Object>()
+  for (const obj of fabricCanvas.getObjects()) {
+    const oid = obj.data?.id
+    if (oid) byId.set(oid, obj)
+  }
+  const objectsInOrder = orderedLayers
+    .map((l) => byId.get(l.objectId))
+    .filter((o): o is fabric.Object => !!o)
+  // 先頭(パネル最上)=最前面 → 末尾の canvas index を割り当てる
+  objectsInOrder.forEach((obj, i) => {
+    fabricCanvas.moveTo(obj, objectsInOrder.length - 1 - i)
+  })
+}
+
 // グリッド設定をlocalStorageに保存するヘルパー
 const persistGridSettings = (state: {
   gridEnabled: boolean
@@ -644,12 +664,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       // Fabric.jsでのオブジェクトの描画順序も更新
       const { fabricCanvas } = get()
       if (fabricCanvas) {
-        result.forEach((layer, index) => {
-          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === layer.objectId)
-          if (obj) {
-            fabricCanvas.moveTo(obj, result.length - 1 - index)
-          }
-        })
+        syncFabricZOrder(fabricCanvas, result)
         fabricCanvas.renderAll()
       }
 
@@ -743,14 +758,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
       // 5. fabric.jsのz-orderをツリーの深さ優先走査順に同期
       if (fabricCanvas) {
-        const flattened = flattenLayerTree(finalLayers)
-        // 配列の最後がz-orderの最前面（上のレイヤー）
-        flattened.forEach((l, index) => {
-          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === l.objectId)
-          if (obj) {
-            fabricCanvas.moveTo(obj, flattened.length - 1 - index)
-          }
-        })
+        syncFabricZOrder(fabricCanvas, flattenLayerTree(finalLayers))
         fabricCanvas.renderAll()
       }
 
@@ -864,12 +872,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       // 非連続レイヤーのグループ化で表示順が変わるため、Fabric.jsのz-orderを
       // ツリーの深さ優先走査順に同期する（moveLayerと同じ手法）
       if (fabricCanvas) {
-        const flattened = flattenLayerTree(updatedLayers)
-        // 配列の最後がz-orderの最前面
-        flattened.forEach((l, index) => {
-          const obj = fabricCanvas.getObjects().find((o) => o.data?.id === l.objectId)
-          if (obj) fabricCanvas.moveTo(obj, flattened.length - 1 - index)
-        })
+        syncFabricZOrder(fabricCanvas, flattenLayerTree(updatedLayers))
         fabricCanvas.renderAll()
       }
 
