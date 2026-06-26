@@ -25,6 +25,9 @@ describe('Theme Persistence', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    // classList は defineProperty で差し替えており restoreAllMocks では戻らないため、
+    // own プロパティを削除して prototype のアクセサ（本来の DOMTokenList）へ復帰させる
+    delete (document.documentElement as { classList?: unknown }).classList
   })
 
   it('should toggle theme from light to dark', () => {

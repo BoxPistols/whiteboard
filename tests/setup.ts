@@ -25,6 +25,14 @@ function createLocalStorageMock(): Storage {
   } as Storage
 }
 
+function installLocalStorage() {
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    writable: true,
+    value: createLocalStorageMock(),
+  })
+}
+
 // matchMedia の既定モック（テストごとに上書き可能なよう beforeEach で再設定）
 function installMatchMedia(matches = false) {
   Object.defineProperty(window, 'matchMedia', {
@@ -43,12 +51,14 @@ function installMatchMedia(matches = false) {
   })
 }
 
+// モジュール評価時（テストファイルの import 時）に走るトップレベルコード
+// （例: lib/store.ts の migrateLocalStorageKeys()）も実モックで動くよう即時インストール
+installLocalStorage()
+installMatchMedia(false)
+
+// 各テストの前に作り直してテスト間の状態リークを断つ
 beforeEach(() => {
-  Object.defineProperty(window, 'localStorage', {
-    configurable: true,
-    writable: true,
-    value: createLocalStorageMock(),
-  })
+  installLocalStorage()
   installMatchMedia(false)
 })
 
