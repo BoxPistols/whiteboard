@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useCanvasStore } from '@/lib/store'
 import { formatShortcut, CATEGORY_LABELS } from '@/lib/shortcuts'
+import { useModalA11y } from '@/lib/useModalA11y'
 import type { ShortcutConfig, ShortcutCategory, ShortcutModifiers } from '@/types'
 
 export default function ShortcutsModal() {
@@ -158,17 +159,37 @@ export default function ShortcutsModal() {
     }
   }, [editingId, handleKeyDown])
 
+  const closeModal = useCallback(() => setShowShortcutsModal(false), [setShowShortcutsModal])
+  const panelRef = useRef<HTMLDivElement>(null)
+  // 再割当中（editingId）は capture リスナーが Esc を握るため、こちらの Esc クローズは発火しない
+  useModalA11y(showShortcutsModal, closeModal, panelRef)
+
   if (!showShortcutsModal) return null
 
   const conflict =
     editingId && pendingKey ? checkConflict(pendingKey, pendingModifiers, editingId) : null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) closeModal()
+      }}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shortcuts-modal-title"
+        tabIndex={-1}
+        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+          <h2
+            id="shortcuts-modal-title"
+            className="text-xl font-bold text-gray-900 dark:text-gray-100"
+          >
             キーボードショートカット
           </h2>
           <button
