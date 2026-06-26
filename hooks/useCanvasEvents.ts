@@ -8,6 +8,10 @@ import {
   toolToNodeType,
 } from '@/lib/canvasUtils'
 
+// 図形ツールでドラッグせずクリックしただけのときに 0 サイズの不可視オブジェクト＋
+// ゴミレイヤーが生成されるのを防ぐための最小ドラッグ距離（キャンバス座標 px）
+const MIN_DRAG_DISTANCE = 4
+
 interface UseCanvasEventsProps {
   fabricCanvas: fabric.Canvas | null
   shapeCounterRef: React.MutableRefObject<any>
@@ -33,13 +37,31 @@ export const useCanvasEvents = ({
     gridSnapEnabled,
     gridSize,
     saveHistory,
-    setZoom,
+    setZoomValue,
     styleDefaults,
   } = useCanvasStore()
 
   const isDrawingRef = useRef(false)
   const startPointRef = useRef<{ x: number; y: number } | null>(null)
   const currentShapeRef = useRef<fabric.Object | null>(null)
+
+  // --------------------------------------------------------------------------
+  // 鉛筆ツール: フリーハンド描画モードの切替
+  // fabric は isDrawingMode=true のときだけ自由描画し path:created を発火する。
+  // これを設定しないと鉛筆ツールが無反応になる（選択用ラバーバンドが出るだけ）。
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    if (!fabricCanvas) return
+    const isPencil = selectedTool === 'pencil'
+    fabricCanvas.isDrawingMode = isPencil
+    if (isPencil) {
+      const brush = new fabric.PencilBrush(fabricCanvas)
+      const themeDefaultStroke = theme === 'dark' ? '#9CA3AF' : '#374151'
+      brush.color = styleDefaults.stroke || themeDefaultStroke
+      brush.width = Math.max(1, styleDefaults.strokeWidth || 2)
+      fabricCanvas.freeDrawingBrush = brush
+    }
+  }, [fabricCanvas, selectedTool, theme, styleDefaults])
 
   // --------------------------------------------------------------------------
   // 描画ハンドラ
@@ -229,6 +251,7 @@ export const useCanvasEvents = ({
       selectedTool,
       setSelectedTool,
       theme,
+      canvasBackground,
       addLayer,
       setSelectedObjectId,
       shapeCounterRef,
@@ -313,56 +336,76 @@ export const useCanvasEvents = ({
     [fabricCanvas, selectedTool]
   )
 
-  const handleMouseUp = useCallback(() => {
-    if (currentShapeRef.current && selectedTool !== 'select' && selectedTool !== 'pencil') {
-      const id = crypto.randomUUID()
-      const shape = currentShapeRef.current
+  const handleMouseUp = useCallback(
+    (opt?: fabric.IEvent) => {
+      if (currentShapeRef.current && selectedTool !== 'select' && selectedTool !== 'pencil') {
+        const shape = currentShapeRef.current
 
-      shape.set({
-        data: {
+        // ドラッグせずクリックしただけ（しきい値未満）なら 0 サイズのゴミになるので破棄する。
+        // ツールは選択状態を維持し、誤クリックでツールから抜けないようにする。
+        let dragDistance = Infinity
+        if (opt && startPointRef.current && fabricCanvas) {
+          const p = getCanvasPointer(opt.e as MouseEvent | TouchEvent, fabricCanvas)
+          dragDistance = Math.hypot(p.x - startPointRef.current.x, p.y - startPointRef.current.y)
+        }
+        if (dragDistance < MIN_DRAG_DISTANCE) {
+          fabricCanvas?.remove(shape)
+          fabricCanvas?.requestRenderAll()
+          isDrawingRef.current = false
+          startPointRef.current = null
+          currentShapeRef.current = null
+          return
+        }
+
+        const id = crypto.randomUUID()
+
+        shape.set({
+          data: {
+            id,
+            ...(selectedTool === 'arrow' && { type: 'arrow' }),
+            baseFill: typeof shape.fill === 'string' ? shape.fill : undefined,
+            baseStroke: typeof shape.stroke === 'string' ? shape.stroke : undefined,
+            baseTheme: theme,
+          },
+          selectable: true,
+          evented: true,
+          hasControls: true,
+          hasBorders: true,
+        })
+        shape.setCoords()
+
+        shapeCounterRef.current[selectedTool] += 1
+        addLayer({
           id,
-          ...(selectedTool === 'arrow' && { type: 'arrow' }),
-          baseFill: typeof shape.fill === 'string' ? shape.fill : undefined,
-          baseStroke: typeof shape.stroke === 'string' ? shape.stroke : undefined,
-          baseTheme: theme,
-        },
-        selectable: true,
-        evented: true,
-        hasControls: true,
-        hasBorders: true,
-      })
-      shape.setCoords()
+          name: `${selectedTool} ${shapeCounterRef.current[selectedTool]}`,
+          visible: true,
+          locked: false,
+          objectId: id,
+          type: toolToNodeType(selectedTool),
+        })
 
-      shapeCounterRef.current[selectedTool] += 1
-      addLayer({
-        id,
-        name: `${selectedTool} ${shapeCounterRef.current[selectedTool]}`,
-        visible: true,
-        locked: false,
-        objectId: id,
-        type: toolToNodeType(selectedTool),
-      })
+        setSelectedTool('select')
+        setSelectedObjectId(id)
+        fabricCanvas?.setActiveObject(shape)
+        fabricCanvas?.renderAll()
+        saveHistory()
+      }
 
-      setSelectedTool('select')
-      setSelectedObjectId(id)
-      fabricCanvas?.setActiveObject(shape)
-      fabricCanvas?.renderAll()
-      saveHistory()
-    }
-
-    isDrawingRef.current = false
-    startPointRef.current = null
-    currentShapeRef.current = null
-  }, [
-    fabricCanvas,
-    selectedTool,
-    addLayer,
-    setSelectedTool,
-    setSelectedObjectId,
-    theme,
-    shapeCounterRef,
-    saveHistory,
-  ])
+      isDrawingRef.current = false
+      startPointRef.current = null
+      currentShapeRef.current = null
+    },
+    [
+      fabricCanvas,
+      selectedTool,
+      addLayer,
+      setSelectedTool,
+      setSelectedObjectId,
+      theme,
+      shapeCounterRef,
+      saveHistory,
+    ]
+  )
 
   // --------------------------------------------------------------------------
   // イベント登録
@@ -591,8 +634,14 @@ export const useCanvasEvents = ({
       e.preventDefault()
       if (e.ctrlKey || e.metaKey) {
         const zoom = Math.max(0.1, Math.min(2, fabricCanvas.getZoom() + -e.deltaY * 0.0015))
-        fabricCanvas.zoomToPoint({ x: e.clientX, y: e.clientY }, zoom)
-        setZoom(Math.round(zoom * 100))
+        // zoomToPoint はキャンバス要素ローカル座標を期待する。clientX/Y はページ座標で
+        // 左パネル/ツールバー分ずれてカーソル下に固定されないため要素相対へ変換する。
+        const rect = fabricCanvas.getElement().getBoundingClientRect()
+        const point = new fabric.Point(e.clientX - rect.left, e.clientY - rect.top)
+        fabricCanvas.zoomToPoint(point, zoom)
+        // setZoom は fabric.setZoom(origin基準) を再適用し二重がけになるため、
+        // ここでは数値表示のみ更新する（適用済みのカーソル基準ズームを保持）。
+        setZoomValue(Math.round(zoom * 100))
       } else {
         const vpt = fabricCanvas.viewportTransform!
         vpt[4] += -e.deltaX
@@ -768,7 +817,7 @@ export const useCanvasEvents = ({
     setSelectedObjectProps,
     setShowAlignmentPanel,
     setViewportOffset,
-    setZoom,
+    setZoomValue,
     saveHistory,
     handleMouseDown,
     handleMouseMove,

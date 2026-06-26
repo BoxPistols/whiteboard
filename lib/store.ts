@@ -160,6 +160,7 @@ interface CanvasStore {
   updateLayerChildren: (parentId: string, childIds: string[]) => void
   createFolder: (name?: string) => void
   setZoom: (zoom: number) => void
+  setZoomValue: (zoom: number) => void
   zoomToFit: () => void
   zoomToSelection: () => void
   resetZoom: () => void
@@ -850,6 +851,10 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }
     set({ zoom })
   },
+  // 数値表示のみ更新（fabric への再適用はしない）。
+  // ホイールズームは zoomToPoint でカーソル位置基準に既に適用済みのため、
+  // setZoom を使うと origin(0,0) 基準で再適用され二重がけになる。それを避ける用途。
+  setZoomValue: (zoom) => set({ zoom }),
   zoomToFit: () => {
     const { fabricCanvas } = get()
     if (!fabricCanvas) return
