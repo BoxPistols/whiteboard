@@ -64,40 +64,6 @@ export default function ShortcutsModal() {
     {} as Record<ShortcutCategory, ShortcutConfig[]>
   )
 
-  // キー入力ハンドラー（カスタマイズ時）
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!editingId) return
-
-      e.preventDefault()
-      e.stopPropagation()
-
-      // 修飾キーのみの場合は無視
-      if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) {
-        return
-      }
-
-      const modifiers: ShortcutModifiers = {
-        ctrl: e.ctrlKey,
-        meta: e.metaKey,
-        shift: e.shiftKey,
-        alt: e.altKey,
-      }
-
-      setPendingKey(e.key.toLowerCase())
-      setPendingModifiers(modifiers)
-    },
-    [editingId]
-  )
-
-  // キー入力リスナーの設定
-  useEffect(() => {
-    if (editingId) {
-      window.addEventListener('keydown', handleKeyDown)
-      return () => window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [editingId, handleKeyDown])
-
   // 編集を確定
   const confirmEdit = useCallback(() => {
     if (editingId && pendingKey) {
@@ -139,6 +105,52 @@ export default function ShortcutsModal() {
     },
     [shortcuts]
   )
+
+  // キー入力ハンドラー（カスタマイズ時）
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (!editingId) return
+
+      e.preventDefault()
+      e.stopPropagation()
+
+      // IME 変換中は確定キーを束縛しない
+      if (e.isComposing) return
+      // Esc は「取消」。これが無いと Esc が 'escape' というキーに束縛されてしまっていた。
+      if (e.key === 'Escape') {
+        cancelEdit()
+        return
+      }
+      // 修飾キーのみの場合は無視
+      if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) {
+        return
+      }
+      // Enter は「確定」（候補があり競合しないときのみ）
+      if (e.key === 'Enter') {
+        if (pendingKey && !checkConflict(pendingKey, pendingModifiers, editingId)) {
+          confirmEdit()
+        }
+        return
+      }
+
+      setPendingKey(e.key.toLowerCase())
+      setPendingModifiers({
+        ctrl: e.ctrlKey,
+        meta: e.metaKey,
+        shift: e.shiftKey,
+        alt: e.altKey,
+      })
+    },
+    [editingId, pendingKey, pendingModifiers, cancelEdit, confirmEdit, checkConflict]
+  )
+
+  // キー入力リスナーの設定
+  useEffect(() => {
+    if (editingId) {
+      window.addEventListener('keydown', handleKeyDown)
+      return () => window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [editingId, handleKeyDown])
 
   if (!showShortcutsModal) return null
 
