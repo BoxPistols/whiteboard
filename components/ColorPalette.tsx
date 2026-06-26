@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { defaultColorTokens, type ColorToken, categoryLabels } from '@/lib/colorTokens'
+import { StarIcon, XIcon, PlusIcon, ChevronDownIcon, ChevronRightIcon } from './icons'
 
 interface ColorPaletteProps {
   onColorSelect: (color: string) => void
@@ -129,7 +130,7 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
         {favoriteTokens.length > 0 && (
           <div className="mb-2">
             <div className="text-[10px] font-semibold text-gray-600 dark:text-gray-400 px-1 mb-1 flex items-center gap-1">
-              <span>⭐</span>
+              <StarIcon size={11} filled className="text-yellow-500" />
               <span>お気に入り</span>
               <span className="text-[9px] opacity-70">({favoriteTokens.length})</span>
             </div>
@@ -154,8 +155,9 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
 
         {/* 初回ユーザー向けヒント */}
         {favoriteTokens.length === 0 && (
-          <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-[10px] text-gray-600 dark:text-gray-400">
-            💡 色の上で★をクリックしてお気に入りに追加できます
+          <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-[10px] text-gray-600 dark:text-gray-400 flex items-center gap-1">
+            <StarIcon size={11} className="flex-shrink-0 text-yellow-500" />
+            <span>色の上の星マークでお気に入りに追加できます</span>
           </div>
         )}
 
@@ -169,8 +171,12 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
               <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-400">
                 {categoryLabels[category as ColorToken['category']]} ({tokens.length})
               </span>
-              <span className="text-gray-500 dark:text-gray-400 text-xs">
-                {expandedCategories.has(category) ? '▼' : '▶'}
+              <span className="text-gray-500 dark:text-gray-400">
+                {expandedCategories.has(category) ? (
+                  <ChevronDownIcon size={12} />
+                ) : (
+                  <ChevronRightIcon size={12} />
+                )}
               </span>
             </button>
 
@@ -192,7 +198,7 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
                     {/* お気に入りボタン */}
                     <button
                       onClick={(e) => toggleFavorite(token.value, e)}
-                      className={`absolute -top-1 -left-1 w-3 h-3 rounded-full text-[8px] transition-opacity flex items-center justify-center ${
+                      className={`absolute -top-1 -left-1 w-3.5 h-3.5 rounded-full text-white transition-opacity flex items-center justify-center ${
                         favoriteColors.includes(token.value)
                           ? 'bg-yellow-400 opacity-100'
                           : 'bg-gray-400 opacity-0 group-hover:opacity-100'
@@ -208,17 +214,17 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
                           : `${token.name}をお気に入りに追加`
                       }
                     >
-                      ★
+                      <StarIcon size={9} filled={favoriteColors.includes(token.value)} />
                     </button>
                     {/* カスタムカラー削除ボタン */}
                     {category === 'custom' && (
                       <button
                         onClick={(e) => handleRemoveCustomColor(token.value, e)}
-                        className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 text-white rounded-full text-[8px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                         title="削除"
                         aria-label={`${token.name}を削除`}
                       >
-                        ×
+                        <XIcon size={9} />
                       </button>
                     )}
                   </div>
@@ -233,10 +239,11 @@ export default function ColorPalette({ onColorSelect, currentColor, label }: Col
           {!showCustomInput ? (
             <button
               onClick={() => setShowCustomInput(true)}
-              className="w-full px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-300 transition-colors"
+              className="w-full px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-700 dark:text-gray-300 transition-colors flex items-center justify-center gap-1"
               aria-label="カスタムカラーを追加"
             >
-              + カスタムカラー追加
+              <PlusIcon size={12} />
+              <span>カスタムカラー追加</span>
             </button>
           ) : (
             <div className="space-y-1 px-1">

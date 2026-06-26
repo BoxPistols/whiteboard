@@ -14,6 +14,8 @@ import {
   ChevronRightIcon,
   ChevronDownIcon,
   FolderIcon,
+  PlusIcon,
+  XIcon,
 } from '@/components/icons'
 
 // ドロップターゲットの型
@@ -726,11 +728,11 @@ export default function LayersPanel() {
           <h2 className="text-xs font-semibold text-gray-700 dark:text-gray-300">ページ</h2>
           <button
             onClick={handleAddPage}
-            className="px-1.5 py-0.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded"
+            className="px-1.5 py-0.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded flex items-center justify-center"
             title="新しいページを追加"
             aria-label="新しいページを追加"
           >
-            +
+            <PlusIcon size={12} />
           </button>
         </div>
         <div className="space-y-0.5 max-h-32 overflow-y-auto">
@@ -751,11 +753,11 @@ export default function LayersPanel() {
                 {pages.length > 1 && (
                   <button
                     onClick={(e) => handleRemovePage(page.id, e)}
-                    className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    className="absolute top-0.5 right-0.5 w-3.5 h-3.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                     title="ページを削除"
                     aria-label={`${page.name}を削除`}
                   >
-                    ×
+                    <XIcon size={9} />
                   </button>
                 )}
               </div>
@@ -774,7 +776,7 @@ export default function LayersPanel() {
             aria-label="空のフォルダを作成"
           >
             <FolderIcon size={10} />
-            <span>+</span>
+            <PlusIcon size={10} />
           </button>
         </div>
 
