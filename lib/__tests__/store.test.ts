@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useCanvasStore, isBackgroundDark, CANVAS_SERIALIZE_PROPS } from '../store'
+import {
+  useCanvasStore,
+  isBackgroundDark,
+  CANVAS_SERIALIZE_PROPS,
+  MIN_ZOOM,
+  MAX_ZOOM,
+} from '../store'
 import type { Layer } from '@/types'
 import type { fabric } from 'fabric'
 
@@ -243,6 +249,21 @@ describe('Canvas Store', () => {
 
       setZoom(50)
       expect(useCanvasStore.getState().zoom).toBe(50)
+    })
+
+    it('should clamp zoom to [MIN_ZOOM, MAX_ZOOM] and round to an integer', () => {
+      // fabricCanvas=null パスではクランプと丸めのみ走るので canvas モック不要
+      useCanvasStore.setState({ fabricCanvas: null, zoom: 100 })
+      const { setZoom } = useCanvasStore.getState()
+
+      setZoom(100000)
+      expect(useCanvasStore.getState().zoom).toBe(MAX_ZOOM)
+
+      setZoom(0)
+      expect(useCanvasStore.getState().zoom).toBe(MIN_ZOOM)
+
+      setZoom(150.7)
+      expect(useCanvasStore.getState().zoom).toBe(151)
     })
 
     it('should initialize with 100% zoom', () => {

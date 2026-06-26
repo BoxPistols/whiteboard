@@ -401,6 +401,10 @@ export const CANVAS_SERIALIZE_PROPS = [
   'lockScalingY',
 ]
 
+// ズーム率の下限/上限（%）。Figma 同様に広いレンジを許可する。
+export const MIN_ZOOM = 2
+export const MAX_ZOOM = 800
+
 // fabricCanvasからcanvasDataを取得するヘルパー関数
 const getCanvasData = (
   fabricCanvas: fabric.Canvas | null,
@@ -897,12 +901,17 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     }),
   setZoom: (zoom) => {
     const { fabricCanvas } = get()
+    const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
     if (fabricCanvas) {
-      const zoomLevel = zoom / 100
-      fabricCanvas.setZoom(zoomLevel)
+      // Figma 同様にビューポート中心を固定してズームする。
+      // fabricCanvas.setZoom は origin(0,0) 基準で内容が左上へ寄るため使わない。
+      // store は fabric を type-only import しているため new fabric.Point は使えない。
+      // zoomToPoint は point.x/point.y のみ参照するので素のオブジェクトで十分。
+      const center = { x: fabricCanvas.getWidth() / 2, y: fabricCanvas.getHeight() / 2 }
+      fabricCanvas.zoomToPoint(center as fabric.Point, clamped / 100)
       fabricCanvas.renderAll()
     }
-    set({ zoom })
+    set({ zoom: Math.round(clamped) })
   },
   // 数値表示のみ更新（fabric への再適用はしない）。
   // ホイールズームは zoomToPoint でカーソル位置基準に既に適用済みのため、
@@ -944,7 +953,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const zoomY = (canvasHeight * 0.9) / groupHeight
     const zoom = Math.min(zoomX, zoomY) * 100
 
-    get().setZoom(Math.max(10, Math.min(200, zoom)))
+    get().setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)))
   },
   zoomToSelection: () => {
     const { fabricCanvas, selectedObjectId } = get()
@@ -965,7 +974,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const zoomX = (canvasWidth * 0.8) / bound.width
     const zoomY = (canvasHeight * 0.8) / bound.height
     let zoom = Math.min(zoomX, zoomY) * 100
-    zoom = Math.max(10, Math.min(200, zoom))
+    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
 
     // オブジェクトを中心にビューポートを移動（オブジェクト自体は動かさない）
     const zoomLevel = zoom / 100
@@ -984,7 +993,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const panY = vpCenterY - objCanvasY * zoomLevel
 
     fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
-    set({ zoom })
+    set({ zoom: Math.round(zoom) })
     fabricCanvas.renderAll()
   },
   resetZoom: () => {
@@ -1051,7 +1060,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const panY = vpCenterY - centerY * zoomLevel
 
     fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
-    set({ zoom })
+    set({ zoom: Math.round(zoom) })
     fabricCanvas.renderAll()
   },
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),

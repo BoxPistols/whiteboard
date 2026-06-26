@@ -5,6 +5,7 @@ import { useCanvasStore, DARK_CANVAS_BG, LIGHT_CANVAS_BG } from '@/lib/store'
 import type { Tool } from '@/types'
 import ExportImportControls from './ExportImportControls'
 import MobileHelpModal from './MobileHelpModal'
+import ZoomControl from './ZoomControl'
 import {
   SelectIcon,
   RectangleIcon,
@@ -61,8 +62,6 @@ export default function Toolbar() {
     canvasBackground,
     setCanvasBackground,
     loadSavedCanvasBackground,
-    zoom,
-    setZoom,
     resetView,
     zoomToFit,
     setShowShortcutsModal,
@@ -125,14 +124,6 @@ export default function Toolbar() {
   const handleToolSelect = (tool: Tool) => {
     setSelectedTool(tool)
     setMobileMenuOpen(false)
-  }
-
-  const handleZoomIn = () => {
-    setZoom(Math.min(200, zoom + 25))
-  }
-
-  const handleZoomOut = () => {
-    setZoom(Math.max(10, zoom - 25))
   }
 
   // 現在選択されているツールのアイコンを取得
@@ -418,51 +409,8 @@ export default function Toolbar() {
 
         {/* 右側: ズームコントロール + その他ボタン */}
         <div className="flex items-center gap-1 md:gap-2">
-          {/* ズームコントロール（モバイル表示） */}
-          <div className="flex items-center gap-0.5 mr-1">
-            <button
-              onClick={handleZoomOut}
-              className="p-1.5 rounded hover:bg-gray-800 md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-gray-300 md:text-gray-700 md:dark:text-gray-300 transition-colors touch-manipulation"
-              title="ズームアウト"
-              aria-label="ズームアウト"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                <line x1="8" y1="11" x2="14" y2="11" />
-              </svg>
-            </button>
-            <span className="text-xs text-gray-400 md:text-gray-600 md:dark:text-gray-400 min-w-[36px] text-center">
-              {zoom}%
-            </span>
-            <button
-              onClick={handleZoomIn}
-              className="p-1.5 rounded hover:bg-gray-800 md:hover:bg-gray-100 md:dark:hover:bg-gray-800 text-gray-300 md:text-gray-700 md:dark:text-gray-300 transition-colors touch-manipulation"
-              title="ズームイン"
-              aria-label="ズームイン"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                <line x1="11" y1="8" x2="11" y2="14" />
-                <line x1="8" y1="11" x2="14" y2="11" />
-              </svg>
-            </button>
-          </div>
+          {/* ズームコントロール（±ステッパー + クリックで % ポップオーバー） */}
+          <ZoomControl />
 
           {/* デスクトップのみ: エクスポート・インポート */}
           <div className="hidden md:block">
