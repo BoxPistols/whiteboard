@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useModalA11y } from '@/lib/useModalA11y'
 
 interface MobileHelpModalProps {
   isOpen: boolean
@@ -9,15 +10,34 @@ interface MobileHelpModalProps {
 
 export default function MobileHelpModal({ isOpen, onClose }: MobileHelpModalProps) {
   const [activeTab, setActiveTab] = useState<'gestures' | 'tools' | 'tips'>('gestures')
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalA11y(isOpen, onClose, panelRef)
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-help-modal-title"
+        tabIndex={-1}
+        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">モバイル操作ガイド</h2>
+          <h2
+            id="mobile-help-modal-title"
+            className="text-xl font-bold text-gray-900 dark:text-gray-100"
+          >
+            モバイル操作ガイド
+          </h2>
           <button
             onClick={onClose}
             className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

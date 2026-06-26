@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import type { Tool, ShortcutConfig } from '@/types'
 import { matchesShortcut } from './shortcuts'
+import { useCanvasStore } from './store'
 
 interface UseKeyboardShortcutsProps {
   shortcuts: ShortcutConfig[]
@@ -53,6 +54,9 @@ export const useKeyboardShortcuts = ({
 }: UseKeyboardShortcutsProps) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // モーダル表示中はキャンバスのショートカットを無効化（背後で誤動作させない）
+      if (useCanvasStore.getState().showShortcutsModal) return
+
       // テキスト入力中は無効化
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
