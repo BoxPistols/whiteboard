@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fabric } from 'fabric'
 import {
   useCanvasStore,
@@ -14,6 +14,8 @@ import ContextMenu from '@/components/ContextMenu'
 import AlignmentPanel from '@/components/AlignmentPanel'
 import { useCanvasActions } from '@/hooks/useCanvasActions'
 import { useCanvasEvents } from '@/hooks/useCanvasEvents'
+import SnapGuideOverlay, { type SnapGuideOverlayHandle } from '@/components/SnapGuideOverlay'
+import type { ScreenGuide } from '@/lib/snapping'
 import { downscaleImageDataUrl } from '@/lib/canvasUtils'
 
 export default function Canvas() {
@@ -96,6 +98,12 @@ export default function Canvas() {
     distributeVertical,
   } = canvasActions
 
+  // スマートスナップのガイド線オーバーレイ（ref 経由で更新し Canvas を再描画させない）
+  const snapGuideRef = useRef<SnapGuideOverlayHandle>(null)
+  const handleSnapGuides = useCallback((guides: ScreenGuide[]) => {
+    snapGuideRef.current?.setGuides(guides)
+  }, [])
+
   // イベントフック
   useCanvasEvents({
     fabricCanvas: fabricCanvasRef.current,
@@ -103,6 +111,7 @@ export default function Canvas() {
     setSelectedObjectProps,
     setShowAlignmentPanel,
     setViewportOffset,
+    onSnapGuides: handleSnapGuides,
   })
 
   // キーボードショートカット
@@ -526,6 +535,8 @@ export default function Canvas() {
   return (
     <div className="flex-1 min-w-0 relative" onContextMenu={handleCanvasContextMenu}>
       <canvas ref={canvasRef} />
+      {/* スマートスナップのガイド線（ドラッグ中のみ表示） */}
+      <SnapGuideOverlay ref={snapGuideRef} />
       {gridEnabled && (
         <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
           <defs>
