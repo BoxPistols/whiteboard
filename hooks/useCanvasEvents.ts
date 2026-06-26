@@ -676,6 +676,24 @@ export const useCanvasEvents = ({
       }
     }
 
+    // グリッドスナップ: gridSnapEnabled のとき、移動中オブジェクトの左上をグリッドに吸着させる。
+    // gridSnapEnabled/gridSize は effect の依存に含まれないため、stale closure を避けて
+    // 毎回 getState() で最新値を読む。複製ドラッグより前に登録してスナップ後の座標で複製させる。
+    const handleGridSnapMoving = (opt: fabric.IEvent) => {
+      const target = opt.target
+      if (!target) return
+      // 複数選択（activeSelection）は内部座標系が異なるため対象外
+      if (target.type === 'activeSelection') return
+      const { gridSnapEnabled, gridSize } = useCanvasStore.getState()
+      if (!gridSnapEnabled || !gridSize || gridSize <= 0) return
+      const snappedLeft = Math.round((target.left || 0) / gridSize) * gridSize
+      const snappedTop = Math.round((target.top || 0) / gridSize) * gridSize
+      if (snappedLeft !== target.left || snappedTop !== target.top) {
+        target.set({ left: snappedLeft, top: snappedTop })
+        target.setCoords()
+      }
+    }
+
     const handleObjectMovingDup = (opt: fabric.IEvent) => {
       if (!dragOrigin || altCloneCreated) return
       const evt = opt.e as MouseEvent | undefined
@@ -898,6 +916,8 @@ export const useCanvasEvents = ({
     fabricCanvas.on('mouse:move', handleMouseMoveInt)
     fabricCanvas.on('mouse:up', handleMouseUpPan)
     fabricCanvas.on('mouse:up', handleMouseUpDup)
+    // グリッドスナップは複製ドラッグより前に登録（スナップ後の座標で複製を成立させる）
+    fabricCanvas.on('object:moving', handleGridSnapMoving)
     fabricCanvas.on('object:moving', handleObjectMovingDup)
     fabricCanvas.on('mouse:wheel', handleMouseWheel)
     fabricCanvas.on('selection:created', handleSelection)
@@ -919,6 +939,7 @@ export const useCanvasEvents = ({
       fabricCanvas.off('mouse:move', handleMouseMoveInt)
       fabricCanvas.off('mouse:up', handleMouseUpPan)
       fabricCanvas.off('mouse:up', handleMouseUpDup)
+      fabricCanvas.off('object:moving', handleGridSnapMoving)
       fabricCanvas.off('object:moving', handleObjectMovingDup)
       fabricCanvas.off('mouse:wheel', handleMouseWheel)
       fabricCanvas.off('selection:created', handleSelection)
