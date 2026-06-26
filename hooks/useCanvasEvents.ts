@@ -14,6 +14,8 @@ import {
   createArrowObject,
   toolToNodeType,
 } from '@/lib/canvasUtils'
+import { computeSnap, toScreenGuides, SNAP_THRESHOLD_PX } from '@/lib/snapping'
+import type { SnapBox, ScreenGuide } from '@/lib/snapping'
 
 // 図形ツールでドラッグせずクリックしただけのときに 0 サイズの不可視オブジェクト＋
 // ゴミレイヤーが生成されるのを防ぐための最小ドラッグ距離（キャンバス座標 px）
@@ -25,6 +27,8 @@ interface UseCanvasEventsProps {
   setSelectedObjectProps: (props: any) => void
   setShowAlignmentPanel: (show: boolean) => void
   setViewportOffset: (offset: { x: number; y: number }) => void
+  // スマートスナップのガイド線（画面座標）を描画オーバーレイへ渡すコールバック
+  onSnapGuides?: (guides: ScreenGuide[]) => void
 }
 
 export const useCanvasEvents = ({
@@ -33,6 +37,7 @@ export const useCanvasEvents = ({
   setSelectedObjectProps,
   setShowAlignmentPanel,
   setViewportOffset,
+  onSnapGuides,
 }: UseCanvasEventsProps) => {
   const {
     selectedTool,
@@ -694,6 +699,53 @@ export const useCanvasEvents = ({
       }
     }
 
+    // スマートスナップ（オブジェクト間の整列吸着＋ガイド線）。
+    // グリッドスナップ有効時はそちらを優先し、本処理はスキップする。
+    let lastGuideKey = ''
+    const emitGuides = (guides: ScreenGuide[]) => {
+      const key = guides.map((g) => `${g.x1},${g.y1},${g.x2},${g.y2}`).join('|')
+      if (key === lastGuideKey) return // 同一なら setState を発火させない
+      lastGuideKey = key
+      onSnapGuides?.(guides)
+    }
+    const boxOf = (obj: fabric.Object): SnapBox => {
+      // 絶対（シーン）座標のバウンディングボックスを毎回再計算して取得
+      const b = obj.getBoundingRect(true, true)
+      return { left: b.left, top: b.top, width: b.width, height: b.height }
+    }
+    const handleObjectSnapMoving = (opt: fabric.IEvent) => {
+      const target = opt.target
+      if (!target || target.type === 'activeSelection') {
+        emitGuides([])
+        return
+      }
+      const { gridSnapEnabled } = useCanvasStore.getState()
+      if (gridSnapEnabled) {
+        emitGuides([]) // グリッドスナップ優先（ガイド線は出さない）
+        return
+      }
+      const stickyId = target.data?.stickyId
+      const others = fabricCanvas.getObjects().filter((o) => {
+        if (o === target || o.visible === false || !o.data?.id) return false
+        // 自分の付箋相棒（bg/text）は一体で動くので除外
+        if (stickyId && o.data?.stickyId === stickyId) return false
+        return true
+      })
+      if (others.length === 0) {
+        emitGuides([])
+        return
+      }
+      const zoom = fabricCanvas.getZoom() || 1
+      const threshold = SNAP_THRESHOLD_PX / zoom
+      const { dx, dy, guides } = computeSnap(boxOf(target), others.map(boxOf), threshold)
+      if (dx) target.set({ left: (target.left || 0) + dx })
+      if (dy) target.set({ top: (target.top || 0) + dy })
+      if (dx || dy) target.setCoords()
+      const vpt = fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+      emitGuides(toScreenGuides(guides, zoom, vpt[4], vpt[5]))
+    }
+    const clearSnapGuides = () => emitGuides([])
+
     const handleObjectMovingDup = (opt: fabric.IEvent) => {
       if (!dragOrigin || altCloneCreated) return
       const evt = opt.e as MouseEvent | undefined
@@ -916,9 +968,12 @@ export const useCanvasEvents = ({
     fabricCanvas.on('mouse:move', handleMouseMoveInt)
     fabricCanvas.on('mouse:up', handleMouseUpPan)
     fabricCanvas.on('mouse:up', handleMouseUpDup)
-    // グリッドスナップは複製ドラッグより前に登録（スナップ後の座標で複製を成立させる）
+    // スナップは複製ドラッグより前に登録（スナップ後の座標で複製を成立させる）。
+    // グリッド→オブジェクトの順（オブジェクトスナップ側でグリッド有効時はスキップ）。
     fabricCanvas.on('object:moving', handleGridSnapMoving)
+    fabricCanvas.on('object:moving', handleObjectSnapMoving)
     fabricCanvas.on('object:moving', handleObjectMovingDup)
+    fabricCanvas.on('mouse:up', clearSnapGuides)
     fabricCanvas.on('mouse:wheel', handleMouseWheel)
     fabricCanvas.on('selection:created', handleSelection)
     fabricCanvas.on('selection:updated', handleSelection)
@@ -932,6 +987,7 @@ export const useCanvasEvents = ({
     fabricCanvas.on('text:changed', handleStickyTextChanged)
 
     return () => {
+      clearSnapGuides()
       fabricCanvas.off('mouse:down', handleMouseDown)
       fabricCanvas.off('mouse:move', handleMouseMove)
       fabricCanvas.off('mouse:up', handleMouseUp)
@@ -940,7 +996,9 @@ export const useCanvasEvents = ({
       fabricCanvas.off('mouse:up', handleMouseUpPan)
       fabricCanvas.off('mouse:up', handleMouseUpDup)
       fabricCanvas.off('object:moving', handleGridSnapMoving)
+      fabricCanvas.off('object:moving', handleObjectSnapMoving)
       fabricCanvas.off('object:moving', handleObjectMovingDup)
+      fabricCanvas.off('mouse:up', clearSnapGuides)
       fabricCanvas.off('mouse:wheel', handleMouseWheel)
       fabricCanvas.off('selection:created', handleSelection)
       fabricCanvas.off('selection:updated', handleSelection)
@@ -968,5 +1026,6 @@ export const useCanvasEvents = ({
     handleMouseMove,
     handleMouseUp,
     shapeCounterRef,
+    onSnapGuides,
   ])
 }
