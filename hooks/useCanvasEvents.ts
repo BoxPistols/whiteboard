@@ -1,6 +1,13 @@
 import { useCallback, useRef, useEffect } from 'react'
 import { fabric } from 'fabric'
-import { useCanvasStore, isBackgroundDark, DARK_CANVAS_BG, LIGHT_CANVAS_BG } from '@/lib/store'
+import {
+  useCanvasStore,
+  isBackgroundDark,
+  DARK_CANVAS_BG,
+  LIGHT_CANVAS_BG,
+  MIN_ZOOM,
+  MAX_ZOOM,
+} from '@/lib/store'
 import {
   getCanvasPointer,
   createArrowPathData,
@@ -745,7 +752,10 @@ export const useCanvasEvents = ({
       const e = opt.e as WheelEvent
       e.preventDefault()
       if (e.ctrlKey || e.metaKey) {
-        const zoom = Math.max(0.1, Math.min(2, fabricCanvas.getZoom() + -e.deltaY * 0.0015))
+        const zoom = Math.max(
+          MIN_ZOOM / 100,
+          Math.min(MAX_ZOOM / 100, fabricCanvas.getZoom() + -e.deltaY * 0.0015)
+        )
         // zoomToPoint はキャンバス要素ローカル座標を期待する。clientX/Y はページ座標で
         // 左パネル/ツールバー分ずれてカーソル下に固定されないため要素相対へ変換する。
         const rect = fabricCanvas.getElement().getBoundingClientRect()
