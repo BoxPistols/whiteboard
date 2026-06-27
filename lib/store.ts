@@ -308,6 +308,24 @@ function flattenLayerTree(layers: Layer[]): Layer[] {
   return result
 }
 
+// フォルダ既定名のプレフィックス（ハードコード禁止のため定数化）
+const FOLDER_NAME_PREFIX = 'フォルダ'
+
+// 次のフォルダ既定名を採番する。
+// 「該当プレフィックスで始まる件数 + 1」だと、既存フォルダをリネームした瞬間に
+// 件数が減って番号が衝突する（同名フォルダができる）。末尾数字の最大値から
+// 採番することでリネーム後も衝突しない。
+const nextFolderName = (layers: Layer[]): string => {
+  const re = new RegExp(`^${FOLDER_NAME_PREFIX}\\s*(\\d+)$`)
+  let max = 0
+  for (const l of layers) {
+    if (l.type !== 'FRAME') continue
+    const m = l.name.match(re)
+    if (m) max = Math.max(max, parseInt(m[1], 10))
+  }
+  return `${FOLDER_NAME_PREFIX} ${max + 1}`
+}
+
 // 子孫レイヤーIDを再帰的に取得
 function getDescendantIds(layerId: string, layers: Layer[]): string[] {
   const children = layers.filter((l) => l.parentId === layerId)
@@ -804,11 +822,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   createFolder: (name) =>
     set((state) => {
       const folderId = crypto.randomUUID()
-      const folderCount =
-        state.layers.filter((l) => l.type === 'FRAME' && l.name.startsWith('フォルダ')).length + 1
       const folderLayer: Layer = {
         id: folderId,
-        name: name || `フォルダ ${folderCount}`,
+        name: name || nextFolderName(state.layers),
         visible: true,
         locked: false,
         objectId: folderId,
@@ -846,11 +862,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       const folderParentId = firstLayer?.parentId
 
       const folderId = crypto.randomUUID()
-      const folderCount =
-        state.layers.filter((l) => l.type === 'FRAME' && l.name.startsWith('フォルダ')).length + 1
       const folderLayer: Layer = {
         id: folderId,
-        name: name || `フォルダ ${folderCount}`,
+        name: name || nextFolderName(state.layers),
         visible: true,
         locked: false,
         objectId: folderId,
