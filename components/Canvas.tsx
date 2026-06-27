@@ -152,6 +152,7 @@ export default function Canvas() {
     duplicateSelectedObject,
     copySelectedObject,
     pasteObject,
+    pasteInPlace: () => pasteObject({ inPlace: true }),
     groupObjects,
     ungroupObjects,
     resetZoom,
@@ -613,7 +614,7 @@ export default function Canvas() {
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
           onCopy={copySelectedObject}
-          onPaste={pasteObject}
+          onPaste={() => pasteObject()}
           onDuplicate={duplicateSelectedObject}
           onDelete={deleteSelectedObject}
           onLock={lockObject}
