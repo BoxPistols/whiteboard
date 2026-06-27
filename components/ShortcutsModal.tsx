@@ -470,12 +470,17 @@ export default function ShortcutsModal() {
                       </p>
                     </div>
                     <button
+                      type="button"
+                      role="switch"
+                      aria-checked={gridEnabled}
+                      aria-label="グリッドを表示"
                       onClick={toggleGrid}
                       className={`relative w-12 h-6 rounded-full transition-colors ${
                         gridEnabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
                       }`}
                     >
                       <span
+                        aria-hidden="true"
                         className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
                           gridEnabled ? 'translate-x-6' : 'translate-x-0'
                         }`}
@@ -494,12 +499,17 @@ export default function ShortcutsModal() {
                       </p>
                     </div>
                     <button
+                      type="button"
+                      role="switch"
+                      aria-checked={gridSnapEnabled}
+                      aria-label="グリッドにスナップ"
                       onClick={toggleGridSnap}
                       className={`relative w-12 h-6 rounded-full transition-colors ${
                         gridSnapEnabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
                       }`}
                     >
                       <span
+                        aria-hidden="true"
                         className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
                           gridSnapEnabled ? 'translate-x-6' : 'translate-x-0'
                         }`}
@@ -526,13 +536,17 @@ export default function ShortcutsModal() {
                       </p>
                     </div>
                     <button
+                      type="button"
+                      role="switch"
+                      aria-checked={autoInvertText}
+                      aria-label="テキスト色を自動反転"
                       onClick={() => setAutoInvertText(!autoInvertText)}
-                      aria-pressed={autoInvertText}
                       className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${
                         autoInvertText ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
                       }`}
                     >
                       <span
+                        aria-hidden="true"
                         className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${
                           autoInvertText ? 'translate-x-6' : 'translate-x-0'
                         }`}
