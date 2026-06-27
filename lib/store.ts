@@ -1096,6 +1096,16 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const activeObject = fabricCanvas.getActiveObject()
     if (!activeObject) return
 
+    // fill/stroke 変更時にテーマ追従用の元色(baseFill/baseStroke)と baseTheme を data へ記録する。
+    // 3箇所で重複していたロジックを集約（theme はこのクロージャから参照）。
+    const applyBaseColorData = (
+      obj: fabric.Object,
+      patch: { baseFill?: string; baseStroke?: string }
+    ) => {
+      const currentData = obj.data || { id: crypto.randomUUID() }
+      obj.set({ data: { ...currentData, ...patch, baseTheme: theme } })
+    }
+
     // 単一オブジェクトのプロパティを更新するヘルパー関数
     const updateSingleObject = (obj: fabric.Object) => {
       // 矢印（Path）の場合、fillとstrokeを連動させる
@@ -1105,15 +1115,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
         obj.set('stroke', colorValue)
         obj.dirty = true
 
-        const currentData = obj.data || { id: crypto.randomUUID() }
-        obj.set({
-          data: {
-            ...currentData,
-            baseFill: colorValue,
-            baseStroke: colorValue,
-            baseTheme: theme,
-          },
-        })
+        applyBaseColorData(obj, { baseFill: colorValue, baseStroke: colorValue })
       } else if (
         obj.type === 'group' &&
         (key === 'fill' || key === 'stroke' || key === 'strokeWidth')
@@ -1131,14 +1133,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
         // 色が変更された場合、baseColorとbaseThemeを更新
         if (key === 'fill' || key === 'stroke') {
-          const currentData = obj.data || { id: crypto.randomUUID() }
-          obj.set({
-            data: {
-              ...currentData,
-              ...(key === 'fill' && { baseFill: value as string }),
-              ...(key === 'stroke' && { baseStroke: value as string }),
-              baseTheme: theme,
-            },
+          applyBaseColorData(obj, {
+            ...(key === 'fill' && { baseFill: value as string }),
+            ...(key === 'stroke' && { baseStroke: value as string }),
           })
         }
       } else if (key === 'width' || key === 'height') {
@@ -1159,14 +1156,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
 
         // 色が変更された場合、baseColorとbaseThemeを更新
         if (key === 'fill' || key === 'stroke') {
-          const currentData = obj.data || { id: crypto.randomUUID() }
-          obj.set({
-            data: {
-              ...currentData,
-              ...(key === 'fill' && { baseFill: value as string }),
-              ...(key === 'stroke' && { baseStroke: value as string }),
-              baseTheme: theme,
-            },
+          applyBaseColorData(obj, {
+            ...(key === 'fill' && { baseFill: value as string }),
+            ...(key === 'stroke' && { baseStroke: value as string }),
           })
         }
       }
