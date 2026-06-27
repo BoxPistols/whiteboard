@@ -37,7 +37,7 @@ interface LayerTreeItemProps {
   editingName: string
   draggedLayerId: string | null
   dropTarget: DropTarget | null
-  onSelect: (layer: Layer, e: React.MouseEvent) => void
+  onSelect: (layer: Layer, e: React.MouseEvent | React.KeyboardEvent) => void
   onContextMenu: (layer: Layer, e: React.MouseEvent) => void
   onToggleVisibility: (id: string) => void
   onToggleLock: (id: string) => void
@@ -45,7 +45,7 @@ interface LayerTreeItemProps {
   onRemove: (id: string) => void
   onMoveUp: (layer: Layer, e: React.MouseEvent) => void
   onMoveDown: (layer: Layer, e: React.MouseEvent) => void
-  onStartEditing: (layer: Layer, e: React.MouseEvent) => void
+  onStartEditing: (layer: Layer, e: React.MouseEvent | React.KeyboardEvent) => void
   onEditNameChange: (value: string) => void
   onFinishEditing: () => void
   onKeyDown: (e: React.KeyboardEvent) => void
@@ -103,6 +103,10 @@ function LayerTreeItem({
   return (
     <div>
       <div
+        role="treeitem"
+        aria-selected={isSelected}
+        aria-label={layer.name}
+        tabIndex={0}
         draggable
         onDragStart={(e) => onDragStart(e, layer.id)}
         onDragOver={(e) => onDragOver(e, layer.id, isGroup || hasChildren)}
@@ -110,6 +114,16 @@ function LayerTreeItem({
         onDrop={onDrop}
         onClick={(e) => onSelect(layer, e)}
         onContextMenu={(e) => onContextMenu(layer, e)}
+        onKeyDown={(e) => {
+          // Enter/Space で選択（修飾キーで複数選択も継承）、F2 で名前編集（Figma 同様）
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSelect(layer, e)
+          } else if (e.key === 'F2') {
+            e.preventDefault()
+            onStartEditing(layer, e)
+          }
+        }}
         style={{ paddingLeft: `${depth * 12 + 6}px` }}
         className={`flex items-center justify-between py-1 pr-1.5 rounded cursor-move transition-all ${
           isSelected
@@ -551,7 +565,7 @@ export default function LayersPanel() {
   }
 
   // クリック選択（通常=単一 / Cmd・Ctrl=トグル / Shift=範囲）
-  const handleSelectLayer = (layer: Layer, e: React.MouseEvent) => {
+  const handleSelectLayer = (layer: Layer, e: React.MouseEvent | React.KeyboardEvent) => {
     // Cmd/Ctrl: トグル追加（パネル内の複数選択）
     if (e.metaKey || e.ctrlKey) {
       const next = selectedLayerIds.includes(layer.id)
@@ -661,7 +675,7 @@ export default function LayersPanel() {
     moveLayer(layer.id, parentId, currentIdx + 1)
   }
 
-  const startEditing = (layer: (typeof layers)[0], e: React.MouseEvent) => {
+  const startEditing = (layer: (typeof layers)[0], e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation()
     setEditingLayerId(layer.id)
     setEditingName(layer.name)
@@ -853,7 +867,7 @@ export default function LayersPanel() {
         )}
 
         {layers.length > 0 ? (
-          <div className="space-y-0.5">
+          <div className="space-y-0.5" role="tree" aria-label="レイヤー">
             {rootLayers.map((layer) => (
               <LayerTreeItem
                 key={layer.id}
