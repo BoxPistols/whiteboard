@@ -57,7 +57,7 @@ const isDefaultTextColor = (fill: string): boolean => {
   )
 }
 
-interface ObjectProperties {
+export interface ObjectProperties {
   fill?: string
   stroke?: string
   strokeWidth?: number

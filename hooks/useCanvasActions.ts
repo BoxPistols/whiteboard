@@ -20,7 +20,7 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
     saveHistory,
   } = useCanvasStore()
 
-  const shapeCounterRef = useRef({
+  const shapeCounterRef = useRef<Record<string, number>>({
     rectangle: 0,
     circle: 0,
     line: 0,
