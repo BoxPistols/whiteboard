@@ -34,6 +34,14 @@ describe('matchesShortcut (Figma shortcut gaps)', () => {
     expect(matchesShortcut(ev({ code: 'KeyA', key: 'a' }), sa)).toBe(false)
   })
 
+  it('zoom in/out match Cmd+= and Cmd+- but not bare keys', () => {
+    const zi = byAction('zoomIn')
+    const zo = byAction('zoomOut')
+    expect(matchesShortcut(ev({ key: '=', metaKey: true }), zi)).toBe(true)
+    expect(matchesShortcut(ev({ key: '-', metaKey: true }), zo)).toBe(true)
+    expect(matchesShortcut(ev({ key: '=' }), zi)).toBe(false)
+  })
+
   it('deselect matches plain Escape only (no modifier)', () => {
     const d = byAction('deselect')
     expect(matchesShortcut(ev({ key: 'Escape' }), d)).toBe(true)
