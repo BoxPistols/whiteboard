@@ -12,6 +12,12 @@ import {
   DARK_CANVAS_BG,
   LIGHT_CANVAS_BG,
 } from './slices/themeSlice'
+import {
+  createStyleDefaultsSlice,
+  type StyleDefaultsSlice,
+  type StyleDefaults,
+} from './slices/styleDefaultsSlice'
+import { createNudgeSlice, type NudgeSlice } from './slices/nudgeSlice'
 
 // Canvas 背景のテーマ別デフォルト色は themeSlice に定義。後方互換のため store からも re-export
 export { DARK_CANVAS_BG, LIGHT_CANVAS_BG }
@@ -80,14 +86,8 @@ export interface ObjectProperties {
 
 // 新規作成シェイプに適用されるスタイル既定値（localStorage に永続化）
 // shape 用 fill と text 用 fill は用途が異なる（半透明 vs 単色）ため別持ちにする
-export interface StyleDefaults {
-  fill: string
-  stroke: string
-  strokeWidth: number
-  textFill: string
-  // 付箋の背景色（前回選択したカラーを引き継ぐ）
-  stickyColor: string
-}
+// StyleDefaults 型は styleDefaultsSlice に定義。後方互換のため store からも re-export
+export type { StyleDefaults }
 
 // Undo/Redo用の履歴スナップショット
 interface HistorySnapshot {
@@ -103,7 +103,13 @@ interface Page {
   notes?: string
 }
 
-export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice, ThemeSlice {
+export interface CanvasStore
+  extends GridSlice,
+    ShortcutsSlice,
+    PanelSlice,
+    ThemeSlice,
+    StyleDefaultsSlice,
+    NudgeSlice {
   selectedTool: Tool
   selectedObjectId: string | null
   // レイヤーパネルの複数選択（Cmd/Shift+クリック）。単一選択時も常に同期する
@@ -120,8 +126,7 @@ export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice, Them
   // テーマ/キャンバス背景（theme/canvasBackground）は ThemeSlice（extends）で提供
   // パネル表示/幅（showLeftPanel/showRightPanel/leftPanelWidth/rightPanelWidth）は PanelSlice（extends）で提供
   // ショートカット設定（shortcuts/showShortcutsModal）は ShortcutsSlice（extends）で提供
-  // ナッジ設定
-  nudgeAmount: number
+  // ナッジ設定（nudgeAmount）は NudgeSlice（extends）で提供
   // Undo/Redo履歴
   history: HistorySnapshot[]
   historyIndex: number
@@ -138,8 +143,7 @@ export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice, Them
   saveStatus: SaveStatus
   saveError: string | null
   // グリッド設定は GridSlice（extends）で提供
-  // 最後に使ったスタイル（新規作成時に引き継ぐ）
-  styleDefaults: StyleDefaults
+  // 最後に使ったスタイル（styleDefaults）は StyleDefaultsSlice（extends）で提供
   // 複製モード（Alt+ドラッグ用インジケーター）
   duplicateMode: boolean
   // テキスト色を背景色に応じて自動反転する設定（既定色のみ対象、カスタム色は触らない）
@@ -185,9 +189,8 @@ export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice, Them
   // テーマ関連アクション（toggleTheme/loadSavedTheme/setCanvasBackground/loadSavedCanvasBackground）は ThemeSlice（extends）で提供
   resetAll: () => void
   // ショートカット関連アクション（updateShortcut/resetShortcuts/loadSavedShortcuts/setShowShortcutsModal）は ShortcutsSlice（extends）で提供
-  // ナッジ関連
-  setNudgeAmount: (amount: number) => void
-  loadSavedNudgeAmount: () => void
+  // ナッジ関連アクション（setNudgeAmount/loadSavedNudgeAmount）は NudgeSlice（extends）で提供
+  // moveSelectedObject は fabric 依存のため store に残置（nudgeAmount は get() 経由で参照）
   moveSelectedObject: (direction: 'up' | 'down' | 'left' | 'right', useNudge: boolean) => void
   // Undo/Redo関連
   saveHistory: () => void
@@ -197,9 +200,7 @@ export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice, Them
   canUndo: () => boolean
   canRedo: () => boolean
   // グリッド関連アクションは GridSlice（extends）で提供
-  // スタイル既定値関連
-  setStyleDefaults: (defaults: Partial<StyleDefaults>) => void
-  loadSavedStyleDefaults: () => void
+  // スタイル既定値アクション（setStyleDefaults/loadSavedStyleDefaults）は StyleDefaultsSlice（extends）で提供
   // 複製モード
   setDuplicateMode: (on: boolean) => void
   // 選択オブジェクトを複製（Toolbar/ショートカット両対応）
@@ -462,6 +463,10 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   ...createPanelSlice(set, get, store),
   // テーマ/キャンバス背景スライス（theme/canvasBackground + 関連アクション）を合成
   ...createThemeSlice(set, get, store),
+  // スタイル既定値スライス（styleDefaults + 関連アクション）を合成
+  ...createStyleDefaultsSlice(set, get, store),
+  // ナッジ設定スライス（nudgeAmount + 関連アクション）を合成
+  ...createNudgeSlice(set, get, store),
   selectedTool: 'select',
   selectedObjectId: null,
   selectedLayerIds: [],
@@ -476,8 +481,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   // テーマの初期値・アクションは createThemeSlice で提供
   // パネルの初期値・アクションは createPanelSlice で提供
   // ショートカットの初期値・アクションは createShortcutsSlice で提供
-  // ナッジ設定（デフォルト10px）
-  nudgeAmount: 10,
+  // ナッジの初期値・アクションは createNudgeSlice で提供
   // Undo/Redo履歴
   history: [],
   historyIndex: -1,
@@ -490,14 +494,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   saveStatus: 'saved' as SaveStatus,
   saveError: null,
   // グリッド設定の初期値・アクションは createGridSlice で提供
-  // スタイル既定値（theme 非依存のため中立色で初期化、使用時にテーマ別色へ補正）
-  styleDefaults: {
-    fill: 'rgba(107, 114, 128, 0.5)',
-    stroke: '#6B7280',
-    strokeWidth: 0,
-    textFill: '',
-    stickyColor: '#FEF3B5',
-  },
+  // スタイル既定値の初期値・アクションは createStyleDefaultsSlice で提供
   duplicateMode: false,
   // デフォルト ON（既定色テキストのみ背景に応じて自動反転）
   autoInvertText: true,
@@ -1316,32 +1313,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
     })
   },
   // ショートカット関連アクション（setShowShortcutsModal/updateShortcut/resetShortcuts/loadSavedShortcuts）は createShortcutsSlice で提供
-  // ナッジ関連
-  setNudgeAmount: (amount) => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('twb-nudge-amount', String(amount))
-      } catch (e) {
-        console.error('Failed to save nudge amount:', e)
-      }
-    }
-    set({ nudgeAmount: amount })
-  },
-  loadSavedNudgeAmount: () => {
-    if (typeof window === 'undefined') return
-
-    try {
-      const saved = localStorage.getItem('twb-nudge-amount')
-      if (saved) {
-        const amount = parseInt(saved, 10)
-        if (!isNaN(amount) && amount > 0) {
-          set({ nudgeAmount: amount })
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load nudge amount:', e)
-    }
-  },
+  // ナッジ関連アクション（setNudgeAmount/loadSavedNudgeAmount）は createNudgeSlice で提供
   moveSelectedObject: (direction, useNudge) => {
     const { fabricCanvas, nudgeAmount, selectedObjectProps } = get()
     if (!fabricCanvas) return
@@ -1481,44 +1453,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
     return historyIndex < history.length - 1
   },
   // グリッド関連アクション（toggleGrid/setGridSize/Color/Opacity/Snap）は createGridSlice で提供
-  setStyleDefaults: (defaults) => {
-    const merged = { ...get().styleDefaults, ...defaults }
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('twb-style-defaults', JSON.stringify(merged))
-      } catch (e) {
-        console.error('Failed to save style defaults:', e)
-      }
-    }
-    set({ styleDefaults: merged })
-  },
-  loadSavedStyleDefaults: () => {
-    if (typeof window === 'undefined') return
-    try {
-      const saved = localStorage.getItem('twb-style-defaults')
-      if (!saved) return
-      const raw = JSON.parse(saved) as unknown
-      if (!raw || typeof raw !== 'object') return
-      // 汚染された localStorage を弾くため、各フィールドを明示的に型検証してマージ
-      const sanitized: Partial<StyleDefaults> = {}
-      const obj = raw as Record<string, unknown>
-      if (typeof obj.fill === 'string') sanitized.fill = obj.fill
-      if (typeof obj.stroke === 'string') sanitized.stroke = obj.stroke
-      if (typeof obj.strokeWidth === 'number' && Number.isFinite(obj.strokeWidth)) {
-        sanitized.strokeWidth = obj.strokeWidth
-      }
-      if (typeof obj.textFill === 'string') sanitized.textFill = obj.textFill
-      if (typeof obj.stickyColor === 'string') sanitized.stickyColor = obj.stickyColor
-      set({
-        styleDefaults: {
-          ...get().styleDefaults,
-          ...sanitized,
-        },
-      })
-    } catch (e) {
-      console.error('Failed to load style defaults:', e)
-    }
-  },
+  // スタイル既定値アクション（setStyleDefaults/loadSavedStyleDefaults）は createStyleDefaultsSlice で提供
   setDuplicateMode: (on) => set({ duplicateMode: on }),
   setAutoInvertText: (on) => {
     if (typeof window !== 'undefined') {
