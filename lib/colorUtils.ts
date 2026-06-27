@@ -247,7 +247,7 @@ export function detectColorTheme(hex: string): 'light' | 'dark' {
 /**
  * 色文字列（HEX、RGBA、RGB、名前付き色、fabricのPattern/Gradient）をHEX形式に変換する
  */
-export function colorToHex(color: string | any | undefined): string {
+export function colorToHex(color: unknown): string {
   if (!color || typeof color !== 'string') return ''
 
   // すでにhex形式の場合

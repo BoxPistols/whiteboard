@@ -230,7 +230,7 @@ describe('Canvas Store', () => {
     it('should set clipboard', () => {
       const { setClipboard } = useCanvasStore.getState()
 
-      const mockObject = { type: 'rect' } as any
+      const mockObject = { type: 'rect' } as unknown as fabric.Object
       setClipboard(mockObject)
 
       expect(useCanvasStore.getState().clipboard).toEqual(mockObject)

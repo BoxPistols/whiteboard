@@ -8,6 +8,7 @@ import {
   MIN_ZOOM,
   MAX_ZOOM,
 } from '@/lib/store'
+import type { ObjectProperties } from '@/lib/store'
 import {
   getCanvasPointer,
   createArrowPathData,
@@ -21,10 +22,14 @@ import type { SnapBox, ScreenGuide } from '@/lib/snapping'
 // ゴミレイヤーが生成されるのを防ぐための最小ドラッグ距離（キャンバス座標 px）
 const MIN_DRAG_DISTANCE = 4
 
+// fabric の fill/stroke は string | Pattern | Gradient を取りうるが、本アプリは
+// 文字列カラーのみ扱う。ObjectProperties 用に文字列以外は undefined へ正規化する。
+const asColorString = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
+
 interface UseCanvasEventsProps {
   fabricCanvas: fabric.Canvas | null
-  shapeCounterRef: React.MutableRefObject<any>
-  setSelectedObjectProps: (props: any) => void
+  shapeCounterRef: React.MutableRefObject<Record<string, number>>
+  setSelectedObjectProps: (props: ObjectProperties | null) => void
   setShowAlignmentPanel: (show: boolean) => void
   setViewportOffset: (offset: { x: number; y: number }) => void
   // スマートスナップのガイド線（画面座標）を描画オーバーレイへ渡すコールバック
@@ -544,7 +549,11 @@ export const useCanvasEvents = ({
         // プロパティ表示用（簡易版）
         const first = (activeObject as fabric.ActiveSelection).getObjects()[0]
         if (first)
-          setSelectedObjectProps({ fill: first.fill, stroke: first.stroke, opacity: first.opacity })
+          setSelectedObjectProps({
+            fill: asColorString(first.fill),
+            stroke: asColorString(first.stroke),
+            opacity: first.opacity,
+          })
         return
       }
 
@@ -576,8 +585,8 @@ export const useCanvasEvents = ({
         const layerId = curLayers.find((l) => l.objectId === selected.data?.id)?.id
         setSelectedLayerIds(layerId ? [layerId] : [])
         setSelectedObjectProps({
-          fill: selected.fill,
-          stroke: selected.stroke,
+          fill: asColorString(selected.fill),
+          stroke: asColorString(selected.stroke),
           strokeWidth: selected.strokeWidth,
           left: selected.left,
           top: selected.top,
@@ -598,8 +607,8 @@ export const useCanvasEvents = ({
       if (obj && obj.data?.id) {
         // strokeWidth/isArrow を含めないと PropertiesPanel の線コントロールが消えるバグになる
         setSelectedObjectProps({
-          fill: obj.fill,
-          stroke: obj.stroke,
+          fill: asColorString(obj.fill),
+          stroke: asColorString(obj.stroke),
           strokeWidth: obj.strokeWidth,
           left: obj.left,
           top: obj.top,
@@ -611,7 +620,7 @@ export const useCanvasEvents = ({
       }
     }
 
-    const handlePathCreated = (e: any) => {
+    const handlePathCreated = (e: fabric.IEvent & { path?: fabric.Path }) => {
       if (e.path) {
         const id = crypto.randomUUID()
         e.path.set({ data: { id, baseStroke: e.path.stroke, baseTheme: theme } })
