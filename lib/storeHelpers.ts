@@ -2,6 +2,41 @@ import type { Layer } from '@/types'
 import type { fabric } from 'fabric'
 import { savePagesToDB } from './storage'
 
+// `#rgb` / `#rrggbb` / `rgb(..)` から輝度を推定しダーク背景か判定。
+// autoInvertText で「現在の背景は暗いか？」を決めるためだけの簡易実装。
+export const isBackgroundDark = (color: string): boolean => {
+  if (!color) return true
+  const c = color.trim().toLowerCase()
+  let r = 0
+  let g = 0
+  let b = 0
+  if (c.startsWith('#')) {
+    const hex = c.slice(1)
+    if (hex.length === 3) {
+      r = parseInt(hex[0] + hex[0], 16)
+      g = parseInt(hex[1] + hex[1], 16)
+      b = parseInt(hex[2] + hex[2], 16)
+    } else if (hex.length === 6) {
+      r = parseInt(hex.slice(0, 2), 16)
+      g = parseInt(hex.slice(2, 4), 16)
+      b = parseInt(hex.slice(4, 6), 16)
+    } else {
+      return true
+    }
+  } else if (c.startsWith('rgb')) {
+    const nums = c.match(/\d+(\.\d+)?/g)
+    if (!nums || nums.length < 3) return true
+    r = Number(nums[0])
+    g = Number(nums[1])
+    b = Number(nums[2])
+  } else {
+    return true
+  }
+  // ITU-R BT.601 相当の輝度。0.5 を閾値にダーク判定
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance < 0.5
+}
+
 // store.ts(モノリス) が抱えていた、ストア状態に依存しない純粋／パラメータ化済みヘルパー群。
 // layers/pages/history/canvas の各アクション（および将来のスライス）が共有するため、
 // 中立モジュールへ集約。store.ts への import は型のみ（実行時 erase）で値依存は持たないため
