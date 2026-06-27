@@ -14,6 +14,8 @@ interface UseKeyboardShortcutsProps {
   ungroupObjects?: () => void
   resetZoom?: () => void
   resetView?: () => void
+  zoomIn?: () => void
+  zoomOut?: () => void
   zoomToFit?: () => void
   zoomToSelection?: () => void
   bringToFront?: () => void
@@ -39,6 +41,8 @@ export const useKeyboardShortcuts = ({
   ungroupObjects,
   resetZoom,
   resetView,
+  zoomIn,
+  zoomOut,
   zoomToFit,
   zoomToSelection,
   bringToFront,
@@ -176,6 +180,18 @@ export const useKeyboardShortcuts = ({
             resetView()
           }
           break
+        case 'zoomIn':
+          if (zoomIn) {
+            e.preventDefault()
+            zoomIn()
+          }
+          break
+        case 'zoomOut':
+          if (zoomOut) {
+            e.preventDefault()
+            zoomOut()
+          }
+          break
         case 'zoomToFit':
           if (zoomToFit) {
             e.preventDefault()
@@ -222,6 +238,8 @@ export const useKeyboardShortcuts = ({
     ungroupObjects,
     resetZoom,
     resetView,
+    zoomIn,
+    zoomOut,
     zoomToFit,
     zoomToSelection,
     bringToFront,

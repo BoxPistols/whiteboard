@@ -167,6 +167,8 @@ interface CanvasStore {
   createFolder: (name?: string) => void
   setZoom: (zoom: number) => void
   setZoomValue: (zoom: number) => void
+  zoomIn: () => void
+  zoomOut: () => void
   zoomToFit: () => void
   zoomToSelection: () => void
   resetZoom: () => void
@@ -986,6 +988,9 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   // ホイールズームは zoomToPoint でカーソル位置基準に既に適用済みのため、
   // setZoom を使うと origin(0,0) 基準で再適用され二重がけになる。それを避ける用途。
   setZoomValue: (zoom) => set({ zoom }),
+  // キーボード/ボタンからのズームイン・アウト（setZoom はビューポート中心基準＋クランプ済み）
+  zoomIn: () => get().setZoom(get().zoom + 25),
+  zoomOut: () => get().setZoom(get().zoom - 25),
   zoomToFit: () => {
     const { fabricCanvas } = get()
     if (!fabricCanvas) return
