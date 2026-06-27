@@ -462,6 +462,36 @@ const getCanvasData = (
   }
 }
 
+// undo/redo 共通: 指定インデックスの履歴スナップショットを canvas/layers へ適用する。
+// 両者は guard と index 計算以外が完全に同一だったため一本化（store-duplicated-logic）。
+const applyHistorySnapshot = (
+  get: () => CanvasStore,
+  set: (partial: Partial<CanvasStore>) => void,
+  newIndex: number
+) => {
+  const { fabricCanvas, history } = get()
+  if (!fabricCanvas) return
+  const snapshot = history[newIndex]
+
+  set({ isUndoRedoAction: true })
+
+  fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
+    // loadFromJSON が保存時点の背景を復元するため、現在のユーザー設定を再適用
+    const { canvasBackground: bg, theme: t } = get()
+    fabricCanvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
+      fabricCanvas.renderAll()
+    )
+    set({
+      layers: [...snapshot.layers],
+      historyIndex: newIndex,
+      isUndoRedoAction: false,
+      selectedObjectId: null,
+      selectedLayerIds: [],
+      selectedObjectProps: null,
+    })
+  })
+}
+
 export const useCanvasStore = create<CanvasStore>((set, get) => ({
   selectedTool: 'select',
   selectedObjectId: null,
@@ -1589,54 +1619,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     })
   },
   undo: () => {
-    const { fabricCanvas, history, historyIndex } = get()
-    if (!fabricCanvas || historyIndex <= 0) return
-
-    const newIndex = historyIndex - 1
-    const snapshot = history[newIndex]
-
-    set({ isUndoRedoAction: true })
-
-    fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
-      // loadFromJSON が保存時点の背景を復元するため、現在のユーザー設定を再適用
-      const { canvasBackground: bg, theme: t } = get()
-      fabricCanvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
-        fabricCanvas.renderAll()
-      )
-      set({
-        layers: [...snapshot.layers],
-        historyIndex: newIndex,
-        isUndoRedoAction: false,
-        selectedObjectId: null,
-        selectedLayerIds: [],
-        selectedObjectProps: null,
-      })
-    })
+    const { historyIndex } = get()
+    if (historyIndex <= 0) return
+    applyHistorySnapshot(get, set, historyIndex - 1)
   },
   redo: () => {
-    const { fabricCanvas, history, historyIndex } = get()
-    if (!fabricCanvas || historyIndex >= history.length - 1) return
-
-    const newIndex = historyIndex + 1
-    const snapshot = history[newIndex]
-
-    set({ isUndoRedoAction: true })
-
-    fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
-      // loadFromJSON が保存時点の背景を復元するため、現在のユーザー設定を再適用
-      const { canvasBackground: bg, theme: t } = get()
-      fabricCanvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
-        fabricCanvas.renderAll()
-      )
-      set({
-        layers: [...snapshot.layers],
-        historyIndex: newIndex,
-        isUndoRedoAction: false,
-        selectedObjectId: null,
-        selectedLayerIds: [],
-        selectedObjectProps: null,
-      })
-    })
+    const { history, historyIndex } = get()
+    if (historyIndex >= history.length - 1) return
+    applyHistorySnapshot(get, set, historyIndex + 1)
   },
   clearHistory: () => {
     set({ history: [], historyIndex: -1 })
