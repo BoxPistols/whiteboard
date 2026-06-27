@@ -105,6 +105,15 @@ export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
     description: 'クリップボードから貼り付け',
   },
   {
+    id: 'edit-paste-in-place',
+    action: 'pasteInPlace',
+    defaultKey: 'v',
+    modifiers: { meta: true, shift: true },
+    category: 'edit',
+    label: 'その場に貼り付け',
+    description: '元の座標そのままで貼り付け (⌘⇧V)',
+  },
+  {
     id: 'edit-duplicate',
     action: 'duplicate',
     defaultKey: 'd',

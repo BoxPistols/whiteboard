@@ -42,6 +42,17 @@ describe('matchesShortcut (Figma shortcut gaps)', () => {
     expect(matchesShortcut(ev({ key: '=' }), zi)).toBe(false)
   })
 
+  it('paste (⌘V) and paste-in-place (⌘⇧V) disambiguate on Shift', () => {
+    const paste = byAction('paste')
+    const pip = byAction('pasteInPlace')
+    const cmdV = ev({ code: 'KeyV', key: 'v', metaKey: true })
+    const cmdShiftV = ev({ code: 'KeyV', key: 'v', metaKey: true, shiftKey: true })
+    expect(matchesShortcut(cmdV, paste)).toBe(true)
+    expect(matchesShortcut(cmdV, pip)).toBe(false)
+    expect(matchesShortcut(cmdShiftV, pip)).toBe(true)
+    expect(matchesShortcut(cmdShiftV, paste)).toBe(false)
+  })
+
   it('deselect matches plain Escape only (no modifier)', () => {
     const d = byAction('deselect')
     expect(matchesShortcut(ev({ key: 'Escape' }), d)).toBe(true)
