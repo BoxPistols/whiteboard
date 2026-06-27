@@ -193,7 +193,7 @@ export default function Canvas() {
 
       const items = e.clipboardData?.items
       if (!items) {
-        pasteObject()
+        pasteObject({ at: lastPointerRef.current })
         return
       }
 
@@ -275,7 +275,7 @@ export default function Canvas() {
       // 画像がなく、内部クリップボードにオブジェクトがある場合
       if (!hasImage) {
         e.preventDefault()
-        pasteObject()
+        pasteObject({ at: lastPointerRef.current })
       }
     }
 
@@ -621,7 +621,7 @@ export default function Canvas() {
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
           onCopy={copySelectedObject}
-          onPaste={() => pasteObject()}
+          onPaste={() => pasteObject({ at: lastPointerRef.current })}
           onDuplicate={duplicateSelectedObject}
           onDelete={deleteSelectedObject}
           onLock={lockObject}
