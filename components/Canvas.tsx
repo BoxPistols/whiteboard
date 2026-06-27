@@ -11,7 +11,7 @@ import {
 import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
 import { convertColorForTheme } from '@/lib/colorUtils'
 import ContextMenu from '@/components/ContextMenu'
-import AlignmentPanel from '@/components/AlignmentPanel'
+import SelectionToolbar, { type SelectionToolbarHandle } from '@/components/SelectionToolbar'
 import { useCanvasActions } from '@/hooks/useCanvasActions'
 import { useCanvasEvents } from '@/hooks/useCanvasEvents'
 import SnapGuideOverlay, { type SnapGuideOverlayHandle } from '@/components/SnapGuideOverlay'
@@ -61,7 +61,13 @@ export default function Canvas() {
   } = useCanvasStore()
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-  const [showAlignmentPanel, setShowAlignmentPanel] = useState(false)
+  // 選択追従ツールバーは ref 経由で更新（ドラッグ中の高頻度更新で Canvas を再描画させない）
+  const selectionToolbarRef = useRef<SelectionToolbarHandle>(null)
+  const handleSelectionToolbar = useCallback(
+    (s: Parameters<SelectionToolbarHandle['setState']>[0]) =>
+      selectionToolbarRef.current?.setState(s),
+    []
+  )
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
   const prevPageIdRef = useRef<string>(currentPageId)
   const hasLoadedRef = useRef(false)
@@ -111,7 +117,7 @@ export default function Canvas() {
     fabricCanvas: fabricCanvasRef.current,
     shapeCounterRef,
     setSelectedObjectProps,
-    setShowAlignmentPanel,
+    onSelectionToolbar: handleSelectionToolbar,
     setViewportOffset,
     onSnapGuides: handleSnapGuides,
   })
@@ -596,18 +602,17 @@ export default function Canvas() {
           <rect width="100%" height="100%" fill="url(#grid-pattern)" />
         </svg>
       )}
-      {showAlignmentPanel && (
-        <AlignmentPanel
-          onAlignLeft={alignLeft}
-          onAlignCenter={alignCenter}
-          onAlignRight={alignRight}
-          onAlignTop={alignTop}
-          onAlignMiddle={alignMiddle}
-          onAlignBottom={alignBottom}
-          onDistributeHorizontal={distributeHorizontal}
-          onDistributeVertical={distributeVertical}
-        />
-      )}
+      <SelectionToolbar
+        ref={selectionToolbarRef}
+        onAlignLeft={alignLeft}
+        onAlignCenter={alignCenter}
+        onAlignRight={alignRight}
+        onAlignTop={alignTop}
+        onAlignMiddle={alignMiddle}
+        onAlignBottom={alignBottom}
+        onDistributeHorizontal={distributeHorizontal}
+        onDistributeVertical={distributeVertical}
+      />
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
