@@ -570,6 +570,39 @@ describe('Canvas Store', () => {
     })
   })
 
+  describe('Folder naming (regression)', () => {
+    it('avoids duplicate folder names after a folder is renamed', () => {
+      useCanvasStore.setState({
+        fabricCanvas: null,
+        layers: [],
+        pages: [{ id: 'page-1', name: 'P', canvasData: null, layers: [] }],
+        currentPageId: 'page-1',
+      })
+      const store = useCanvasStore.getState()
+      store.createFolder() // フォルダ 1
+      store.createFolder() // フォルダ 2
+
+      const frames1 = useCanvasStore
+        .getState()
+        .layers.filter((l) => l.type === 'FRAME')
+        .map((l) => l.name)
+      expect(frames1).toContain('フォルダ 1')
+      expect(frames1).toContain('フォルダ 2')
+
+      // フォルダ 1 を別名へリネーム → 旧実装は startsWith 件数が減って次が「フォルダ 2」になり衝突
+      const f1 = useCanvasStore.getState().layers.find((l) => l.name === 'フォルダ 1')!
+      store.updateLayerName(f1.id, 'マイメモ')
+      store.createFolder() // 新実装は末尾数字の最大+1 = フォルダ 3
+
+      const frames2 = useCanvasStore
+        .getState()
+        .layers.filter((l) => l.type === 'FRAME')
+        .map((l) => l.name)
+      expect(frames2).toContain('フォルダ 3')
+      expect(frames2.filter((n) => n === 'フォルダ 2').length).toBe(1) // 重複していない
+    })
+  })
+
   describe('History dedup (regression)', () => {
     // add/remove 操作はデバウンスリスナーと明示 saveHistory() の双方から呼ばれ
     // 二重記録され、Undo に2回必要になっていた。同一内容なら無視することを担保する。
