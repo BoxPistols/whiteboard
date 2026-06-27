@@ -541,7 +541,8 @@ export const useCanvasEvents = ({
     // そのままオーバーレイの座標として使える。画面端で上に出せない場合は下に出す。
     const TOOLBAR_H = 44
     const TOOLBAR_GAP = 8
-    const TOOLBAR_MARGIN = 80
+    // ツールバー幅 ~280px の半幅 + 余白。端でツールバーが見切れないようにする。
+    const TOOLBAR_MARGIN = 150
     const computeToolbarState = (): SelectionToolbarState | null => {
       const active = fabricCanvas.getActiveObject()
       if (!active || active.type !== 'activeSelection') return null
@@ -1018,6 +1019,7 @@ export const useCanvasEvents = ({
     // 選択追従ツールバーを移動/リサイズ/ズーム・スクロールに追従させる
     fabricCanvas.on('object:moving', updateToolbar)
     fabricCanvas.on('object:scaling', updateToolbar)
+    fabricCanvas.on('object:rotating', updateToolbar)
     fabricCanvas.on('mouse:wheel', updateToolbar)
 
     return () => {
@@ -1046,6 +1048,7 @@ export const useCanvasEvents = ({
       fabricCanvas.off('text:changed', handleStickyTextChanged)
       fabricCanvas.off('object:moving', updateToolbar)
       fabricCanvas.off('object:scaling', updateToolbar)
+      fabricCanvas.off('object:rotating', updateToolbar)
       fabricCanvas.off('mouse:wheel', updateToolbar)
     }
   }, [

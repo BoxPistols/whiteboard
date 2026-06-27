@@ -11,7 +11,10 @@ import {
 import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
 import { convertColorForTheme } from '@/lib/colorUtils'
 import ContextMenu from '@/components/ContextMenu'
-import SelectionToolbar, { type SelectionToolbarHandle } from '@/components/SelectionToolbar'
+import SelectionToolbar, {
+  type SelectionToolbarHandle,
+  type SelectionToolbarState,
+} from '@/components/SelectionToolbar'
 import { useCanvasActions } from '@/hooks/useCanvasActions'
 import { useCanvasEvents } from '@/hooks/useCanvasEvents'
 import SnapGuideOverlay, { type SnapGuideOverlayHandle } from '@/components/SnapGuideOverlay'
@@ -64,8 +67,7 @@ export default function Canvas() {
   // 選択追従ツールバーは ref 経由で更新（ドラッグ中の高頻度更新で Canvas を再描画させない）
   const selectionToolbarRef = useRef<SelectionToolbarHandle>(null)
   const handleSelectionToolbar = useCallback(
-    (s: Parameters<SelectionToolbarHandle['setState']>[0]) =>
-      selectionToolbarRef.current?.setState(s),
+    (s: SelectionToolbarState | null) => selectionToolbarRef.current?.setState(s),
     []
   )
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
