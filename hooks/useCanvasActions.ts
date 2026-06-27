@@ -193,11 +193,13 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
 
   // ペースト
   const pasteObject = useCallback(
-    (opts?: { inPlace?: boolean }) => {
+    (opts?: { inPlace?: boolean; at?: { x: number; y: number } | null }) => {
       if (!fabricCanvas) return
 
-      // inPlace（⌘⇧V）は元座標そのまま、通常（⌘V）は +10 のカスケード
+      // inPlace（⌘⇧V）は元座標そのまま、通常（⌘V）は +10 のカスケード。
+      // at（カーソル位置）指定時は通常オブジェクトをその位置中央に貼り付ける（Figma の ⌘V）。
       const offset = opts?.inPlace ? 0 : 10
+      const at = opts?.inPlace ? null : opts?.at
 
       // 付箋ペーストを優先（copy 時に付箋ペアを保存している場合）
       if (stickyClipboard) {
@@ -253,13 +255,15 @@ export const useCanvasActions = (fabricCanvas: fabric.Canvas | null) => {
       clipboard.clone((cloned: fabric.Object) => {
         const objectId = crypto.randomUUID()
         const layerId = crypto.randomUUID()
-        cloned.set({
-          left: (cloned.left || 0) + offset,
-          top: (cloned.top || 0) + offset,
-          data: { id: objectId },
-          evented: true,
-          selectable: true,
-        })
+        cloned.set({ data: { id: objectId }, evented: true, selectable: true })
+        if (at) {
+          // 回転/原点に依存せずオブジェクト中心をカーソル位置へ置く（getScaledWidth ベースの
+          // left/top 計算は回転オブジェクトでズレるため setPositionByOrigin を使う）
+          cloned.setPositionByOrigin(new fabric.Point(at.x, at.y), 'center', 'center')
+        } else {
+          cloned.set({ left: (cloned.left || 0) + offset, top: (cloned.top || 0) + offset })
+        }
+        cloned.setCoords()
         fabricCanvas.add(cloned)
         fabricCanvas.setActiveObject(cloned)
         fabricCanvas.renderAll()

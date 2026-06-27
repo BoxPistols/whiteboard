@@ -193,7 +193,7 @@ export default function Canvas() {
 
       const items = e.clipboardData?.items
       if (!items) {
-        pasteObject()
+        pasteObject({ at: lastPointerRef.current })
         return
       }
 
@@ -275,7 +275,7 @@ export default function Canvas() {
       // 画像がなく、内部クリップボードにオブジェクトがある場合
       if (!hasImage) {
         e.preventDefault()
-        pasteObject()
+        pasteObject({ at: lastPointerRef.current })
       }
     }
 
@@ -321,12 +321,14 @@ export default function Canvas() {
       }
     })
 
-    // 画像ペースト位置決定のため、最後のカーソル位置（キャンバス座標系）を保持
+    // ペースト位置決定のため、最後のカーソル位置（キャンバス座標系）を保持。
+    // mouse:down でも更新し、右クリック（コンテキストメニュー）位置を反映する。
     const trackPointer = (opt: fabric.IEvent) => {
       const p = canvas.getPointer(opt.e as MouseEvent | TouchEvent)
       lastPointerRef.current = { x: p.x, y: p.y }
     }
     canvas.on('mouse:move', trackPointer)
+    canvas.on('mouse:down', trackPointer)
 
     // ビューポート変更を grid overlay と同期。レイヤークリックによるパン等、
     // 個別ハンドラを経由しない経路でも setViewportTransform 後に grid 位置が
@@ -357,6 +359,7 @@ export default function Canvas() {
       resizeObserver.disconnect()
       // dispose でも一括解除されるが、リスナー解除の対称性を保つため明示 off
       canvas.off('mouse:move', trackPointer)
+      canvas.off('mouse:down', trackPointer)
       canvas.off('after:render', syncViewportOffset)
       canvas.dispose()
       setFabricCanvas(null)
@@ -621,7 +624,7 @@ export default function Canvas() {
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
           onCopy={copySelectedObject}
-          onPaste={() => pasteObject()}
+          onPaste={() => pasteObject({ at: lastPointerRef.current })}
           onDuplicate={duplicateSelectedObject}
           onDelete={deleteSelectedObject}
           onLock={lockObject}
