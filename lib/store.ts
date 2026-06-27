@@ -423,6 +423,31 @@ export const CANVAS_SERIALIZE_PROPS = [
 export const MIN_ZOOM = 2
 export const MAX_ZOOM = 800
 
+// 全オブジェクトのバウンディングボックスを集計する（zoomToFit / resetView 共通）
+const computeObjectsBoundingBox = (objects: fabric.Object[]) => {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const obj of objects) {
+    const b = obj.getBoundingRect()
+    minX = Math.min(minX, b.left)
+    minY = Math.min(minY, b.top)
+    maxX = Math.max(maxX, b.left + b.width)
+    maxY = Math.max(maxY, b.top + b.height)
+  }
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2,
+  }
+}
+
 // fabricCanvasからcanvasDataを取得するヘルパー関数
 const getCanvasData = (
   fabricCanvas: fabric.Canvas | null,
@@ -945,22 +970,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       return
     }
 
-    // オブジェクトのバウンディングボックスを手動で計算
-    let minX = Infinity
-    let minY = Infinity
-    let maxX = -Infinity
-    let maxY = -Infinity
-
-    objects.forEach((obj) => {
-      const bound = obj.getBoundingRect()
-      minX = Math.min(minX, bound.left)
-      minY = Math.min(minY, bound.top)
-      maxX = Math.max(maxX, bound.left + bound.width)
-      maxY = Math.max(maxY, bound.top + bound.height)
-    })
-
-    const groupWidth = maxX - minX
-    const groupHeight = maxY - minY
+    const { width: groupWidth, height: groupHeight } = computeObjectsBoundingBox(objects)
 
     // 適切なズームレベルを計算（余白10%）
     const zoomX = (canvasWidth * 0.9) / groupWidth
@@ -1036,36 +1046,24 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const canvasWidth = fabricCanvas.getWidth()
     const canvasHeight = fabricCanvas.getHeight()
 
-    // オブジェクトのバウンディングボックスを計算
-    let minX = Infinity
-    let minY = Infinity
-    let maxX = -Infinity
-    let maxY = -Infinity
-
-    objects.forEach((obj) => {
-      const bound = obj.getBoundingRect()
-      minX = Math.min(minX, bound.left)
-      minY = Math.min(minY, bound.top)
-      maxX = Math.max(maxX, bound.left + bound.width)
-      maxY = Math.max(maxY, bound.top + bound.height)
-    })
-
     // オブジェクト全体が収まるようにズームと位置を調整
-    const groupWidth = maxX - minX
-    const groupHeight = maxY - minY
+    const {
+      width: groupWidth,
+      height: groupHeight,
+      centerX,
+      centerY,
+    } = computeObjectsBoundingBox(objects)
 
     // 適切なズームレベルを計算（余白10%）
     const zoomX = (canvasWidth * 0.9) / groupWidth
     const zoomY = (canvasHeight * 0.9) / groupHeight
     let zoom = Math.min(zoomX, zoomY) * 100
 
-    // ズームは100%を上限とする（拡大はしない）
+    // resetView は俯瞰用途のため 100% を上限（拡大しない）。zoomToFit とは意図的に異なる。
     zoom = Math.min(zoom, 100)
     zoom = Math.max(zoom, 10)
 
     // オブジェクトを中央に配置
-    const centerX = (minX + maxX) / 2
-    const centerY = (minY + maxY) / 2
     const vpCenterX = canvasWidth / 2
     const vpCenterY = canvasHeight / 2
 
