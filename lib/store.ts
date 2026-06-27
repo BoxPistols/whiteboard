@@ -17,11 +17,12 @@ import {
   type StyleDefaults,
 } from './slices/styleDefaultsSlice'
 import { createNudgeSlice, type NudgeSlice } from './slices/nudgeSlice'
-import { type Page, CANVAS_SERIALIZE_PROPS } from './storeHelpers'
+import { type Page, CANVAS_SERIALIZE_PROPS, isBackgroundDark } from './storeHelpers'
 import { createViewportSlice, type ViewportSlice, MIN_ZOOM, MAX_ZOOM } from './slices/viewportSlice'
 import { createLayersSlice, type LayersSlice } from './slices/layersSlice'
 import { createHistorySlice, type HistorySlice } from './slices/historySlice'
 import { createPagesSlice, type PagesSlice, defaultPageId } from './slices/pagesSlice'
+import { createObjectOpsSlice, type ObjectOpsSlice } from './slices/objectOpsSlice'
 
 // 共有ヘルパー由来の公開シンボルは後方互換のため store からも re-export
 export { CANVAS_SERIALIZE_PROPS }
@@ -32,53 +33,9 @@ export { MIN_ZOOM, MAX_ZOOM }
 // Canvas 背景のテーマ別デフォルト色は themeSlice に定義。後方互換のため store からも re-export
 export { DARK_CANVAS_BG, LIGHT_CANVAS_BG }
 
-// `#rgb` / `#rrggbb` / `rgb(..)` から輝度を推定しダーク背景か判定
-// autoInvertText で「現在の背景は暗いか？」を決めるためだけの簡易実装
-export const isBackgroundDark = (color: string): boolean => {
-  if (!color) return true
-  const c = color.trim().toLowerCase()
-  let r = 0
-  let g = 0
-  let b = 0
-  if (c.startsWith('#')) {
-    const hex = c.slice(1)
-    if (hex.length === 3) {
-      r = parseInt(hex[0] + hex[0], 16)
-      g = parseInt(hex[1] + hex[1], 16)
-      b = parseInt(hex[2] + hex[2], 16)
-    } else if (hex.length === 6) {
-      r = parseInt(hex.slice(0, 2), 16)
-      g = parseInt(hex.slice(2, 4), 16)
-      b = parseInt(hex.slice(4, 6), 16)
-    } else {
-      return true
-    }
-  } else if (c.startsWith('rgb')) {
-    const nums = c.match(/\d+(\.\d+)?/g)
-    if (!nums || nums.length < 3) return true
-    r = Number(nums[0])
-    g = Number(nums[1])
-    b = Number(nums[2])
-  } else {
-    return true
-  }
-  // ITU-R BT.601 相当の輝度。0.5 を閾値にダーク判定
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  return luminance < 0.5
-}
-
-// autoInvertText は「既定色（白/黒系）」のテキストだけを反転対象にする
-const isDefaultTextColor = (fill: string): boolean => {
-  const c = fill.trim().toLowerCase()
-  return (
-    c === '#000000' ||
-    c === '#000' ||
-    c === 'black' ||
-    c === '#ffffff' ||
-    c === '#fff' ||
-    c === 'white'
-  )
-}
+// isBackgroundDark は storeHelpers に定義。後方互換のため store からも re-export
+// （useCanvasEvents / テストの import を温存）。isDefaultTextColor は objectOpsSlice に内包
+export { isBackgroundDark }
 
 export interface ObjectProperties {
   fill?: string
@@ -112,7 +69,8 @@ export interface CanvasStore
     ViewportSlice,
     LayersSlice,
     HistorySlice,
-    PagesSlice {
+    PagesSlice,
+    ObjectOpsSlice {
   selectedTool: Tool
   selectedObjectId: string | null
   // レイヤー状態（layers/selectedLayerIds）は LayersSlice（extends）で提供
@@ -130,17 +88,14 @@ export interface CanvasStore
   // Undo/Redo履歴状態（history/historyIndex/isUndoRedoAction）は HistorySlice（extends）で提供
   // グリッド設定は GridSlice（extends）で提供
   // 最後に使ったスタイル（styleDefaults）は StyleDefaultsSlice（extends）で提供
-  // 複製モード（Alt+ドラッグ用インジケーター）
-  duplicateMode: boolean
-  // テキスト色を背景色に応じて自動反転する設定（既定色のみ対象、カスタム色は触らない）
-  autoInvertText: boolean
+  // 複製モード（duplicateMode）/ テキスト自動反転（autoInvertText）は ObjectOpsSlice（extends）で提供
   setSelectedTool: (tool: Tool) => void
   setSelectedObjectId: (id: string | null) => void
   // レイヤー関連アクション（setSelectedLayerIds/addLayer/removeLayer/removeLayers/groupLayersIntoFolder/toggleLayerVisibility/toggleLayerLock/updateLayerName/reorderLayers/moveLayer/toggleLayerExpanded/updateLayerChildren/createFolder/setLayers）は LayersSlice（extends）で提供
   // ズーム/ビューポートアクション（setZoom/setZoomValue/zoomIn/zoomOut/zoomToFit/zoomToSelection/resetZoom/resetView）は ViewportSlice（extends）で提供
   setFabricCanvas: (canvas: fabric.Canvas | null) => void
   setSelectedObjectProps: (props: ObjectProperties | null) => void
-  updateObjectProperty: (key: keyof ObjectProperties, value: number | string) => void
+  // updateObjectProperty は ObjectOpsSlice（extends）で提供
   setClipboard: (obj: fabric.Object | null) => void
   setStickyClipboard: (pair: { bg: fabric.Object; text: fabric.Object } | null) => void
   // ページ関連アクション（addPage/removePage/setCurrentPage/setLoadedPageId/updatePageNotes/updatePageData/initializePages）は PagesSlice（extends）で提供
@@ -150,19 +105,10 @@ export interface CanvasStore
   resetAll: () => void
   // ショートカット関連アクション（updateShortcut/resetShortcuts/loadSavedShortcuts/setShowShortcutsModal）は ShortcutsSlice（extends）で提供
   // ナッジ関連アクション（setNudgeAmount/loadSavedNudgeAmount）は NudgeSlice（extends）で提供
-  // moveSelectedObject は fabric 依存のため store に残置（nudgeAmount は get() 経由で参照）
-  moveSelectedObject: (direction: 'up' | 'down' | 'left' | 'right', useNudge: boolean) => void
   // Undo/Redo関連アクション（saveHistory/clearHistory/undo/redo/canUndo/canRedo）は HistorySlice（extends）で提供
   // グリッド関連アクションは GridSlice（extends）で提供
   // スタイル既定値アクション（setStyleDefaults/loadSavedStyleDefaults）は StyleDefaultsSlice（extends）で提供
-  // 複製モード
-  setDuplicateMode: (on: boolean) => void
-  // 選択オブジェクトを複製（Toolbar/ショートカット両対応）
-  duplicateSelected: () => void
-  // テキスト自動反転
-  setAutoInvertText: (on: boolean) => void
-  loadSavedAutoInvertText: () => void
-  applyAutoInvertText: () => void
+  // オブジェクト操作アクション（updateObjectProperty/moveSelectedObject/duplicateSelected/setDuplicateMode/setAutoInvertText/loadSavedAutoInvertText/applyAutoInvertText）は ObjectOpsSlice（extends）で提供
   // initializePages は PagesSlice（extends）で提供
 }
 
@@ -222,6 +168,8 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   ...createHistorySlice(set, get, store),
   // ページ管理スライス（pages/currentPageId/loadedPageId/pagesInitialized/pagesInitStarted/saveStatus/saveError + 関連アクション）を合成
   ...createPagesSlice(set, get, store),
+  // オブジェクト操作スライス（duplicateMode/autoInvertText + プロパティ編集/移動/複製/自動反転）を合成
+  ...createObjectOpsSlice(set, get, store),
   selectedTool: 'select',
   selectedObjectId: null,
   // layers/selectedLayerIds 初期値・アクションは createLayersSlice で提供
@@ -238,9 +186,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   // Undo/Redo履歴の初期値・アクションは createHistorySlice で提供
   // グリッド設定の初期値・アクションは createGridSlice で提供
   // スタイル既定値の初期値・アクションは createStyleDefaultsSlice で提供
-  duplicateMode: false,
-  // デフォルト ON（既定色テキストのみ背景に応じて自動反転）
-  autoInvertText: true,
+  // duplicateMode/autoInvertText の初期値・アクションは createObjectOpsSlice で提供
   setSelectedTool: (tool) => set({ selectedTool: tool }),
   setSelectedObjectId: (id) => set({ selectedObjectId: id }),
   // レイヤー関連アクション（setSelectedLayerIds/addLayer/removeLayer(s)/group/toggle*/update*/reorder/move/createFolder/setLayers）は createLayersSlice で提供
@@ -249,134 +195,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   // ズーム/ビューポートアクション（setZoom/setZoomValue/zoomIn/zoomOut/zoomToFit/zoomToSelection/resetZoom/resetView）は createViewportSlice で提供
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
-  updateObjectProperty: (key, value) => {
-    const { fabricCanvas, selectedObjectId, selectedObjectProps, theme } = get()
-    if (!fabricCanvas) return
-
-    const activeObject = fabricCanvas.getActiveObject()
-    if (!activeObject) return
-
-    // fill/stroke 変更時にテーマ追従用の元色(baseFill/baseStroke)と baseTheme を data へ記録する。
-    // 3箇所で重複していたロジックを集約（theme はこのクロージャから参照）。
-    const applyBaseColorData = (
-      obj: fabric.Object,
-      patch: { baseFill?: string; baseStroke?: string }
-    ) => {
-      const currentData = obj.data || { id: crypto.randomUUID() }
-      obj.set({ data: { ...currentData, ...patch, baseTheme: theme } })
-    }
-
-    // 単一オブジェクトのプロパティを更新するヘルパー関数
-    const updateSingleObject = (obj: fabric.Object) => {
-      // 矢印（Path）の場合、fillとstrokeを連動させる
-      if (obj.data?.type === 'arrow' && (key === 'fill' || key === 'stroke')) {
-        const colorValue = value as string
-        obj.set('fill', colorValue)
-        obj.set('stroke', colorValue)
-        obj.dirty = true
-
-        applyBaseColorData(obj, { baseFill: colorValue, baseStroke: colorValue })
-      } else if (
-        obj.type === 'group' &&
-        (key === 'fill' || key === 'stroke' || key === 'strokeWidth')
-      ) {
-        // Groupオブジェクトの場合、子要素のプロパティを更新
-        const group = obj as fabric.Group
-        const items = group.getObjects()
-        items.forEach((item) => {
-          if (key === 'fill') item.set('fill', value as string)
-          else if (key === 'stroke') item.set('stroke', value as string)
-          else if (key === 'strokeWidth') item.set('strokeWidth', value as number)
-          item.dirty = true
-        })
-        obj.dirty = true
-
-        // 色が変更された場合、baseColorとbaseThemeを更新
-        if (key === 'fill' || key === 'stroke') {
-          applyBaseColorData(obj, {
-            ...(key === 'fill' && { baseFill: value as string }),
-            ...(key === 'stroke' && { baseStroke: value as string }),
-          })
-        }
-      } else if (key === 'width' || key === 'height') {
-        // 幅と高さはスケールを考慮して設定
-        if (key === 'width' && obj.width) {
-          obj.scaleX = (value as number) / obj.width
-        } else if (key === 'height' && obj.height) {
-          obj.scaleY = (value as number) / obj.height
-        }
-      } else {
-        // 色や他のプロパティを直接設定
-        if (key === 'fill') obj.set('fill', value as string)
-        else if (key === 'stroke') obj.set('stroke', value as string)
-        else if (key === 'strokeWidth') obj.set('strokeWidth', value as number)
-        else if (key === 'opacity') obj.set('opacity', value as number)
-        else if (key === 'left') obj.set('left', value as number)
-        else if (key === 'top') obj.set('top', value as number)
-
-        // 色が変更された場合、baseColorとbaseThemeを更新
-        if (key === 'fill' || key === 'stroke') {
-          applyBaseColorData(obj, {
-            ...(key === 'fill' && { baseFill: value as string }),
-            ...(key === 'stroke' && { baseStroke: value as string }),
-          })
-        }
-      }
-
-      obj.setCoords()
-      obj.dirty = true
-    }
-
-    // 複数選択の場合、すべてのオブジェクトを更新
-    if (activeObject.type === 'activeSelection') {
-      const selection = activeObject as fabric.ActiveSelection
-      const objects = selection.getObjects()
-      objects.forEach((obj) => {
-        updateSingleObject(obj)
-      })
-    } else {
-      // 単一選択の場合
-      updateSingleObject(activeObject)
-    }
-
-    // 変更を反映
-    activeObject.setCoords()
-    activeObject.dirty = true
-    fabricCanvas.requestRenderAll()
-
-    // 最後に使ったスタイルを記憶（次回の新規作成で引き継ぎ）
-    // テキストの fill は shape の fill と別枠で保存する
-    if (key === 'fill' && typeof value === 'string') {
-      const isText =
-        activeObject.type === 'i-text' ||
-        activeObject.type === 'text' ||
-        activeObject.type === 'textbox'
-      get().setStyleDefaults(isText ? { textFill: value } : { fill: value })
-    } else if (key === 'stroke' && typeof value === 'string') {
-      get().setStyleDefaults({ stroke: value })
-    } else if (key === 'strokeWidth' && typeof value === 'number') {
-      get().setStyleDefaults({ strokeWidth: value })
-    }
-
-    // 自動保存は object:modified 経由（500ms デバウンス）に委譲する。
-    // ここで毎回 toJSON すると、スライダードラッグ等の連続呼び出しで巨大 JSON を
-    // 大量にアロケートし OOM／クラッシュの原因になっていた
-    fabricCanvas.fire('object:modified', { target: activeObject })
-
-    // ストアのプロパティも即座に更新
-    if (selectedObjectProps) {
-      const updatedProps = { ...selectedObjectProps, [key]: value }
-
-      // width/heightが変更された場合、scaleも更新
-      if (key === 'width' && activeObject.width) {
-        updatedProps.scaleX = (value as number) / activeObject.width
-      } else if (key === 'height' && activeObject.height) {
-        updatedProps.scaleY = (value as number) / activeObject.height
-      }
-
-      set({ selectedObjectProps: updatedProps })
-    }
-  },
+  // オブジェクト操作アクション（updateObjectProperty/moveSelectedObject/duplicateSelected/setDuplicateMode/setAutoInvertText/loadSavedAutoInvertText/applyAutoInvertText）は createObjectOpsSlice で提供
   // パネル関連アクション（toggleLeftPanel/toggleRightPanel/setLeftPanelWidth/setRightPanelWidth）は createPanelSlice で提供
   // テーマ関連アクション（toggleTheme/loadSavedTheme/setCanvasBackground/loadSavedCanvasBackground）は createThemeSlice で提供
   resetAll: () => {
@@ -412,145 +231,9 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   },
   // ショートカット関連アクション（setShowShortcutsModal/updateShortcut/resetShortcuts/loadSavedShortcuts）は createShortcutsSlice で提供
   // ナッジ関連アクション（setNudgeAmount/loadSavedNudgeAmount）は createNudgeSlice で提供
-  moveSelectedObject: (direction, useNudge) => {
-    const { fabricCanvas, nudgeAmount, selectedObjectProps } = get()
-    if (!fabricCanvas) return
-
-    const activeObject = fabricCanvas.getActiveObject()
-    if (!activeObject) return
-
-    // 移動量を決定（通常は1px、Shift押下時はnudgeAmount）
-    const moveAmount = useNudge ? nudgeAmount : 1
-
-    let deltaX = 0
-    let deltaY = 0
-
-    switch (direction) {
-      case 'up':
-        deltaY = -moveAmount
-        break
-      case 'down':
-        deltaY = moveAmount
-        break
-      case 'left':
-        deltaX = -moveAmount
-        break
-      case 'right':
-        deltaX = moveAmount
-        break
-    }
-
-    // 現在の位置を取得
-    const currentLeft = activeObject.left || 0
-    const currentTop = activeObject.top || 0
-
-    // 新しい位置を設定
-    activeObject.set({
-      left: currentLeft + deltaX,
-      top: currentTop + deltaY,
-    })
-
-    activeObject.setCoords()
-    fabricCanvas.requestRenderAll()
-    fabricCanvas.fire('object:modified', { target: activeObject })
-
-    // ストアのプロパティも更新
-    if (selectedObjectProps) {
-      set({
-        selectedObjectProps: {
-          ...selectedObjectProps,
-          left: currentLeft + deltaX,
-          top: currentTop + deltaY,
-        },
-      })
-    }
-  },
   // Undo/Redo関連アクション（saveHistory/clearHistory/undo/redo/canUndo/canRedo）は createHistorySlice で提供
   // グリッド関連アクション（toggleGrid/setGridSize/Color/Opacity/Snap）は createGridSlice で提供
   // スタイル既定値アクション（setStyleDefaults/loadSavedStyleDefaults）は createStyleDefaultsSlice で提供
-  setDuplicateMode: (on) => set({ duplicateMode: on }),
-  setAutoInvertText: (on) => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('twb-auto-invert-text', on ? '1' : '0')
-      } catch (e) {
-        console.error('Failed to save auto-invert-text:', e)
-      }
-    }
-    set({ autoInvertText: on })
-    // トグル直後に既存テキストへ反映（ON 化時に反転、OFF 化時は何もしない）
-    if (on) get().applyAutoInvertText()
-  },
-  loadSavedAutoInvertText: () => {
-    if (typeof window === 'undefined') return
-    const saved = localStorage.getItem('twb-auto-invert-text')
-    if (saved === null) return
-    set({ autoInvertText: saved === '1' })
-  },
-  applyAutoInvertText: () => {
-    const { fabricCanvas, autoInvertText, canvasBackground, theme } = get()
-    if (!fabricCanvas || !autoInvertText) return
-    const bg = canvasBackground || (theme === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG)
-    const bgIsDark = isBackgroundDark(bg)
-    const targetColor = bgIsDark ? '#ffffff' : '#000000'
-    let changed = false
-    fabricCanvas.getObjects().forEach((obj) => {
-      const type = obj.type
-      if (type !== 'i-text' && type !== 'text' && type !== 'textbox') return
-      const fill = typeof obj.fill === 'string' ? obj.fill.toLowerCase() : ''
-      // 既定色（白/黒）のみ対象。ユーザーが任意色を選んだテキストは触らない
-      if (!isDefaultTextColor(fill)) return
-      if (fill === targetColor) return
-      obj.set('fill', targetColor)
-      obj.dirty = true
-      changed = true
-    })
-    if (changed) fabricCanvas.requestRenderAll()
-  },
-  duplicateSelected: () => {
-    const { fabricCanvas } = get()
-    if (!fabricCanvas) return
-    const activeObject = fabricCanvas.getActiveObject()
-    if (!activeObject) return
-    // activeSelection はクローンが壊れるため未対応（個別選択の後に実行してもらう）
-    if (activeObject.type === 'activeSelection') return
-    // 元オブジェクトの z-index を控えて、複製を直上に挿入する
-    const originalIndex = fabricCanvas.getObjects().indexOf(activeObject)
-    activeObject.clone((cloned: fabric.Object) => {
-      const objectId = crypto.randomUUID()
-      const layerId = crypto.randomUUID()
-      cloned.set({
-        left: (cloned.left || 0) + 10,
-        top: (cloned.top || 0) + 10,
-        data: { ...cloned.data, id: objectId },
-        selectable: true,
-        evented: true,
-      })
-      fabricCanvas.add(cloned)
-      if (originalIndex >= 0) {
-        fabricCanvas.moveTo(cloned, originalIndex + 1)
-      }
-      fabricCanvas.setActiveObject(cloned)
-      fabricCanvas.renderAll()
-
-      const { layers: currentLayers } = get()
-      const originalObjectId = activeObject.data?.id
-      const originalLayer = currentLayers.find((l) => l.objectId === originalObjectId)
-      if (originalLayer) {
-        get().addLayer({
-          id: layerId,
-          name: `${originalLayer.name} copy`,
-          visible: true,
-          locked: false,
-          objectId,
-          type: originalLayer.type,
-          parentId: originalLayer.parentId,
-        })
-      }
-      set({ selectedObjectId: objectId })
-      // saveHistory は canvas の object:added リスナー経由で自動記録されるため明示呼び出し不要
-    })
-  },
   // loadSavedGridSettings は createGridSlice で提供
   // ページ関連アクション（addPage/removePage/setCurrentPage/setLoadedPageId/updatePageNotes/updatePageData/initializePages）は createPagesSlice で提供
 }))
