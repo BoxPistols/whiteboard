@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useCanvasStore } from '@/lib/store'
 import ColorPalette from './ColorPalette'
 import NumberInput from './NumberInput'
@@ -8,7 +9,14 @@ import HexColorInput from './HexColorInput'
 import { parseColor, hexToRgba } from '@/lib/colorUtils'
 
 export default function PropertiesPanel() {
-  const { selectedObjectId, selectedObjectProps, updateObjectProperty } = useCanvasStore()
+  // 使用フィールドだけを購読し、無関係な状態変化（zoom/theme/layers 等）での再描画を防ぐ
+  const { selectedObjectId, selectedObjectProps, updateObjectProperty } = useCanvasStore(
+    useShallow((s) => ({
+      selectedObjectId: s.selectedObjectId,
+      selectedObjectProps: s.selectedObjectProps,
+      updateObjectProperty: s.updateObjectProperty,
+    }))
+  )
 
   // useMemoで色情報をメモ化（不要な再計算を防止）
   const fillColor = useMemo(() => {

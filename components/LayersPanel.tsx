@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, DragEvent } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useCanvasStore } from '@/lib/store'
 import type { Layer } from '@/types'
 import {
@@ -320,6 +321,8 @@ function ContextMenuItem({
 }
 
 export default function LayersPanel() {
+  // 使用フィールドだけを購読し、selectedObjectProps（スライダー操作）等
+  // 無関係な状態変化でレイヤーツリー全体が再描画されるのを防ぐ
   const {
     layers,
     toggleLayerVisibility,
@@ -342,7 +345,31 @@ export default function LayersPanel() {
     removePage,
     setCurrentPage,
     updatePageNotes,
-  } = useCanvasStore()
+  } = useCanvasStore(
+    useShallow((s) => ({
+      layers: s.layers,
+      toggleLayerVisibility: s.toggleLayerVisibility,
+      toggleLayerLock: s.toggleLayerLock,
+      updateLayerName: s.updateLayerName,
+      moveLayer: s.moveLayer,
+      toggleLayerExpanded: s.toggleLayerExpanded,
+      createFolder: s.createFolder,
+      setSelectedObjectId: s.setSelectedObjectId,
+      setSelectedObjectProps: s.setSelectedObjectProps,
+      selectedLayerIds: s.selectedLayerIds,
+      setSelectedLayerIds: s.setSelectedLayerIds,
+      groupLayersIntoFolder: s.groupLayersIntoFolder,
+      removeLayers: s.removeLayers,
+      duplicateSelected: s.duplicateSelected,
+      fabricCanvas: s.fabricCanvas,
+      pages: s.pages,
+      currentPageId: s.currentPageId,
+      addPage: s.addPage,
+      removePage: s.removePage,
+      setCurrentPage: s.setCurrentPage,
+      updatePageNotes: s.updatePageNotes,
+    }))
+  )
   const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null)
