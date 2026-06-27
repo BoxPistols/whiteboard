@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, DragEvent } from 'react'
+import { useState, useRef, useEffect, useMemo, DragEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useCanvasStore } from '@/lib/store'
 import type { Layer } from '@/types'
@@ -709,22 +709,31 @@ export default function LayersPanel() {
   // ルートレイヤー（parentIdがないもの）のみをフィルタリング
   const rootLayers = layers.filter((layer) => !layer.parentId)
 
-  // 子レイヤーを取得するヘルパー関数
-  const getChildLayers = (parentId: string): Layer[] => {
-    return layers.filter((layer) => layer.parentId === parentId)
-  }
+  // 親ID→子レイヤー配列の索引を1回の O(n) 走査で構築。
+  // これまで getChildLayers/getSiblingLayers が各アイテムごとに layers.filter (O(n)) を
+  // 呼びツリー描画が O(n^2) になっていたため、Map 索引で各参照を O(1) にする。
+  // ルート（親なし）は null キーに集約（空文字 parentId も `|| null` で null 扱い）。
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, Layer[]>()
+    for (const layer of layers) {
+      const key = layer.parentId || null
+      const arr = map.get(key)
+      if (arr) arr.push(layer)
+      else map.set(key, [layer])
+    }
+    return map
+  }, [layers])
 
-  // parentIdから同階層のレイヤーを取得
-  const getSiblingLayersByParentId = (parentId: string | null): Layer[] => {
-    return parentId
-      ? layers.filter((l) => l.parentId === parentId)
-      : layers.filter((l) => !l.parentId)
-  }
+  // 子レイヤーを取得するヘルパー関数（O(1) ルックアップ）
+  const getChildLayers = (parentId: string): Layer[] => childrenByParent.get(parentId) ?? []
+
+  // parentIdから同階層のレイヤーを取得（O(1) ルックアップ）
+  const getSiblingLayersByParentId = (parentId: string | null): Layer[] =>
+    childrenByParent.get(parentId) ?? []
 
   // 同じ親を持つ兄弟レイヤーを取得
-  const getSiblingLayers = (layer: Layer): Layer[] => {
-    return getSiblingLayersByParentId(layer.parentId || null)
-  }
+  const getSiblingLayers = (layer: Layer): Layer[] =>
+    childrenByParent.get(layer.parentId || null) ?? []
 
   // フォルダまたはグループ（子を持てるレイヤー）かどうかを判定
   const isGroupLayer = (layer: Layer): boolean => {
