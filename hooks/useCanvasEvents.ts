@@ -17,6 +17,7 @@ import {
 } from '@/lib/canvasUtils'
 import { computeSnap, toScreenGuides, SNAP_THRESHOLD_PX } from '@/lib/snapping'
 import type { SnapBox, ScreenGuide } from '@/lib/snapping'
+import type { SelectionToolbarState } from '@/components/SelectionToolbar'
 
 // 図形ツールでドラッグせずクリックしただけのときに 0 サイズの不可視オブジェクト＋
 // ゴミレイヤーが生成されるのを防ぐための最小ドラッグ距離（キャンバス座標 px）
@@ -30,7 +31,8 @@ interface UseCanvasEventsProps {
   fabricCanvas: fabric.Canvas | null
   shapeCounterRef: React.MutableRefObject<Record<string, number>>
   setSelectedObjectProps: (props: ObjectProperties | null) => void
-  setShowAlignmentPanel: (show: boolean) => void
+  // 選択追従ツールバーの表示/位置を更新するコールバック（null で非表示）
+  onSelectionToolbar: (s: SelectionToolbarState | null) => void
   setViewportOffset: (offset: { x: number; y: number }) => void
   // スマートスナップのガイド線（画面座標）を描画オーバーレイへ渡すコールバック
   onSnapGuides?: (guides: ScreenGuide[]) => void
@@ -40,7 +42,7 @@ export const useCanvasEvents = ({
   fabricCanvas,
   shapeCounterRef,
   setSelectedObjectProps,
-  setShowAlignmentPanel,
+  onSelectionToolbar,
   setViewportOffset,
   onSnapGuides,
 }: UseCanvasEventsProps) => {
@@ -534,10 +536,30 @@ export const useCanvasEvents = ({
   useEffect(() => {
     if (!fabricCanvas) return
 
+    // 選択追従ツールバーの位置（画面座標）を計算。複数選択時のみ表示する。
+    // getBoundingRect(absolute=false) はビューポート変換込みの要素ローカル座標を返すので
+    // そのままオーバーレイの座標として使える。画面端で上に出せない場合は下に出す。
+    const TOOLBAR_H = 44
+    const TOOLBAR_GAP = 8
+    // ツールバー幅 ~280px の半幅 + 余白。端でツールバーが見切れないようにする。
+    const TOOLBAR_MARGIN = 150
+    const computeToolbarState = (): SelectionToolbarState | null => {
+      const active = fabricCanvas.getActiveObject()
+      if (!active || active.type !== 'activeSelection') return null
+      const r = active.getBoundingRect(false, true)
+      const above = r.top - TOOLBAR_H - TOOLBAR_GAP >= 0
+      const x = Math.max(
+        TOOLBAR_MARGIN,
+        Math.min(fabricCanvas.getWidth() - TOOLBAR_MARGIN, r.left + r.width / 2)
+      )
+      return { x, y: above ? r.top : r.top + r.height, below: !above }
+    }
+    const updateToolbar = () => onSelectionToolbar(computeToolbarState())
+
     const handleSelection = (e: fabric.IEvent) => {
       const activeObject = fabricCanvas.getActiveObject()
       if (activeObject?.type === 'activeSelection') {
-        setShowAlignmentPanel(true)
+        updateToolbar()
         setSelectedObjectId('__multi_selection__')
         // Canvas の複数選択をレイヤーパネルのハイライトへ同期
         const { layers: curLayers, setSelectedLayerIds } = useCanvasStore.getState()
@@ -576,7 +598,7 @@ export const useCanvasEvents = ({
         }
       }
 
-      setShowAlignmentPanel(false)
+      onSelectionToolbar(null)
       const selected = e.selected?.[0]
       if (selected && selected.data?.id) {
         setSelectedObjectId(selected.data.id)
@@ -866,7 +888,7 @@ export const useCanvasEvents = ({
     const handleSelectionCleared = () => {
       setSelectedObjectId(null)
       setSelectedObjectProps(null)
-      setShowAlignmentPanel(false)
+      onSelectionToolbar(null)
       useCanvasStore.getState().setSelectedLayerIds([])
     }
 
@@ -994,6 +1016,11 @@ export const useCanvasEvents = ({
     fabricCanvas.on('object:modified', handleStickyObjectModifiedSync)
     fabricCanvas.on('object:removed', handleStickyObjectRemoved)
     fabricCanvas.on('text:changed', handleStickyTextChanged)
+    // 選択追従ツールバーを移動/リサイズ/ズーム・スクロールに追従させる
+    fabricCanvas.on('object:moving', updateToolbar)
+    fabricCanvas.on('object:scaling', updateToolbar)
+    fabricCanvas.on('object:rotating', updateToolbar)
+    fabricCanvas.on('mouse:wheel', updateToolbar)
 
     return () => {
       clearSnapGuides()
@@ -1019,6 +1046,10 @@ export const useCanvasEvents = ({
       fabricCanvas.off('object:modified', handleStickyObjectModifiedSync)
       fabricCanvas.off('object:removed', handleStickyObjectRemoved)
       fabricCanvas.off('text:changed', handleStickyTextChanged)
+      fabricCanvas.off('object:moving', updateToolbar)
+      fabricCanvas.off('object:scaling', updateToolbar)
+      fabricCanvas.off('object:rotating', updateToolbar)
+      fabricCanvas.off('mouse:wheel', updateToolbar)
     }
   }, [
     fabricCanvas,
@@ -1027,7 +1058,7 @@ export const useCanvasEvents = ({
     addLayer,
     setSelectedObjectId,
     setSelectedObjectProps,
-    setShowAlignmentPanel,
+    onSelectionToolbar,
     setViewportOffset,
     setZoomValue,
     saveHistory,

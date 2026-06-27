@@ -55,7 +55,8 @@ export default function AlignmentPanel({
   )
 
   return (
-    <div className="absolute top-2 left-1/2 z-10 -translate-x-1/2 transform rounded-lg border border-gray-300 bg-white p-2 shadow-lg dark:border-gray-600 dark:bg-gray-800">
+    // 位置は親（SelectionToolbar）が制御するため、ここでは見た目だけ持つインラインツールバー
+    <div className="rounded-lg border border-gray-300 bg-white p-2 shadow-lg dark:border-gray-600 dark:bg-gray-800">
       <div className="flex items-center gap-1">
         <div className="flex gap-1 border-r border-gray-300 pr-2 dark:border-gray-600">
           <AlignButton Icon={AlignLeftIcon} onClick={onAlignLeft} title="左揃え" />
