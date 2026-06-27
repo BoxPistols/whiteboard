@@ -1,10 +1,11 @@
 import { create } from 'zustand'
-import type { Tool, Layer, ShortcutConfig, ShortcutModifiers } from '@/types'
+import type { Tool, Layer } from '@/types'
 import type { fabric } from 'fabric'
-import { DEFAULT_SHORTCUTS } from './shortcuts'
 import { savePagesToDB, loadPagesFromDB, migrateToIndexedDB, onSaveStatusChange } from './storage'
 import type { SaveStatus } from './storage'
 import { createGridSlice, type GridSlice } from './slices/gridSlice'
+import { createShortcutsSlice, type ShortcutsSlice } from './slices/shortcutsSlice'
+import { createPanelSlice, type PanelSlice } from './slices/panelSlice'
 
 // Canvas 背景のテーマ別デフォルト色。theme 切替に連動させる判定にも使う
 export const DARK_CANVAS_BG = '#1f2937'
@@ -97,7 +98,7 @@ interface Page {
   notes?: string
 }
 
-export interface CanvasStore extends GridSlice {
+export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice {
   selectedTool: Tool
   selectedObjectId: string | null
   // レイヤーパネルの複数選択（Cmd/Shift+クリック）。単一選択時も常に同期する
@@ -113,13 +114,8 @@ export interface CanvasStore extends GridSlice {
   currentPageId: string
   theme: 'light' | 'dark'
   canvasBackground: string
-  showLeftPanel: boolean
-  showRightPanel: boolean
-  leftPanelWidth: number
-  rightPanelWidth: number
-  // ショートカット関連
-  shortcuts: ShortcutConfig[]
-  showShortcutsModal: boolean
+  // パネル表示/幅（showLeftPanel/showRightPanel/leftPanelWidth/rightPanelWidth）は PanelSlice（extends）で提供
+  // ショートカット設定（shortcuts/showShortcutsModal）は ShortcutsSlice（extends）で提供
   // ナッジ設定
   nudgeAmount: number
   // Undo/Redo履歴
@@ -180,21 +176,14 @@ export interface CanvasStore extends GridSlice {
   setLoadedPageId: (id: string | null) => void
   updatePageNotes: (id: string, notes: string) => void
   updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
-  toggleLeftPanel: () => void
-  toggleRightPanel: () => void
-  setLeftPanelWidth: (width: number) => void
-  setRightPanelWidth: (width: number) => void
+  // パネル関連アクション（toggleLeftPanel/toggleRightPanel/setLeftPanelWidth/setRightPanelWidth）は PanelSlice（extends）で提供
   setLayers: (layers: Layer[]) => void
   toggleTheme: () => void
   loadSavedTheme: () => void
   setCanvasBackground: (color: string) => void
   loadSavedCanvasBackground: () => void
   resetAll: () => void
-  // ショートカット関連
-  updateShortcut: (id: string, newKey: string, modifiers: ShortcutModifiers) => void
-  resetShortcuts: () => void
-  loadSavedShortcuts: () => void
-  setShowShortcutsModal: (show: boolean) => void
+  // ショートカット関連アクション（updateShortcut/resetShortcuts/loadSavedShortcuts/setShowShortcutsModal）は ShortcutsSlice（extends）で提供
   // ナッジ関連
   setNudgeAmount: (amount: number) => void
   loadSavedNudgeAmount: () => void
@@ -466,6 +455,10 @@ const applyHistorySnapshot = (
 export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   // グリッド設定スライス（gridEnabled/Size/Color/Opacity/Snap + 関連アクション）を合成
   ...createGridSlice(set, get, store),
+  // ショートカット設定スライス（shortcuts/showShortcutsModal + 関連アクション）を合成
+  ...createShortcutsSlice(set, get, store),
+  // パネル表示/幅スライス（showLeftPanel/showRightPanel/leftPanelWidth/rightPanelWidth + 関連アクション）を合成
+  ...createPanelSlice(set, get, store),
   selectedTool: 'select',
   selectedObjectId: null,
   selectedLayerIds: [],
@@ -479,12 +472,8 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   currentPageId: defaultPageId,
   theme: 'dark',
   canvasBackground: DARK_CANVAS_BG,
-  showLeftPanel: true,
-  showRightPanel: true,
-  leftPanelWidth: 224, // 56 * 4 = w-56
-  rightPanelWidth: 288, // 72 * 4 = w-72
-  shortcuts: DEFAULT_SHORTCUTS,
-  showShortcutsModal: false,
+  // パネルの初期値・アクションは createPanelSlice で提供
+  // ショートカットの初期値・アクションは createShortcutsSlice で提供
   // ナッジ設定（デフォルト10px）
   nudgeAmount: 10,
   // Undo/Redo履歴
@@ -1291,10 +1280,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
 
     set({ pages: updatedPages })
   },
-  toggleLeftPanel: () => set((state) => ({ showLeftPanel: !state.showLeftPanel })),
-  toggleRightPanel: () => set((state) => ({ showRightPanel: !state.showRightPanel })),
-  setLeftPanelWidth: (width) => set({ leftPanelWidth: Math.max(200, Math.min(width, 400)) }),
-  setRightPanelWidth: (width) => set({ rightPanelWidth: Math.max(250, Math.min(width, 500)) }),
+  // パネル関連アクション（toggleLeftPanel/toggleRightPanel/setLeftPanelWidth/setRightPanelWidth）は createPanelSlice で提供
   toggleTheme: () => {
     const { theme: currentTheme, canvasBackground: currentBg } = get()
     const newTheme = currentTheme === 'light' ? 'dark' : 'light'
@@ -1389,63 +1375,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
       currentPageId: defaultPageId,
     })
   },
-  // ショートカット関連
-  setShowShortcutsModal: (show) => set({ showShortcutsModal: show }),
-  updateShortcut: (id, newKey, modifiers) => {
-    const shortcuts = get().shortcuts.map((shortcut) =>
-      shortcut.id === id ? { ...shortcut, customKey: newKey, modifiers } : shortcut
-    )
-
-    // localStorageに保存
-    if (typeof window !== 'undefined') {
-      try {
-        const customShortcuts = shortcuts
-          .filter((s) => s.customKey)
-          .map((s) => ({ id: s.id, customKey: s.customKey, modifiers: s.modifiers }))
-        localStorage.setItem('twb-shortcuts', JSON.stringify(customShortcuts))
-      } catch (e) {
-        console.error('Failed to save shortcuts:', e)
-      }
-    }
-
-    set({ shortcuts })
-  },
-  resetShortcuts: () => {
-    // localStorageからカスタムショートカットを削除
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.removeItem('twb-shortcuts')
-      } catch (e) {
-        console.error('Failed to remove shortcuts:', e)
-      }
-    }
-
-    // デフォルトに戻す
-    set({ shortcuts: DEFAULT_SHORTCUTS })
-  },
-  loadSavedShortcuts: () => {
-    if (typeof window === 'undefined') return
-
-    try {
-      const saved = localStorage.getItem('twb-shortcuts')
-      if (saved) {
-        const customShortcuts = JSON.parse(saved) as {
-          id: string
-          customKey: string
-          modifiers: ShortcutModifiers
-        }[]
-        const shortcuts = DEFAULT_SHORTCUTS.map((shortcut) => {
-          const custom = customShortcuts.find((c) => c.id === shortcut.id)
-          return custom
-            ? { ...shortcut, customKey: custom.customKey, modifiers: custom.modifiers }
-            : shortcut
-        })
-        set({ shortcuts })
-      }
-    } catch (e) {
-      console.error('Failed to load shortcuts:', e)
-    }
-  },
+  // ショートカット関連アクション（setShowShortcutsModal/updateShortcut/resetShortcuts/loadSavedShortcuts）は createShortcutsSlice で提供
   // ナッジ関連
   setNudgeAmount: (amount) => {
     if (typeof window !== 'undefined') {
