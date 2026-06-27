@@ -28,13 +28,15 @@ import {
   syncFabricZOrder,
   findFabricObject,
   findStickyPartnerOnCanvas,
-  computeObjectsBoundingBox,
   getCanvasData,
 } from './storeHelpers'
+import { createViewportSlice, type ViewportSlice, MIN_ZOOM, MAX_ZOOM } from './slices/viewportSlice'
 
 // 共有ヘルパー由来の公開シンボルは後方互換のため store からも re-export
 export { CANVAS_SERIALIZE_PROPS }
 export type { Page }
+// ズーム定数は viewportSlice に定義。後方互換のため store からも re-export
+export { MIN_ZOOM, MAX_ZOOM }
 
 // Canvas 背景のテーマ別デフォルト色は themeSlice に定義。後方互換のため store からも re-export
 export { DARK_CANVAS_BG, LIGHT_CANVAS_BG }
@@ -120,13 +122,14 @@ export interface CanvasStore
     PanelSlice,
     ThemeSlice,
     StyleDefaultsSlice,
-    NudgeSlice {
+    NudgeSlice,
+    ViewportSlice {
   selectedTool: Tool
   selectedObjectId: string | null
   // レイヤーパネルの複数選択（Cmd/Shift+クリック）。単一選択時も常に同期する
   selectedLayerIds: string[]
   layers: Layer[]
-  zoom: number
+  // ズーム状態（zoom）は ViewportSlice（extends）で提供
   fabricCanvas: fabric.Canvas | null
   selectedObjectProps: ObjectProperties | null
   clipboard: fabric.Object | null
@@ -176,14 +179,7 @@ export interface CanvasStore
   toggleLayerExpanded: (id: string) => void
   updateLayerChildren: (parentId: string, childIds: string[]) => void
   createFolder: (name?: string) => void
-  setZoom: (zoom: number) => void
-  setZoomValue: (zoom: number) => void
-  zoomIn: () => void
-  zoomOut: () => void
-  zoomToFit: () => void
-  zoomToSelection: () => void
-  resetZoom: () => void
-  resetView: () => void
+  // ズーム/ビューポートアクション（setZoom/setZoomValue/zoomIn/zoomOut/zoomToFit/zoomToSelection/resetZoom/resetView）は ViewportSlice（extends）で提供
   setFabricCanvas: (canvas: fabric.Canvas | null) => void
   setSelectedObjectProps: (props: ObjectProperties | null) => void
   updateObjectProperty: (key: keyof ObjectProperties, value: number | string) => void
@@ -265,10 +261,7 @@ const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024 // 10MB
 // 共有ヘルパー（persistLayersToStorage / flattenLayerTree / nextFolderName /
 // getDescendantIds / syncFabricZOrder / findFabricObject / findStickyPartnerOnCanvas /
 // CANVAS_SERIALIZE_PROPS）は storeHelpers.ts に集約（上部で import 済み）
-
-// ズーム率の下限/上限（%）。Figma 同様に広いレンジを許可する。
-export const MIN_ZOOM = 2
-export const MAX_ZOOM = 800
+// ズーム定数（MIN_ZOOM/MAX_ZOOM）は viewportSlice に定義（上部で import + re-export 済み）
 
 // computeObjectsBoundingBox / getCanvasData は storeHelpers.ts に集約（上部で import 済み）
 
@@ -315,11 +308,13 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   ...createStyleDefaultsSlice(set, get, store),
   // ナッジ設定スライス（nudgeAmount + 関連アクション）を合成
   ...createNudgeSlice(set, get, store),
+  // ズーム/ビューポートスライス（zoom + 関連アクション）を合成
+  ...createViewportSlice(set, get, store),
   selectedTool: 'select',
   selectedObjectId: null,
   selectedLayerIds: [],
   layers: [],
-  zoom: 100,
+  // zoom 初期値・アクションは createViewportSlice で提供
   fabricCanvas: null,
   selectedObjectProps: null,
   clipboard: null,
@@ -772,146 +767,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
         selectedObjectId: folderId,
       }
     }),
-  setZoom: (zoom) => {
-    const { fabricCanvas } = get()
-    const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
-    if (fabricCanvas) {
-      // Figma 同様にビューポート中心を固定してズームする。
-      // fabricCanvas.setZoom は origin(0,0) 基準で内容が左上へ寄るため使わない。
-      // store は fabric を type-only import しているため new fabric.Point は使えない。
-      // zoomToPoint は point.x/point.y のみ参照するので素のオブジェクトで十分。
-      const center = { x: fabricCanvas.getWidth() / 2, y: fabricCanvas.getHeight() / 2 }
-      fabricCanvas.zoomToPoint(center as fabric.Point, clamped / 100)
-      fabricCanvas.renderAll()
-    }
-    set({ zoom: Math.round(clamped) })
-  },
-  // 数値表示のみ更新（fabric への再適用はしない）。
-  // ホイールズームは zoomToPoint でカーソル位置基準に既に適用済みのため、
-  // setZoom を使うと origin(0,0) 基準で再適用され二重がけになる。それを避ける用途。
-  setZoomValue: (zoom) => set({ zoom }),
-  // キーボード/ボタンからのズームイン・アウト（setZoom はビューポート中心基準＋クランプ済み）
-  zoomIn: () => get().setZoom(get().zoom + 25),
-  zoomOut: () => get().setZoom(get().zoom - 25),
-  zoomToFit: () => {
-    const { fabricCanvas } = get()
-    if (!fabricCanvas) return
-
-    const canvasWidth = fabricCanvas.getWidth()
-    const canvasHeight = fabricCanvas.getHeight()
-
-    // すべてのオブジェクトを取得して範囲を計算
-    const objects = fabricCanvas.getObjects()
-    if (objects.length === 0) {
-      get().resetZoom()
-      return
-    }
-
-    const { width: groupWidth, height: groupHeight } = computeObjectsBoundingBox(objects)
-
-    // 適切なズームレベルを計算（余白10%）
-    const zoomX = (canvasWidth * 0.9) / groupWidth
-    const zoomY = (canvasHeight * 0.9) / groupHeight
-    const zoom = Math.min(zoomX, zoomY) * 100
-
-    get().setZoom(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)))
-  },
-  zoomToSelection: () => {
-    const { fabricCanvas, selectedObjectId } = get()
-    if (!fabricCanvas || !selectedObjectId) return
-
-    const activeObject = fabricCanvas.getActiveObject()
-    if (!activeObject) return
-
-    const canvasWidth = fabricCanvas.getWidth()
-    const canvasHeight = fabricCanvas.getHeight()
-
-    // オブジェクトのバウンディングボックスを取得（現在のtransformを考慮）
-    const bound = activeObject.getBoundingRect()
-    const objectCenterX = bound.left + bound.width / 2
-    const objectCenterY = bound.top + bound.height / 2
-
-    // 適切なズームレベルを計算（余白20%）
-    const zoomX = (canvasWidth * 0.8) / bound.width
-    const zoomY = (canvasHeight * 0.8) / bound.height
-    let zoom = Math.min(zoomX, zoomY) * 100
-    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom))
-
-    // オブジェクトを中心にビューポートを移動（オブジェクト自体は動かさない）
-    const zoomLevel = zoom / 100
-    const vpCenterX = canvasWidth / 2
-    const vpCenterY = canvasHeight / 2
-
-    // 現在のビューポート座標でのオブジェクト中心を計算
-    const currentVpt = fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0]
-    const currentZoom = currentVpt[0]
-    // 画面座標からキャンバス座標に変換
-    const objCanvasX = (objectCenterX - currentVpt[4]) / currentZoom
-    const objCanvasY = (objectCenterY - currentVpt[5]) / currentZoom
-
-    // 新しいパン位置を計算（オブジェクトがビューポート中央に来るように）
-    const panX = vpCenterX - objCanvasX * zoomLevel
-    const panY = vpCenterY - objCanvasY * zoomLevel
-
-    fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
-    set({ zoom: Math.round(zoom) })
-    fabricCanvas.renderAll()
-  },
-  resetZoom: () => {
-    const { fabricCanvas } = get()
-    if (fabricCanvas) {
-      // ビューポートのtransformをリセット（初期位置に戻す）
-      fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0])
-    }
-    get().setZoom(100)
-  },
-  // 全体俯瞰（すべてのオブジェクトが見えるようにズームと位置を調整）
-  resetView: () => {
-    const { fabricCanvas } = get()
-    if (!fabricCanvas) return
-
-    // まずビューポートをリセット
-    fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0])
-
-    const objects = fabricCanvas.getObjects()
-    if (objects.length === 0) {
-      // オブジェクトがない場合は100%表示
-      get().setZoom(100)
-      return
-    }
-
-    const canvasWidth = fabricCanvas.getWidth()
-    const canvasHeight = fabricCanvas.getHeight()
-
-    // オブジェクト全体が収まるようにズームと位置を調整
-    const {
-      width: groupWidth,
-      height: groupHeight,
-      centerX,
-      centerY,
-    } = computeObjectsBoundingBox(objects)
-
-    // 適切なズームレベルを計算（余白10%）
-    const zoomX = (canvasWidth * 0.9) / groupWidth
-    const zoomY = (canvasHeight * 0.9) / groupHeight
-    let zoom = Math.min(zoomX, zoomY) * 100
-
-    // resetView は俯瞰用途のため 100% を上限（拡大しない）。zoomToFit とは意図的に異なる。
-    zoom = Math.min(zoom, 100)
-    zoom = Math.max(zoom, 10)
-
-    // オブジェクトを中央に配置
-    const vpCenterX = canvasWidth / 2
-    const vpCenterY = canvasHeight / 2
-
-    const zoomLevel = zoom / 100
-    const panX = vpCenterX - centerX * zoomLevel
-    const panY = vpCenterY - centerY * zoomLevel
-
-    fabricCanvas.setViewportTransform([zoomLevel, 0, 0, zoomLevel, panX, panY])
-    set({ zoom: Math.round(zoom) })
-    fabricCanvas.renderAll()
-  },
+  // ズーム/ビューポートアクション（setZoom/setZoomValue/zoomIn/zoomOut/zoomToFit/zoomToSelection/resetZoom/resetView）は createViewportSlice で提供
   setFabricCanvas: (canvas) => set({ fabricCanvas: canvas }),
   setSelectedObjectProps: (props) => set({ selectedObjectProps: props }),
   setLayers: (layers) => {
