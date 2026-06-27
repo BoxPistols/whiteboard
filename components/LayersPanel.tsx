@@ -128,7 +128,7 @@ function LayerTreeItem({
         className={`flex items-center justify-between py-1 pr-1.5 rounded cursor-move transition-all ${
           isSelected
             ? 'bg-blue-500 dark:bg-blue-600 text-white'
-            : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100'
+            : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100'
         } ${draggedLayerId === layer.id ? 'opacity-50' : ''} ${
           isDropAbove ? 'border-t-2 border-blue-500' : ''
         } ${isDropBelow ? 'border-b-2 border-blue-500' : ''} ${
