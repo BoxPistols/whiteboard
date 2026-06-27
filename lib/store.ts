@@ -4,6 +4,7 @@ import type { fabric } from 'fabric'
 import { DEFAULT_SHORTCUTS } from './shortcuts'
 import { savePagesToDB, loadPagesFromDB, migrateToIndexedDB, onSaveStatusChange } from './storage'
 import type { SaveStatus } from './storage'
+import { createGridSlice, type GridSlice } from './slices/gridSlice'
 
 // Canvas 背景のテーマ別デフォルト色。theme 切替に連動させる判定にも使う
 export const DARK_CANVAS_BG = '#1f2937'
@@ -96,7 +97,7 @@ interface Page {
   notes?: string
 }
 
-interface CanvasStore {
+export interface CanvasStore extends GridSlice {
   selectedTool: Tool
   selectedObjectId: string | null
   // レイヤーパネルの複数選択（Cmd/Shift+クリック）。単一選択時も常に同期する
@@ -136,12 +137,7 @@ interface CanvasStore {
   // 保存状態
   saveStatus: SaveStatus
   saveError: string | null
-  // グリッド設定
-  gridEnabled: boolean
-  gridSize: number
-  gridColor: string
-  gridOpacity: number
-  gridSnapEnabled: boolean
+  // グリッド設定は GridSlice（extends）で提供
   // 最後に使ったスタイル（新規作成時に引き継ぐ）
   styleDefaults: StyleDefaults
   // 複製モード（Alt+ドラッグ用インジケーター）
@@ -210,13 +206,7 @@ interface CanvasStore {
   redo: () => void
   canUndo: () => boolean
   canRedo: () => boolean
-  // グリッド関連
-  toggleGrid: () => void
-  setGridSize: (size: number) => void
-  setGridColor: (color: string) => void
-  setGridOpacity: (opacity: number) => void
-  toggleGridSnap: () => void
-  loadSavedGridSettings: () => void
+  // グリッド関連アクションは GridSlice（extends）で提供
   // スタイル既定値関連
   setStyleDefaults: (defaults: Partial<StyleDefaults>) => void
   loadSavedStyleDefaults: () => void
@@ -354,28 +344,7 @@ const syncFabricZOrder = (fabricCanvas: fabric.Canvas, orderedLayers: Layer[]): 
   })
 }
 
-// グリッド設定をlocalStorageに保存するヘルパー
-const persistGridSettings = (state: {
-  gridEnabled: boolean
-  gridSize: number
-  gridColor: string
-  gridOpacity: number
-  gridSnapEnabled: boolean
-}) => {
-  if (typeof window === 'undefined') return
-  try {
-    const settings = {
-      enabled: state.gridEnabled,
-      size: state.gridSize,
-      color: state.gridColor,
-      opacity: state.gridOpacity,
-      snapEnabled: state.gridSnapEnabled,
-    }
-    localStorage.setItem('twb-grid-settings', JSON.stringify(settings))
-  } catch (error) {
-    console.error('Failed to save grid settings:', error)
-  }
-}
+// グリッド設定の永続化は GridSlice（lib/slices/gridSlice.ts）へ移譲
 
 // fabricCanvasからobjectIdでオブジェクトを検索（直下→グループ内）
 const findFabricObject = (fabricCanvas: fabric.Canvas, objectId: string): fabric.Object | null => {
@@ -494,7 +463,9 @@ const applyHistorySnapshot = (
   })
 }
 
-export const useCanvasStore = create<CanvasStore>((set, get) => ({
+export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
+  // グリッド設定スライス（gridEnabled/Size/Color/Opacity/Snap + 関連アクション）を合成
+  ...createGridSlice(set, get, store),
   selectedTool: 'select',
   selectedObjectId: null,
   selectedLayerIds: [],
@@ -527,12 +498,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   // 保存状態
   saveStatus: 'saved' as SaveStatus,
   saveError: null,
-  // グリッド設定（デフォルト値）
-  gridEnabled: false,
-  gridSize: 10,
-  gridColor: '#888888',
-  gridOpacity: 20,
-  gridSnapEnabled: false,
+  // グリッド設定の初期値・アクションは createGridSlice で提供
   // スタイル既定値（theme 非依存のため中立色で初期化、使用時にテーマ別色へ補正）
   styleDefaults: {
     fill: 'rgba(107, 114, 128, 0.5)',
@@ -1644,31 +1610,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const { history, historyIndex } = get()
     return historyIndex < history.length - 1
   },
-  // グリッド関連
-  toggleGrid: () => {
-    const newEnabled = !get().gridEnabled
-    set({ gridEnabled: newEnabled })
-    persistGridSettings(get())
-  },
-  setGridSize: (size) => {
-    const validSize = Math.max(5, Math.min(100, size))
-    set({ gridSize: validSize })
-    persistGridSettings(get())
-  },
-  setGridColor: (color) => {
-    set({ gridColor: color })
-    persistGridSettings(get())
-  },
-  setGridOpacity: (opacity) => {
-    const validOpacity = Math.max(5, Math.min(100, opacity))
-    set({ gridOpacity: validOpacity })
-    persistGridSettings(get())
-  },
-  toggleGridSnap: () => {
-    const newSnapEnabled = !get().gridSnapEnabled
-    set({ gridSnapEnabled: newSnapEnabled })
-    persistGridSettings(get())
-  },
+  // グリッド関連アクション（toggleGrid/setGridSize/Color/Opacity/Snap）は createGridSlice で提供
   setStyleDefaults: (defaults) => {
     const merged = { ...get().styleDefaults, ...defaults }
     if (typeof window !== 'undefined') {
@@ -1790,31 +1732,7 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       // saveHistory は canvas の object:added リスナー経由で自動記録されるため明示呼び出し不要
     })
   },
-  loadSavedGridSettings: () => {
-    if (typeof window === 'undefined') return
-
-    try {
-      const saved = localStorage.getItem('twb-grid-settings')
-      if (saved) {
-        const settings = JSON.parse(saved) as {
-          enabled: boolean
-          size: number
-          color: string
-          opacity: number
-          snapEnabled?: boolean
-        }
-        set({
-          gridEnabled: settings.enabled ?? false,
-          gridSize: settings.size ?? 10,
-          gridColor: settings.color ?? '#888888',
-          gridOpacity: settings.opacity ?? 20,
-          gridSnapEnabled: settings.snapEnabled ?? false,
-        })
-      }
-    } catch (e) {
-      console.error('Failed to load grid settings:', e)
-    }
-  },
+  // loadSavedGridSettings は createGridSlice で提供
   initializePages: async () => {
     if (typeof window === 'undefined') return
     // 二重初期化防止（React StrictMode対策）。pagesInitialized は await 完了後に
