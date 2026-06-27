@@ -21,6 +21,7 @@ import { createNudgeSlice, type NudgeSlice } from './slices/nudgeSlice'
 import { type Page, CANVAS_SERIALIZE_PROPS } from './storeHelpers'
 import { createViewportSlice, type ViewportSlice, MIN_ZOOM, MAX_ZOOM } from './slices/viewportSlice'
 import { createLayersSlice, type LayersSlice } from './slices/layersSlice'
+import { createHistorySlice, type HistorySlice } from './slices/historySlice'
 
 // 共有ヘルパー由来の公開シンボルは後方互換のため store からも re-export
 export { CANVAS_SERIALIZE_PROPS }
@@ -98,12 +99,7 @@ export interface ObjectProperties {
 // StyleDefaults 型は styleDefaultsSlice に定義。後方互換のため store からも re-export
 export type { StyleDefaults }
 
-// Undo/Redo用の履歴スナップショット
-interface HistorySnapshot {
-  canvasJSON: string
-  layers: Layer[]
-}
-
+// HistorySnapshot 型・Undo/Redo は historySlice に定義
 // Page 型は storeHelpers に定義（上部で import 済み）
 
 export interface CanvasStore
@@ -114,7 +110,8 @@ export interface CanvasStore
     StyleDefaultsSlice,
     NudgeSlice,
     ViewportSlice,
-    LayersSlice {
+    LayersSlice,
+    HistorySlice {
   selectedTool: Tool
   selectedObjectId: string | null
   // レイヤー状態（layers/selectedLayerIds）は LayersSlice（extends）で提供
@@ -130,10 +127,7 @@ export interface CanvasStore
   // パネル表示/幅（showLeftPanel/showRightPanel/leftPanelWidth/rightPanelWidth）は PanelSlice（extends）で提供
   // ショートカット設定（shortcuts/showShortcutsModal）は ShortcutsSlice（extends）で提供
   // ナッジ設定（nudgeAmount）は NudgeSlice（extends）で提供
-  // Undo/Redo履歴
-  history: HistorySnapshot[]
-  historyIndex: number
-  isUndoRedoAction: boolean
+  // Undo/Redo履歴状態（history/historyIndex/isUndoRedoAction）は HistorySlice（extends）で提供
   // ページ初期化完了フラグ（IndexedDB読み込み完了まで自動保存を抑制）
   pagesInitialized: boolean
   // 初期化処理が開始済みか（同期ガード）。pagesInitialized は await 後にしか true に
@@ -174,13 +168,7 @@ export interface CanvasStore
   // ナッジ関連アクション（setNudgeAmount/loadSavedNudgeAmount）は NudgeSlice（extends）で提供
   // moveSelectedObject は fabric 依存のため store に残置（nudgeAmount は get() 経由で参照）
   moveSelectedObject: (direction: 'up' | 'down' | 'left' | 'right', useNudge: boolean) => void
-  // Undo/Redo関連
-  saveHistory: () => void
-  clearHistory: () => void
-  undo: () => void
-  redo: () => void
-  canUndo: () => boolean
-  canRedo: () => boolean
+  // Undo/Redo関連アクション（saveHistory/clearHistory/undo/redo/canUndo/canRedo）は HistorySlice（extends）で提供
   // グリッド関連アクションは GridSlice（extends）で提供
   // スタイル既定値アクション（setStyleDefaults/loadSavedStyleDefaults）は StyleDefaultsSlice（extends）で提供
   // 複製モード
@@ -227,11 +215,7 @@ const defaultPages = (): Page[] => [
 ]
 
 // 画像を多用するページでは1スナップショットが数MBに達するため、メモリ枯渇によるクラッシュを防ぐ目的で控えめに
-const MAX_HISTORY_LENGTH = 5
-// 履歴全体のメモリ上限。これを超えたら古いスナップショットを破棄する（OOM 対策）
-const MAX_HISTORY_BYTES = 30 * 1024 * 1024 // 30MB
-// 単一スナップショットがこのサイズを超える場合は履歴記録をスキップ（巨大画像ペースト直後など）
-const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024 // 10MB
+// 履歴上限定数（MAX_HISTORY_LENGTH/BYTES/SNAPSHOT_BYTES）は historySlice に定義
 
 // 共有ヘルパー（persistLayersToStorage / flattenLayerTree / nextFolderName / getDescendantIds /
 // syncFabricZOrder / findFabricObject / findStickyPartnerOnCanvas / computeObjectsBoundingBox /
@@ -239,35 +223,7 @@ const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024 // 10MB
 // store.ts が直接使うのは Page / CANVAS_SERIALIZE_PROPS のみ（上部で import 済み）。
 // ズーム定数（MIN_ZOOM/MAX_ZOOM）は viewportSlice に定義（上部で import + re-export 済み）
 
-// undo/redo 共通: 指定インデックスの履歴スナップショットを canvas/layers へ適用する。
-// 両者は guard と index 計算以外が完全に同一だったため一本化（store-duplicated-logic）。
-const applyHistorySnapshot = (
-  get: () => CanvasStore,
-  set: (partial: Partial<CanvasStore>) => void,
-  newIndex: number
-) => {
-  const { fabricCanvas, history } = get()
-  if (!fabricCanvas) return
-  const snapshot = history[newIndex]
-
-  set({ isUndoRedoAction: true })
-
-  fabricCanvas.loadFromJSON(JSON.parse(snapshot.canvasJSON), () => {
-    // loadFromJSON が保存時点の背景を復元するため、現在のユーザー設定を再適用
-    const { canvasBackground: bg, theme: t } = get()
-    fabricCanvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
-      fabricCanvas.renderAll()
-    )
-    set({
-      layers: [...snapshot.layers],
-      historyIndex: newIndex,
-      isUndoRedoAction: false,
-      selectedObjectId: null,
-      selectedLayerIds: [],
-      selectedObjectProps: null,
-    })
-  })
-}
+// applyHistorySnapshot（undo/redo 共通処理）は historySlice に内包
 
 export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   // グリッド設定スライス（gridEnabled/Size/Color/Opacity/Snap + 関連アクション）を合成
@@ -286,6 +242,8 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   ...createViewportSlice(set, get, store),
   // レイヤーツリー操作スライス（layers/selectedLayerIds + 関連アクション）を合成
   ...createLayersSlice(set, get, store),
+  // Undo/Redo 履歴スライス（history/historyIndex/isUndoRedoAction + 関連アクション）を合成
+  ...createHistorySlice(set, get, store),
   selectedTool: 'select',
   selectedObjectId: null,
   // layers/selectedLayerIds 初期値・アクションは createLayersSlice で提供
@@ -300,10 +258,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   // パネルの初期値・アクションは createPanelSlice で提供
   // ショートカットの初期値・アクションは createShortcutsSlice で提供
   // ナッジの初期値・アクションは createNudgeSlice で提供
-  // Undo/Redo履歴
-  history: [],
-  historyIndex: -1,
-  isUndoRedoAction: false,
+  // Undo/Redo履歴の初期値・アクションは createHistorySlice で提供
   // ページ初期化完了フラグ
   pagesInitialized: false,
   pagesInitStarted: false,
@@ -613,91 +568,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
       })
     }
   },
-  // Undo/Redo関連
-  saveHistory: () => {
-    const { fabricCanvas, layers, history, historyIndex, isUndoRedoAction } = get()
-    if (!fabricCanvas || isUndoRedoAction) return
-
-    // 巨大画像を含む canvas では toJSON / stringify が失敗・OOM することがあるため
-    // 履歴記録は best-effort に留め、失敗してもアプリは継続させる
-    let canvasJSON: string
-    try {
-      canvasJSON = JSON.stringify(fabricCanvas.toJSON(CANVAS_SERIALIZE_PROPS))
-    } catch (e) {
-      console.warn('Failed to snapshot canvas for history:', e)
-      return
-    }
-
-    // スナップショット単体が大きすぎる場合は履歴に積まない（巨大画像ペースト等）。
-    // Undo を諦める代わりにアプリの安定性を優先する
-    if (canvasJSON.length > MAX_SNAPSHOT_BYTES) {
-      console.warn(
-        `Skipping history snapshot: canvas size ${(canvasJSON.length / 1024 / 1024).toFixed(1)}MB exceeds limit`
-      )
-      return
-    }
-
-    // 同一内容の連続スナップショットは積まない。
-    // add/remove 系操作は「object:added/removed のデバウンスリスナー」と
-    // 「アクション内の明示 saveHistory()」の双方から呼ばれ二重記録され、
-    // Undo を1回押しても見た目が変わらず2回押す必要が生じていた。
-    // canvas 内容(canvasJSON)とレイヤー(layers)が共に直前と同一なら no-op として無視する。
-    // layers はストア全体でイミュータブル更新されるため、JSON.stringify せず
-    // 長さ＋要素の参照比較（浅い比較）で等価判定できる（大量レイヤー時の負荷を回避）。
-    const prev = history[historyIndex]
-    const layersUnchanged =
-      !!prev && prev.layers.length === layers.length && prev.layers.every((l, i) => l === layers[i])
-    if (prev && prev.canvasJSON === canvasJSON && layersUnchanged) {
-      return
-    }
-
-    const snapshot: HistorySnapshot = {
-      canvasJSON,
-      layers: [...layers],
-    }
-
-    // 現在位置より後の履歴を削除
-    const newHistory = history.slice(0, historyIndex + 1)
-    newHistory.push(snapshot)
-
-    // 件数キャップ
-    while (newHistory.length > MAX_HISTORY_LENGTH) {
-      newHistory.shift()
-    }
-
-    // バイト数キャップ（合計が閾値超なら古いものから捨てる）
-    let totalBytes = newHistory.reduce((sum, s) => sum + s.canvasJSON.length, 0)
-    while (newHistory.length > 1 && totalBytes > MAX_HISTORY_BYTES) {
-      const dropped = newHistory.shift()
-      if (dropped) totalBytes -= dropped.canvasJSON.length
-    }
-
-    set({
-      history: newHistory,
-      historyIndex: newHistory.length - 1,
-    })
-  },
-  undo: () => {
-    const { historyIndex } = get()
-    if (historyIndex <= 0) return
-    applyHistorySnapshot(get, set, historyIndex - 1)
-  },
-  redo: () => {
-    const { history, historyIndex } = get()
-    if (historyIndex >= history.length - 1) return
-    applyHistorySnapshot(get, set, historyIndex + 1)
-  },
-  clearHistory: () => {
-    set({ history: [], historyIndex: -1 })
-  },
-  canUndo: () => {
-    const { historyIndex } = get()
-    return historyIndex > 0
-  },
-  canRedo: () => {
-    const { history, historyIndex } = get()
-    return historyIndex < history.length - 1
-  },
+  // Undo/Redo関連アクション（saveHistory/clearHistory/undo/redo/canUndo/canRedo）は createHistorySlice で提供
   // グリッド関連アクション（toggleGrid/setGridSize/Color/Opacity/Snap）は createGridSlice で提供
   // スタイル既定値アクション（setStyleDefaults/loadSavedStyleDefaults）は createStyleDefaultsSlice で提供
   setDuplicateMode: (on) => set({ duplicateMode: on }),
