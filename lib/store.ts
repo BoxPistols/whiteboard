@@ -6,10 +6,15 @@ import type { SaveStatus } from './storage'
 import { createGridSlice, type GridSlice } from './slices/gridSlice'
 import { createShortcutsSlice, type ShortcutsSlice } from './slices/shortcutsSlice'
 import { createPanelSlice, type PanelSlice } from './slices/panelSlice'
+import {
+  createThemeSlice,
+  type ThemeSlice,
+  DARK_CANVAS_BG,
+  LIGHT_CANVAS_BG,
+} from './slices/themeSlice'
 
-// Canvas 背景のテーマ別デフォルト色。theme 切替に連動させる判定にも使う
-export const DARK_CANVAS_BG = '#1f2937'
-export const LIGHT_CANVAS_BG = '#f5f5f5'
+// Canvas 背景のテーマ別デフォルト色は themeSlice に定義。後方互換のため store からも re-export
+export { DARK_CANVAS_BG, LIGHT_CANVAS_BG }
 
 // `#rgb` / `#rrggbb` / `rgb(..)` から輝度を推定しダーク背景か判定
 // autoInvertText で「現在の背景は暗いか？」を決めるためだけの簡易実装
@@ -98,7 +103,7 @@ interface Page {
   notes?: string
 }
 
-export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice {
+export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice, ThemeSlice {
   selectedTool: Tool
   selectedObjectId: string | null
   // レイヤーパネルの複数選択（Cmd/Shift+クリック）。単一選択時も常に同期する
@@ -112,8 +117,7 @@ export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice {
   stickyClipboard: { bg: fabric.Object; text: fabric.Object } | null
   pages: Page[]
   currentPageId: string
-  theme: 'light' | 'dark'
-  canvasBackground: string
+  // テーマ/キャンバス背景（theme/canvasBackground）は ThemeSlice（extends）で提供
   // パネル表示/幅（showLeftPanel/showRightPanel/leftPanelWidth/rightPanelWidth）は PanelSlice（extends）で提供
   // ショートカット設定（shortcuts/showShortcutsModal）は ShortcutsSlice（extends）で提供
   // ナッジ設定
@@ -178,10 +182,7 @@ export interface CanvasStore extends GridSlice, ShortcutsSlice, PanelSlice {
   updatePageData: (id: string, canvasData: string, layers: Layer[]) => void
   // パネル関連アクション（toggleLeftPanel/toggleRightPanel/setLeftPanelWidth/setRightPanelWidth）は PanelSlice（extends）で提供
   setLayers: (layers: Layer[]) => void
-  toggleTheme: () => void
-  loadSavedTheme: () => void
-  setCanvasBackground: (color: string) => void
-  loadSavedCanvasBackground: () => void
+  // テーマ関連アクション（toggleTheme/loadSavedTheme/setCanvasBackground/loadSavedCanvasBackground）は ThemeSlice（extends）で提供
   resetAll: () => void
   // ショートカット関連アクション（updateShortcut/resetShortcuts/loadSavedShortcuts/setShowShortcutsModal）は ShortcutsSlice（extends）で提供
   // ナッジ関連
@@ -459,6 +460,8 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   ...createShortcutsSlice(set, get, store),
   // パネル表示/幅スライス（showLeftPanel/showRightPanel/leftPanelWidth/rightPanelWidth + 関連アクション）を合成
   ...createPanelSlice(set, get, store),
+  // テーマ/キャンバス背景スライス（theme/canvasBackground + 関連アクション）を合成
+  ...createThemeSlice(set, get, store),
   selectedTool: 'select',
   selectedObjectId: null,
   selectedLayerIds: [],
@@ -470,8 +473,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   stickyClipboard: null,
   pages: defaultPages(),
   currentPageId: defaultPageId,
-  theme: 'dark',
-  canvasBackground: DARK_CANVAS_BG,
+  // テーマの初期値・アクションは createThemeSlice で提供
   // パネルの初期値・アクションは createPanelSlice で提供
   // ショートカットの初期値・アクションは createShortcutsSlice で提供
   // ナッジ設定（デフォルト10px）
@@ -1281,69 +1283,7 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
     set({ pages: updatedPages })
   },
   // パネル関連アクション（toggleLeftPanel/toggleRightPanel/setLeftPanelWidth/setRightPanelWidth）は createPanelSlice で提供
-  toggleTheme: () => {
-    const { theme: currentTheme, canvasBackground: currentBg } = get()
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light'
-
-    if (typeof window !== 'undefined') {
-      // Force clean then apply target to avoid stale class on hydration edge cases
-      document.documentElement.classList.remove('dark')
-      if (newTheme === 'dark') {
-        document.documentElement.classList.add('dark')
-      }
-      localStorage.setItem('twb-theme', newTheme)
-    }
-
-    // カスタム色が未設定（＝どちらかのデフォルト値のまま）の場合のみ、新テーマのデフォルトへ連動
-    const isDefaultBg = currentBg === DARK_CANVAS_BG || currentBg === LIGHT_CANVAS_BG
-    const nextBg = newTheme === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG
-    if (isDefaultBg && currentBg !== nextBg) {
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('twb-canvas-bg', nextBg)
-        } catch (e) {
-          console.error('Failed to save canvas background:', e)
-        }
-      }
-      set({ theme: newTheme, canvasBackground: nextBg })
-      return
-    }
-
-    set({ theme: newTheme })
-  },
-  loadSavedTheme: () => {
-    if (typeof window === 'undefined') return
-
-    // Avoid double application: remove both then add needed
-    document.documentElement.classList.remove('dark')
-
-    const savedTheme = localStorage.getItem('twb-theme') as 'light' | 'dark' | null
-    // デフォルトはダークモード
-    const theme: 'light' | 'dark' = savedTheme || 'dark'
-
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark')
-    }
-
-    set({ theme })
-  },
-  setCanvasBackground: (color) => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('twb-canvas-bg', color)
-      } catch (e) {
-        console.error('Failed to save canvas background:', e)
-      }
-    }
-    set({ canvasBackground: color })
-  },
-  loadSavedCanvasBackground: () => {
-    if (typeof window === 'undefined') return
-    const saved = localStorage.getItem('twb-canvas-bg')
-    // 保存値があればそれを優先。未保存時は現在テーマのデフォルト色に揃える
-    const fallback = get().theme === 'light' ? LIGHT_CANVAS_BG : DARK_CANVAS_BG
-    set({ canvasBackground: saved || fallback })
-  },
+  // テーマ関連アクション（toggleTheme/loadSavedTheme/setCanvasBackground/loadSavedCanvasBackground）は createThemeSlice で提供
   resetAll: () => {
     const { fabricCanvas } = get()
 
