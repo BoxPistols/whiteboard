@@ -23,6 +23,7 @@ import { createLayersSlice, type LayersSlice } from './slices/layersSlice'
 import { createHistorySlice, type HistorySlice } from './slices/historySlice'
 import { createPagesSlice, type PagesSlice, defaultPageId } from './slices/pagesSlice'
 import { createObjectOpsSlice, type ObjectOpsSlice } from './slices/objectOpsSlice'
+import { createTokensSlice, type TokensSlice } from './slices/tokensSlice'
 
 // 共有ヘルパー由来の公開シンボルは後方互換のため store からも re-export
 export { CANVAS_SERIALIZE_PROPS }
@@ -41,6 +42,7 @@ export interface ObjectProperties {
   fill?: string
   stroke?: string
   strokeWidth?: number
+  fontSize?: number
   left?: number
   top?: number
   width?: number
@@ -49,6 +51,8 @@ export interface ObjectProperties {
   scaleY?: number
   opacity?: number
   isArrow?: boolean
+  // 各プロパティが参照するデザイントークンID（未参照なら undefined）。PropertiesPanel の表示に使う
+  tokenRefs?: { fill?: string; stroke?: string; strokeWidth?: string; fontSize?: string }
 }
 
 // 新規作成シェイプに適用されるスタイル既定値（localStorage に永続化）
@@ -70,7 +74,8 @@ export interface CanvasStore
     LayersSlice,
     HistorySlice,
     PagesSlice,
-    ObjectOpsSlice {
+    ObjectOpsSlice,
+    TokensSlice {
   selectedTool: Tool
   selectedObjectId: string | null
   // レイヤー状態（layers/selectedLayerIds）は LayersSlice（extends）で提供
@@ -170,6 +175,8 @@ export const useCanvasStore = create<CanvasStore>((set, get, store) => ({
   ...createPagesSlice(set, get, store),
   // オブジェクト操作スライス（duplicateMode/autoInvertText + プロパティ編集/移動/複製/自動反転）を合成
   ...createObjectOpsSlice(set, get, store),
+  // デザイントークン（コレクション/モード/トークンCRUD、ボード全体・localStorage永続化）を合成
+  ...createTokensSlice(set, get, store),
   selectedTool: 'select',
   selectedObjectId: null,
   // layers/selectedLayerIds 初期値・アクションは createLayersSlice で提供
