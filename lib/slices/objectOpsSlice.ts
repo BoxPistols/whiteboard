@@ -3,6 +3,8 @@ import type { fabric } from 'fabric'
 import type { CanvasStore, ObjectProperties } from '../store'
 import { isBackgroundDark } from '../storeHelpers'
 import { DARK_CANVAS_BG, LIGHT_CANVAS_BG } from './themeSlice'
+import { resolveToken, coerceForProp, applyResolvedValue } from '../tokens/tokenResolver'
+import type { BindableProp } from '../tokens/tokenConstants'
 
 // autoInvertText は「既定色（白/黒系）」のテキストだけを反転対象にする
 const isDefaultTextColor = (fill: string): boolean => {
@@ -26,6 +28,9 @@ export interface ObjectOpsSlice {
   // テキスト色を背景色に応じて自動反転する設定（既定色のみ対象、カスタム色は触らない）
   autoInvertText: boolean
   updateObjectProperty: (key: keyof ObjectProperties, value: number | string) => void
+  // 選択オブジェクトのプロパティをトークンへバインド/解除（fill/stroke/strokeWidth/fontSize）
+  bindObjectProperty: (key: BindableProp, tokenId: string) => void
+  unbindObjectProperty: (key: BindableProp) => void
   moveSelectedObject: (direction: 'up' | 'down' | 'left' | 'right', useNudge: boolean) => void
   setDuplicateMode: (on: boolean) => void
   duplicateSelected: () => void
@@ -60,6 +65,14 @@ export const createObjectOpsSlice: StateCreator<CanvasStore, [], [], ObjectOpsSl
 
     // 単一オブジェクトのプロパティを更新するヘルパー関数
     const updateSingleObject = (obj: fabric.Object) => {
+      // 生の値で編集したら、そのプロパティのトークン参照は解除する（raw edit wins）
+      if (
+        (key === 'fill' || key === 'stroke' || key === 'strokeWidth' || key === 'fontSize') &&
+        obj.data?.tokenRefs?.[key]
+      ) {
+        const { [key]: _removed, ...restRefs } = obj.data.tokenRefs
+        obj.data.tokenRefs = restRefs
+      }
       // 矢印（Path）の場合、fillとstrokeを連動させる
       if (obj.data?.type === 'arrow' && (key === 'fill' || key === 'stroke')) {
         const colorValue = value as string
@@ -102,6 +115,7 @@ export const createObjectOpsSlice: StateCreator<CanvasStore, [], [], ObjectOpsSl
         if (key === 'fill') obj.set('fill', value as string)
         else if (key === 'stroke') obj.set('stroke', value as string)
         else if (key === 'strokeWidth') obj.set('strokeWidth', value as number)
+        else if (key === 'fontSize') (obj as fabric.IText).set('fontSize', value as number)
         else if (key === 'opacity') obj.set('opacity', value as number)
         else if (key === 'left') obj.set('left', value as number)
         else if (key === 'top') obj.set('top', value as number)
@@ -166,7 +180,67 @@ export const createObjectOpsSlice: StateCreator<CanvasStore, [], [], ObjectOpsSl
         updatedProps.scaleY = (value as number) / activeObject.height
       }
 
+      // 生編集で参照解除した場合はパネル表示の tokenRefs も即座にクリア
+      if (
+        (key === 'fill' || key === 'stroke' || key === 'strokeWidth' || key === 'fontSize') &&
+        updatedProps.tokenRefs?.[key]
+      ) {
+        const { [key]: _removed, ...restRefs } = updatedProps.tokenRefs
+        updatedProps.tokenRefs = restRefs
+      }
+
       set({ selectedObjectProps: updatedProps })
+    }
+  },
+  bindObjectProperty: (key, tokenId) => {
+    const { fabricCanvas, tokensData, theme, selectedObjectProps } = get()
+    if (!fabricCanvas) return
+    const activeObject = fabricCanvas.getActiveObject()
+    // activeSelection への一括バインドは曖昧なため非対応（個別選択で実行）
+    if (!activeObject || activeObject.type === 'activeSelection') return
+
+    // 参照を記録
+    const data = activeObject.data ?? { id: crypto.randomUUID() }
+    activeObject.set({
+      data: { ...data, tokenRefs: { ...data.tokenRefs, [key]: tokenId } },
+    })
+
+    // 即時解決して反映
+    const raw = resolveToken(tokensData, tokenId, theme)
+    if (raw !== undefined) {
+      applyResolvedValue(activeObject, key, coerceForProp(raw, key), theme)
+    }
+    activeObject.setCoords()
+    fabricCanvas.requestRenderAll()
+    // バインドは実編集 → 通常の自動保存/履歴に乗せる
+    fabricCanvas.fire('object:modified', { target: activeObject })
+
+    if (selectedObjectProps) {
+      set({
+        selectedObjectProps: {
+          ...selectedObjectProps,
+          ...(raw !== undefined ? { [key]: coerceForProp(raw, key) } : {}),
+          tokenRefs: { ...selectedObjectProps.tokenRefs, [key]: tokenId },
+        },
+      })
+    }
+  },
+  unbindObjectProperty: (key) => {
+    const { fabricCanvas, selectedObjectProps } = get()
+    if (!fabricCanvas) return
+    const activeObject = fabricCanvas.getActiveObject()
+    if (!activeObject || activeObject.type === 'activeSelection') return
+
+    // 現在値は維持したまま参照だけ外す
+    if (activeObject.data?.tokenRefs?.[key]) {
+      const { [key]: _removed, ...restRefs } = activeObject.data.tokenRefs
+      activeObject.data.tokenRefs = restRefs
+    }
+    fabricCanvas.fire('object:modified', { target: activeObject })
+
+    if (selectedObjectProps?.tokenRefs?.[key]) {
+      const { [key]: _r, ...rest } = selectedObjectProps.tokenRefs
+      set({ selectedObjectProps: { ...selectedObjectProps, tokenRefs: rest } })
     }
   },
   moveSelectedObject: (direction, useNudge) => {

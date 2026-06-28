@@ -10,6 +10,7 @@ import {
 } from '@/lib/store'
 import { useKeyboardShortcuts } from '@/lib/useKeyboardShortcuts'
 import { convertColorForTheme } from '@/lib/colorUtils'
+import { resolveTokensOnCanvas } from '@/lib/tokens/tokenResolver'
 import ContextMenu from '@/components/ContextMenu'
 import SelectionToolbar, {
   type SelectionToolbarHandle,
@@ -61,6 +62,7 @@ export default function Canvas() {
     gridColor,
     gridOpacity,
     zoom,
+    tokensVersion,
   } = useCanvasStore()
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
@@ -427,10 +429,13 @@ export default function Canvas() {
         try {
           canvas.loadFromJSON(JSON.parse(currentPage.canvasData), () => {
             // loadFromJSON は保存時の背景色を復元するため、ここで現在のユーザー設定で上書き
-            const { canvasBackground: bg, theme: t } = useCanvasStore.getState()
+            const { canvasBackground: bg, theme: t, tokensData } = useCanvasStore.getState()
             canvas.setBackgroundColor(bg || (t === 'dark' ? DARK_CANVAS_BG : LIGHT_CANVAS_BG), () =>
               canvas.renderAll()
             )
+            // トークン参照を持つオブジェクトは保存時の色ではなく現在のトークン値で再解決する
+            // （リネーム/値編集を毎ロードで反映）。finishLoad() の saveHistory より前に実行。
+            resolveTokensOnCanvas(canvas, tokensData, t, t)
             finishLoad()
           })
         } catch (e) {
@@ -532,11 +537,19 @@ export default function Canvas() {
 
     canvas.getObjects().forEach((obj) => {
       const { baseTheme, baseFill, baseStroke } = obj.data || {}
+      const refs = obj.data?.tokenRefs
       if (baseTheme && baseTheme !== theme) {
-        if (obj.fill && typeof obj.fill === 'string' && obj.fill !== 'transparent') {
+        // トークン参照を持つ prop はテーマ追従（HSL変換）の対象外。
+        // モード=テーマで再解決エフェクトが値を当てるため、ここで変換するとレジストリ値からズレる。
+        if (!refs?.fill && obj.fill && typeof obj.fill === 'string' && obj.fill !== 'transparent') {
           obj.set('fill', convertColorForTheme(baseFill || obj.fill, theme))
         }
-        if (obj.stroke && typeof obj.stroke === 'string' && obj.stroke !== 'transparent') {
+        if (
+          !refs?.stroke &&
+          obj.stroke &&
+          typeof obj.stroke === 'string' &&
+          obj.stroke !== 'transparent'
+        ) {
           obj.set('stroke', convertColorForTheme(baseStroke || obj.stroke, theme))
         }
         obj.dirty = true
@@ -544,6 +557,18 @@ export default function Canvas() {
     })
     canvas.renderAll()
   }, [theme])
+
+  // トークン値の編集（tokensVersion）またはテーマ/モード切替（theme）で、バインド済みの
+  // プロパティを再解決してキャッシュ色を補正する。object:modified は発火させない（履歴/自動保存を汚さない）。
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+    // ページ読み込み中は loadFromJSON 側で解決済み。過渡的状態に触らない。
+    if (isLoadingPageRef.current) return
+    const { tokensData } = useCanvasStore.getState()
+    resolveTokensOnCanvas(canvas, tokensData, theme, theme)
+    canvas.requestRenderAll()
+  }, [tokensVersion, theme])
 
   // キャンバス右クリック: カーソル下のオブジェクトをヒットテストし、
   // 未選択ならそれを選択してからコンテキストメニューを開く（空白上でも開く＝ペースト用）

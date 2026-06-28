@@ -610,12 +610,14 @@ export const useCanvasEvents = ({
           fill: asColorString(selected.fill),
           stroke: asColorString(selected.stroke),
           strokeWidth: selected.strokeWidth,
+          fontSize: (selected as { fontSize?: number }).fontSize,
           left: selected.left,
           top: selected.top,
           width: selected.width! * (selected.scaleX || 1),
           height: selected.height! * (selected.scaleY || 1),
           opacity: selected.opacity,
           isArrow: selected.data?.type === 'arrow',
+          tokenRefs: selected.data?.tokenRefs,
         })
       } else {
         setSelectedObjectId(null)
@@ -632,12 +634,14 @@ export const useCanvasEvents = ({
           fill: asColorString(obj.fill),
           stroke: asColorString(obj.stroke),
           strokeWidth: obj.strokeWidth,
+          fontSize: (obj as { fontSize?: number }).fontSize,
           left: obj.left,
           top: obj.top,
           width: obj.width! * (obj.scaleX || 1),
           height: obj.height! * (obj.scaleY || 1),
           opacity: obj.opacity,
           isArrow: obj.data?.type === 'arrow',
+          tokenRefs: obj.data?.tokenRefs,
         })
       }
     }
