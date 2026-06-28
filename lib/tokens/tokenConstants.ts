@@ -49,6 +49,8 @@ export const TOKEN_LABELS = {
   bindToToken: 'トークン参照にする',
   unbind: '参照を解除',
   missingToken: '参照先のトークンが見つかりません',
+  exportDTCG: 'DTCG エクスポート',
+  importDTCG: 'DTCG インポート',
   newCollectionName: '新しいコレクション',
   newModeName: '新しいモード',
   newTokenName: 'new-token',
