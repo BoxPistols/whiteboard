@@ -12,6 +12,14 @@ declare module 'fabric' {
         stickyColor?: string // 付箋の背景色（自動反転判定等に利用）
         stickyId?: string // 付箋ペアを紐付ける識別子（bg と text で共有）
         stickyRole?: 'bg' | 'text' // 付箋パーツの役割
+        // デザイントークン参照（値はトークンID）。data は CANVAS_SERIALIZE_PROPS 経由で
+        // 保存/復元/Undo/エクスポートに round-trip するため、参照も自動的に永続化される
+        tokenRefs?: {
+          fill?: string
+          stroke?: string
+          strokeWidth?: string
+          fontSize?: string
+        }
       }
     }
     // fabric 5.2+ で Group に追加された `interactive` プロパティを型に含める

@@ -26,15 +26,17 @@ export default function Home() {
     setRightPanelWidth,
     loadSavedShortcuts,
     loadSavedNudgeAmount,
+    loadSavedTokens,
     initializePages,
   } = useCanvasStore()
 
-  // 保存されたショートカット設定、ナッジ設定を読み込み＆IndexedDBからページデータ復元
+  // 保存されたショートカット設定、ナッジ設定、デザイントークンを読み込み＆IndexedDBからページデータ復元
   useEffect(() => {
     loadSavedShortcuts()
     loadSavedNudgeAmount()
+    loadSavedTokens()
     initializePages()
-  }, [loadSavedShortcuts, loadSavedNudgeAmount, initializePages])
+  }, [loadSavedShortcuts, loadSavedNudgeAmount, loadSavedTokens, initializePages])
 
   const [isResizingLeft, setIsResizingLeft] = useState(false)
   const [isResizingRight, setIsResizingRight] = useState(false)
