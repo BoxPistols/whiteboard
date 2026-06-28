@@ -65,6 +65,7 @@ export default function Toolbar() {
     resetView,
     zoomToFit,
     setShowShortcutsModal,
+    setShowTokenManager,
     gridEnabled,
     toggleGrid,
     loadSavedGridSettings,
@@ -447,6 +448,25 @@ export default function Toolbar() {
               <rect x="14" y="3" width="7" height="7" />
               <rect x="3" y="14" width="7" height="7" />
               <rect x="14" y="14" width="7" height="7" />
+            </svg>
+          </button>
+          {/* デザイントークン管理ボタン */}
+          <button
+            onClick={() => setShowTokenManager(true)}
+            className="hidden md:flex p-2 md:p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors touch-manipulation"
+            title="デザイントークン"
+            aria-label="デザイントークンを管理"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="4" />
+              <path d="M12 3v18" />
             </svg>
           </button>
           {/* ショートカット/設定ボタン */}

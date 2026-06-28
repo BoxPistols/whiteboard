@@ -14,6 +14,9 @@ export interface TokensSlice {
   tokensData: TokensData
   // 変更のたびに +1。Canvas 側の再解決エフェクトのトリガーに使う（履歴/保存は汚さない）
   tokensVersion: number
+  // トークン管理モーダルの表示状態（showShortcutsModal と同様の UI フラグ）
+  showTokenManager: boolean
+  setShowTokenManager: (show: boolean) => void
   addCollection: (name: string) => void
   removeCollection: (id: string) => void
   renameCollection: (id: string, name: string) => void
@@ -63,6 +66,8 @@ export const createTokensSlice: StateCreator<CanvasStore, [], [], TokensSlice> =
   return {
     tokensData: createEmptyTokensData(),
     tokensVersion: 0,
+    showTokenManager: false,
+    setShowTokenManager: (show) => set({ showTokenManager: show }),
     addCollection: (name) => {
       const { tokensData } = get()
       const collection = {

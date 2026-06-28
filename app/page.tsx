@@ -6,6 +6,7 @@ import Toolbar from '@/components/Toolbar'
 import LayersPanel from '@/components/LayersPanel'
 import PropertiesPanel from '@/components/PropertiesPanel'
 import ShortcutsModal from '@/components/ShortcutsModal'
+import TokenManagerModal from '@/components/TokenManagerModal'
 import SaveIndicator from '@/components/SaveIndicator'
 import { useCanvasStore } from '@/lib/store'
 
@@ -136,6 +137,8 @@ export default function Home() {
 
       {/* ショートカット一覧モーダル */}
       <ShortcutsModal />
+      {/* デザイントークン管理モーダル */}
+      <TokenManagerModal />
       {/* 保存エラー通知 */}
       <SaveIndicator />
     </main>
