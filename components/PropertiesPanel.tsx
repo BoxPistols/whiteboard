@@ -6,6 +6,7 @@ import { useCanvasStore } from '@/lib/store'
 import ColorPalette from './ColorPalette'
 import NumberInput from './NumberInput'
 import HexColorInput from './HexColorInput'
+import TokenBindingButton from './TokenBindingButton'
 import { parseColor, hexToRgba } from '@/lib/colorUtils'
 
 export default function PropertiesPanel() {
@@ -104,6 +105,10 @@ export default function PropertiesPanel() {
                     value={fillColor.hex}
                     onChange={(hex) => handleColorChange('fill', hex)}
                   />
+                  <TokenBindingButton
+                    prop="fill"
+                    boundTokenId={selectedObjectProps.tokenRefs?.fill}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
@@ -155,6 +160,10 @@ export default function PropertiesPanel() {
                   value={strokeColor.hex}
                   onChange={(hex) => handleColorChange('stroke', hex)}
                 />
+                <TokenBindingButton
+                  prop="stroke"
+                  boundTokenId={selectedObjectProps.tokenRefs?.stroke}
+                />
               </div>
               <div>
                 <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
@@ -175,14 +184,39 @@ export default function PropertiesPanel() {
         )}
         {selectedObjectProps.strokeWidth !== undefined && (
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-0.5 px-1">
-              線の太さ
-            </label>
+            <div className="flex items-center justify-between mb-0.5 px-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                線の太さ
+              </label>
+              <TokenBindingButton
+                prop="strokeWidth"
+                boundTokenId={selectedObjectProps.tokenRefs?.strokeWidth}
+              />
+            </div>
             <NumberInput
               value={Math.round(selectedObjectProps.strokeWidth)}
               onValueChange={(v) => updateObjectProperty('strokeWidth', v)}
               min={0}
               max={20}
+            />
+          </div>
+        )}
+        {selectedObjectProps.fontSize !== undefined && (
+          <div>
+            <div className="flex items-center justify-between mb-0.5 px-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                文字サイズ
+              </label>
+              <TokenBindingButton
+                prop="fontSize"
+                boundTokenId={selectedObjectProps.tokenRefs?.fontSize}
+              />
+            </div>
+            <NumberInput
+              value={Math.round(selectedObjectProps.fontSize)}
+              onValueChange={(v) => updateObjectProperty('fontSize', v)}
+              min={1}
+              max={400}
             />
           </div>
         )}
