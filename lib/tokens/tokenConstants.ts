@@ -42,6 +42,7 @@ export const TOKEN_LABELS = {
   addToken: 'トークン追加',
   rename: '名前変更',
   remove: '削除',
+  close: '閉じる',
   name: '名前',
   type: '種別',
   value: '値',
