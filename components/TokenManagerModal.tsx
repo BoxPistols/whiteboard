@@ -5,6 +5,7 @@ import { useCanvasStore } from '@/lib/store'
 import { useModalA11y } from '@/lib/useModalA11y'
 import HexColorInput from './HexColorInput'
 import NumberInput from './NumberInput'
+import { exportToDTCG, importFromDTCG } from '@/lib/tokens/dtcg'
 import type { DesignToken, TokenType, ModeId, TokenValue } from '@/lib/tokens/tokenTypes'
 import {
   TOKEN_LABELS,
@@ -67,13 +68,41 @@ export default function TokenManagerModal() {
   const addToken = useCanvasStore((s) => s.addToken)
   const updateToken = useCanvasStore((s) => s.updateToken)
   const removeToken = useCanvasStore((s) => s.removeToken)
+  const setTokensData = useCanvasStore((s) => s.setTokensData)
 
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null)
   const [activeMode, setActiveMode] = useState<ModeId | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const panelRef = useRef<HTMLDivElement>(null)
   const close = useCallback(() => setShowTokenManager(false), [setShowTokenManager])
   useModalA11y(showTokenManager, close, panelRef)
+
+  // W3C DTCG として .tokens.json へエクスポート
+  const handleExport = () => {
+    const dtcg = exportToDTCG(tokensData)
+    const blob = new Blob([JSON.stringify(dtcg, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `whiteboard-${Date.now()}.tokens.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // DTCG ファイルを読み込み、レジストリを置き換える
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result))
+        setTokensData(importFromDTCG(parsed))
+      } catch (e) {
+        console.error('Failed to import DTCG tokens:', e)
+      }
+    }
+    reader.readAsText(file)
+  }
 
   // 選択中コレクション（未選択時は先頭）
   const collection = useMemo(() => {
@@ -312,7 +341,32 @@ export default function TokenManagerModal() {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-end">
+        <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+            >
+              {TOKEN_LABELS.exportDTCG}
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+            >
+              {TOKEN_LABELS.importDTCG}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) handleImportFile(file)
+                e.target.value = ''
+              }}
+            />
+          </div>
           <button
             onClick={close}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors font-medium"
